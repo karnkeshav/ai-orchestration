@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Cloud FinOps Executive Drill-Through Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            min-height: 100vh !important;
+            background-color: #090d16 !important;
+            color: #f1f5f9;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow-x: hidden;
+        }
+        .full-bleed {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        .card-bg {
+            background-color: #111827;
+            border: 1px solid #1f2937;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen full-bleed">
+
+    <!-- Edge-to-Edge Top Navigation Bar -->
+    <header class="w-full bg-slate-950 border-b border-slate-800 px-6 py-4 flex flex-wrap justify-between items-center sticky top-0 z-50">
+        <div class="flex items-center space-x-4">
+            <div class="h-10 w-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                <i class="fa-solid fa-chart-pie text-xl text-white"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    Multi-Cloud FinOps Executive Cost Dashboard
+                    <span class="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-semibold border border-blue-500/30">AWS + OCI Live</span>
+                </h1>
+                <p class="text-xs text-slate-400">AWS S3 CUR & OCI Object Storage Ingestion • Full-Bleed Interactive Drill-Down</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button onclick="toggleFullscreen()" class="px-3.5 py-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition shadow flex items-center gap-1.5">
+                <i class="fa-solid fa-expand"></i> <span>Toggle Fullscreen</span>
+            </button>
+            <button onclick="window.print()" class="px-3.5 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition border border-slate-700 flex items-center gap-1.5">
+                <i class="fa-solid fa-print"></i> <span>Print / PDF</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Full-Bleed Content -->
+    <main class="w-full flex-1 px-6 py-6 space-y-6 full-bleed">
+
+        <!-- 4 KPI Summary Cards (Full Width 4-Columns) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full">
+            <div class="card-bg p-5 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Multi-Cloud Spend</p>
+                        <h3 class="text-3xl font-extrabold text-white mt-1.5" id="totalSpend">$62.81</h3>
+                    </div>
+                    <div class="p-3 bg-blue-500/10 rounded-xl text-blue-400"><i class="fa-solid fa-wallet text-2xl"></i></div>
+                </div>
+                <p class="text-xs text-slate-400 mt-4"><i class="fa-solid fa-layer-group text-blue-400 mr-1.5"></i> 55 Unified Line Items</p>
+            </div>
+
+            <div class="card-bg p-5 rounded-xl border border-amber-500/40 shadow-sm flex flex-col justify-between cursor-pointer hover:border-amber-500 transition group" onclick="filterByProvider('AWS')">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-brands fa-aws text-base"></i> AWS Cloud Total (Higher)
+                        </p>
+                        <h3 class="text-3xl font-extrabold text-amber-400 mt-1.5" id="awsSpend">$59.15</h3>
+                    </div>
+                    <div class="p-3 bg-amber-500/10 rounded-xl text-amber-400 group-hover:scale-110 transition"><i class="fa-solid fa-arrow-trend-up text-2xl"></i></div>
+                </div>
+                <p class="text-xs text-amber-300 mt-4 flex items-center"><i class="fa-solid fa-hand-pointer mr-1.5"></i> 94.2% of Total • Click to Filter AWS</p>
+            </div>
+
+            <div class="card-bg p-5 rounded-xl border border-red-500/40 shadow-sm flex flex-col justify-between cursor-pointer hover:border-red-500 transition group" onclick="filterByProvider('OCI')">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-cubes text-base"></i> OCI Cloud Total
+                        </p>
+                        <h3 class="text-3xl font-extrabold text-red-400 mt-1.5" id="ociSpend">$3.66</h3>
+                    </div>
+                    <div class="p-3 bg-red-500/10 rounded-xl text-red-400 group-hover:scale-110 transition"><i class="fa-solid fa-tags text-2xl"></i></div>
+                </div>
+                <p class="text-xs text-red-300 mt-4 flex items-center"><i class="fa-solid fa-hand-pointer mr-1.5"></i> 5.8% of Total • Click to Filter OCI</p>
+            </div>
+
+            <div class="card-bg p-5 rounded-xl border border-purple-500/40 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-bold text-purple-400 uppercase tracking-wider">Top Single Cost Driver</p>
+                        <h3 class="text-2xl font-extrabold text-purple-300 mt-1.5">Amazon CloudFront</h3>
+                    </div>
+                    <div class="p-3 bg-purple-500/10 rounded-xl text-purple-400"><i class="fa-solid fa-bolt text-2xl"></i></div>
+                </div>
+                <p class="text-xs text-purple-300 mt-4"><i class="fa-solid fa-circle-exclamation mr-1.5"></i> $25.17 (40.1% of Total Spend)</p>
+            </div>
+        </div>
+
+        <!-- Filter & Drill-Through Hierarchy Controls (Full Width) -->
+        <div class="w-full flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-slate-900 border border-slate-800">
+            <div class="flex items-center space-x-3 flex-wrap gap-y-2">
+                <span class="text-slate-400 font-semibold text-xs uppercase tracking-wider"><i class="fa-solid fa-sitemap text-blue-400 mr-1.5"></i> Active Hierarchy:</span>
+                <button onclick="resetFilters()" class="px-3 py-1 rounded-lg bg-blue-600 text-white font-bold text-xs hover:bg-blue-500 transition">
+                    Show All (AWS + OCI)
+                </button>
+                <span id="drillBreadcrumb" class="text-blue-300 text-xs font-bold px-2"></span>
+            </div>
+            <div class="flex items-center space-x-3 flex-wrap gap-2">
+                <select id="providerSelect" onchange="filterByProvider(this.value)" class="bg-slate-800 text-xs font-medium border border-slate-700 rounded-lg px-3.5 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    <option value="ALL">All Providers (AWS + OCI)</option>
+                    <option value="AWS">AWS Only ($59.15 — Higher)</option>
+                    <option value="OCI">OCI Only ($3.66)</option>
+                </select>
+                <select id="categorySelect" onchange="filterByCategory(this.value)" class="bg-slate-800 text-xs font-medium border border-slate-700 rounded-lg px-3.5 py-2 text-slate-200 focus:outline-none focus:border-blue-500">
+                    <option value="ALL">All Categories</option>
+                    <option value="CDN">CDN ($25.17)</option>
+                    <option value="Containers">Containers ($19.89)</option>
+                    <option value="Compute">Compute ($4.75)</option>
+                    <option value="Storage">Storage ($7.76)</option>
+                    <option value="Database">Database ($2.99)</option>
+                    <option value="Cloud Services">Generative AI & Cloud Services ($2.25)</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 2 Side-by-Side Charts (Full Width Grid) -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+            <div class="card-bg p-6 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-amber-400"></i> Cloud Provider Spend Share
+                    </h4>
+                    <span class="text-xs text-slate-400 font-mono">Click slice to drill down</span>
+                </div>
+                <div class="w-full h-80 flex justify-center items-center relative">
+                    <canvas id="providerChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card-bg p-6 rounded-xl border border-slate-800 shadow-sm flex flex-col justify-between">
+                <div class="flex justify-between items-center mb-4">
+                    <h4 class="font-bold text-sm text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-bar text-blue-400"></i> Spend by Category (Ranked)
+                    </h4>
+                    <span class="text-xs text-slate-400 font-mono">Click bar to drill down</span>
+                </div>
+                <div class="w-full h-80 relative">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Detailed Table (Full Width Edge-to-Edge) -->
+        <div class="card-bg p-6 rounded-xl border border-slate-800 shadow-sm space-y-4 w-full">
+            <div class="flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h4 class="font-bold text-base text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-table-list text-emerald-400"></i> All 55 Multi-Cloud Line Items (Drill-Down Grid)
+                    </h4>
+                    <p class="text-xs text-slate-400 mt-0.5">Click any row or use search to isolate specific resource IDs, usage metrics, and costs</p>
+                </div>
+                <div class="w-full sm:w-80">
+                    <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="🔍 Search service, region, category, description..." class="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg px-4 py-2.5 text-slate-100 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <div class="w-full overflow-x-auto rounded-xl border border-slate-800">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead>
+                        <tr class="border-b border-slate-800 text-slate-400 bg-slate-950 font-bold">
+                            <th class="py-3 px-4">Provider</th>
+                            <th class="py-3 px-4">Service Name</th>
+                            <th class="py-3 px-4">Category</th>
+                            <th class="py-3 px-4">Usage Amount</th>
+                            <th class="py-3 px-4">Region</th>
+                            <th class="py-3 px-4 text-right">Cost (USD)</th>
+                            <th class="py-3 px-4 text-right">% of Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="costTableBody" class="divide-y divide-slate-800/60">
+                        <!-- Rows dynamically rendered -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const rawData = [{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-13","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":47.52,"UsageUnit":"Hrs","CostUSD":4.752,"Region":"ap-south-1","ResourceId":"resource-00043","BusinessUnit":"Marketing","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-15","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":43.64,"UsageUnit":"Hrs","CostUSD":4.364,"Region":"ap-south-1","ResourceId":"resource-00015","BusinessUnit":"Finance","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-25","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":47.06,"UsageUnit":"GB","CostUSD":4.0001,"Region":"ap-south-1","ResourceId":"resource-00025","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-20","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":43.19,"UsageUnit":"GB","CostUSD":3.6711,"Region":"ap-south-1","ResourceId":"resource-00020","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-16","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":38.58,"UsageUnit":"GB","CostUSD":3.2793,"Region":"ap-south-1","ResourceId":"resource-00016","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-17","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":31.05,"UsageUnit":"GB","CostUSD":2.6393,"Region":"ap-south-1","ResourceId":"resource-00047","BusinessUnit":"Finance","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-11","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":25.52,"UsageUnit":"Hrs","CostUSD":2.552,"Region":"ap-south-1","ResourceId":"resource-00041","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-17","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":25.02,"UsageUnit":"Hrs","CostUSD":2.502,"Region":"ap-south-1","ResourceId":"resource-00017","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-07","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":27.2,"UsageUnit":"GB","CostUSD":2.312,"Region":"ap-south-1","ResourceId":"resource-00037","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"OCI","BillingPeriod":"2026-08-01","UsageDate":"2026-08-01","ServiceName":"OCI GENERATIVE_AI","ServiceCategory":"Cloud Services","LineItemDescription":"Generative AI - Chat Model Inference (Cohere Command)","UsageAmount":1500.0,"UsageUnit":"TOKENS_1K","CostUSD":2.25,"Region":"ap-hyderabad-1","ResourceId":null,"BusinessUnit":"root","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-12","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":25.16,"UsageUnit":"GB","CostUSD":2.1386,"Region":"ap-south-1","ResourceId":"resource-00042","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-08","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":23.82,"UsageUnit":"GB","CostUSD":2.0247,"Region":"ap-south-1","ResourceId":"resource-00038","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-20","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":19.1,"UsageUnit":"Hrs","CostUSD":1.91,"Region":"ap-south-1","ResourceId":"resource-00050","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-08","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":19.07,"UsageUnit":"Hrs","CostUSD":1.907,"Region":"ap-south-1","ResourceId":"resource-00008","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-19","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":37.08,"UsageUnit":"Hrs","CostUSD":1.5425,"Region":"ap-south-1","ResourceId":"resource-00019","BusinessUnit":"Engineering","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-06","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":37.01,"UsageUnit":"Hrs","CostUSD":1.5396,"Region":"ap-south-1","ResourceId":"resource-00036","BusinessUnit":"Finance","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-24","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":16.62,"UsageUnit":"GB","CostUSD":1.4127,"Region":"ap-south-1","ResourceId":"resource-00024","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-12","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":15.05,"UsageUnit":"GB","CostUSD":1.2793,"Region":"ap-south-1","ResourceId":"resource-00012","BusinessUnit":"Engineering","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-02","ServiceName":"AmazonRDS","ServiceCategory":"Database","LineItemDescription":"AmazonRDS usage","UsageAmount":39.86,"UsageUnit":"Hrs","CostUSD":1.2755,"Region":"ap-south-1","ResourceId":"resource-00002","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"OCI","BillingPeriod":"2026-08-01","UsageDate":"2026-08-01","ServiceName":"OCI BLOCK_STORAGE","ServiceCategory":"Storage","LineItemDescription":"Block Volume - Balanced Performance","UsageAmount":50.0,"UsageUnit":"GB_MONTH","CostUSD":1.275,"Region":"ap-hyderabad-1","ResourceId":"ocid1.volume.oc1.ap-hyderabad-1.exampleuniqueID","BusinessUnit":"root","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-07","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":12.11,"UsageUnit":"Hrs","CostUSD":1.211,"Region":"ap-south-1","ResourceId":"resource-00007","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-28","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":48.05,"UsageUnit":"GB-Mo","CostUSD":1.1051,"Region":"ap-south-1","ResourceId":"resource-00028","BusinessUnit":"Finance","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-05","ServiceName":"AmazonRDS","ServiceCategory":"Database","LineItemDescription":"AmazonRDS usage","UsageAmount":33.48,"UsageUnit":"Hrs","CostUSD":1.0714,"Region":"ap-south-1","ResourceId":"resource-00005","BusinessUnit":"Marketing","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-06","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":11.76,"UsageUnit":"GB","CostUSD":0.9996,"Region":"ap-south-1","ResourceId":"resource-00006","BusinessUnit":"Engineering","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-27","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":22.3,"UsageUnit":"Hrs","CostUSD":0.9277,"Region":"ap-south-1","ResourceId":"resource-00027","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-22","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":9.43,"UsageUnit":"GB","CostUSD":0.8015,"Region":"ap-south-1","ResourceId":"resource-00022","BusinessUnit":"Marketing","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-13","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":33.49,"UsageUnit":"GB-Mo","CostUSD":0.7703,"Region":"ap-south-1","ResourceId":"resource-00013","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-02","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":32.47,"UsageUnit":"GB-Mo","CostUSD":0.7468,"Region":"ap-south-1","ResourceId":"resource-00032","BusinessUnit":"Finance","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-03","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":30.96,"UsageUnit":"GB-Mo","CostUSD":0.7121,"Region":"ap-south-1","ResourceId":"resource-00003","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-01","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":30.6,"UsageUnit":"GB-Mo","CostUSD":0.7038,"Region":"ap-south-1","ResourceId":"resource-00001","BusinessUnit":"Marketing","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-16","ServiceName":"AmazonEKS","ServiceCategory":"Containers","LineItemDescription":"AmazonEKS usage","UsageAmount":6.92,"UsageUnit":"Hrs","CostUSD":0.692,"Region":"ap-south-1","ResourceId":"resource-00046","BusinessUnit":"Finance","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-23","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":28.3,"UsageUnit":"GB-Mo","CostUSD":0.6509,"Region":"ap-south-1","ResourceId":"resource-00023","BusinessUnit":"Marketing","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-14","ServiceName":"AmazonCloudFront","ServiceCategory":"CDN","LineItemDescription":"AmazonCloudFront usage","UsageAmount":7.23,"UsageUnit":"GB","CostUSD":0.6146,"Region":"ap-south-1","ResourceId":"resource-00044","BusinessUnit":"Marketing","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-21","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":24.67,"UsageUnit":"GB-Mo","CostUSD":0.5674,"Region":"ap-south-1","ResourceId":"resource-00021","BusinessUnit":"Engineering","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-30","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":22.39,"UsageUnit":"GB-Mo","CostUSD":0.515,"Region":"ap-south-1","ResourceId":"resource-00030","BusinessUnit":"Engineering","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-29","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":9.81,"UsageUnit":"Hrs","CostUSD":0.4081,"Region":"ap-south-1","ResourceId":"resource-00029","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-18","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":16.3,"UsageUnit":"GB-Mo","CostUSD":0.3749,"Region":"ap-south-1","ResourceId":"resource-00048","BusinessUnit":"Finance","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-15","ServiceName":"AmazonS3","ServiceCategory":"Storage","LineItemDescription":"AmazonS3 usage","UsageAmount":14.87,"UsageUnit":"GB-Mo","CostUSD":0.342,"Region":"ap-south-1","ResourceId":"resource-00045","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-10","ServiceName":"AmazonRDS","ServiceCategory":"Database","LineItemDescription":"AmazonRDS usage","UsageAmount":10.64,"UsageUnit":"Hrs","CostUSD":0.3405,"Region":"ap-south-1","ResourceId":"resource-00040","BusinessUnit":"Marketing","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-19","ServiceName":"AmazonRDS","ServiceCategory":"Database","LineItemDescription":"AmazonRDS usage","UsageAmount":7.45,"UsageUnit":"Hrs","CostUSD":0.2384,"Region":"ap-south-1","ResourceId":"resource-00049","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-05","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":3.27,"UsageUnit":"Hrs","CostUSD":0.136,"Region":"ap-south-1","ResourceId":"resource-00035","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"OCI","BillingPeriod":"2026-08-01","UsageDate":"2026-08-01","ServiceName":"OCI COMPUTE","ServiceCategory":"Cloud Services","LineItemDescription":"VM.Standard.E5.Flex - Memory","UsageAmount":16.0,"UsageUnit":"GB_HOUR","CostUSD":0.096,"Region":"ap-hyderabad-1","ResourceId":"ocid1.instance.oc1.ap-hyderabad-1.exampleuniqueID","BusinessUnit":"root","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-01","ServiceName":"AmazonRDS","ServiceCategory":"Database","LineItemDescription":"AmazonRDS usage","UsageAmount":1.98,"UsageUnit":"Hrs","CostUSD":0.0634,"Region":"ap-south-1","ResourceId":"resource-00031","BusinessUnit":"Engineering","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-18","ServiceName":"AmazonEC2","ServiceCategory":"Compute","LineItemDescription":"AmazonEC2 usage","UsageAmount":1.28,"UsageUnit":"Hrs","CostUSD":0.0532,"Region":"ap-south-1","ResourceId":"resource-00018","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"OCI","BillingPeriod":"2026-08-01","UsageDate":"2026-08-01","ServiceName":"OCI COMPUTE","ServiceCategory":"Cloud Services","LineItemDescription":"VM.Standard.E5.Flex - OCPU","UsageAmount":1.0,"UsageUnit":"OCPU_HOUR","CostUSD":0.0392,"Region":"ap-hyderabad-1","ResourceId":"ocid1.instance.oc1.ap-hyderabad-1.exampleuniqueID","BusinessUnit":"root","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-04","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":47.59,"UsageUnit":"GB-Second","CostUSD":0.0008,"Region":"ap-south-1","ResourceId":"resource-00004","BusinessUnit":"Marketing","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-09","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":46.0,"UsageUnit":"GB-Second","CostUSD":0.0008,"Region":"ap-south-1","ResourceId":"resource-00039","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-04","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":45.79,"UsageUnit":"GB-Second","CostUSD":0.0008,"Region":"ap-south-1","ResourceId":"resource-00034","BusinessUnit":"Finance","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-11","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":41.04,"UsageUnit":"GB-Second","CostUSD":0.0007,"Region":"ap-south-1","ResourceId":"resource-00011","BusinessUnit":"Marketing","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-26","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":28.84,"UsageUnit":"GB-Second","CostUSD":0.0005,"Region":"ap-south-1","ResourceId":"resource-00026","BusinessUnit":"Engineering","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-14","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":21.91,"UsageUnit":"GB-Second","CostUSD":0.0004,"Region":"ap-south-1","ResourceId":"resource-00014","BusinessUnit":"Marketing","Environment":"Development"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-09","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":17.01,"UsageUnit":"GB-Second","CostUSD":0.0003,"Region":"ap-south-1","ResourceId":"resource-00009","BusinessUnit":"Finance","Environment":"Production"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-10","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":14.27,"UsageUnit":"GB-Second","CostUSD":0.0002,"Region":"ap-south-1","ResourceId":"resource-00010","BusinessUnit":"Marketing","Environment":"QA"},{"CloudProvider":"AWS","BillingPeriod":"2026-06-01","UsageDate":"2026-06-03","ServiceName":"AWSLambda","ServiceCategory":"Serverless","LineItemDescription":"AWSLambda usage","UsageAmount":9.33,"UsageUnit":"GB-Second","CostUSD":0.0002,"Region":"ap-south-1","ResourceId":"resource-00033","BusinessUnit":"Engineering","Environment":"QA"},{"CloudProvider":"OCI","BillingPeriod":"2026-08-01","UsageDate":"2026-08-01","ServiceName":"OCI OBJECT_STORAGE","ServiceCategory":"Storage","LineItemDescription":"Object Storage - Standard","UsageAmount":0.002,"UsageUnit":"GB_MONTH","CostUSD":0.0001,"Region":"ap-hyderabad-1","ResourceId":null,"BusinessUnit":"root","Environment":"Production"}];
+        let currentProvider = "ALL";
+        let currentCategory = "ALL";
+
+        let providerChartInstance = null;
+        let categoryChartInstance = null;
+
+        function initDashboard() {
+            renderDashboard();
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        }
+
+        function getFilteredData() {
+            return rawData.filter(d => {
+                const matchProvider = (currentProvider === "ALL" || d.CloudProvider === currentProvider);
+                const matchCategory = (currentCategory === "ALL" || d.ServiceCategory === currentCategory);
+                return matchProvider && matchCategory;
+            });
+        }
+
+        function renderDashboard() {
+            const filtered = getFilteredData();
+            const total = filtered.reduce((acc, cur) => acc + (cur.CostUSD || 0), 0);
+            
+            document.getElementById("totalSpend").innerText = "$" + total.toFixed(2);
+
+            let bread = "";
+            if (currentProvider !== "ALL") bread += ` > Provider: ${currentProvider}`;
+            if (currentCategory !== "ALL") bread += ` > Category: ${currentCategory}`;
+            document.getElementById("drillBreadcrumb").innerText = bread;
+
+            renderTable(filtered, total);
+            renderCharts(filtered);
+        }
+
+        function renderTable(data, total) {
+            const tbody = document.getElementById("costTableBody");
+            tbody.innerHTML = "";
+            
+            data.sort((a, b) => (b.CostUSD || 0) - (a.CostUSD || 0));
+
+            data.forEach((row) => {
+                const tr = document.createElement("tr");
+                tr.className = "hover:bg-slate-800/50 transition cursor-pointer";
+                
+                const providerBadge = row.CloudProvider === "AWS" 
+                    ? `<span class="px-2.5 py-0.5 rounded text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">AWS</span>`
+                    : `<span class="px-2.5 py-0.5 rounded text-[11px] font-bold bg-red-500/10 text-red-400 border border-red-500/20">OCI</span>`;
+                
+                const share = total > 0 ? ((row.CostUSD / total) * 100).toFixed(1) : "0.0";
+
+                tr.innerHTML = `
+                    <td class="py-3 px-4">${providerBadge}</td>
+                    <td class="py-3 px-4 font-semibold text-slate-100">${row.ServiceName}</td>
+                    <td class="py-3 px-4 text-slate-400">${row.ServiceCategory}</td>
+                    <td class="py-3 px-4 text-slate-400">${row.UsageAmount.toFixed(2)} ${row.UsageUnit}</td>
+                    <td class="py-3 px-4 text-slate-400">${row.Region}</td>
+                    <td class="py-3 px-4 text-right font-bold text-white">$${row.CostUSD.toFixed(2)}</td>
+                    <td class="py-3 px-4 text-right text-slate-400 font-mono">${share}%</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCharts(data) {
+            const awsSum = data.filter(d => d.CloudProvider === "AWS").reduce((a, c) => a + c.CostUSD, 0);
+            const ociSum = data.filter(d => d.CloudProvider === "OCI").reduce((a, c) => a + c.CostUSD, 0);
+
+            if (providerChartInstance) providerChartInstance.destroy();
+            const ctxProv = document.getElementById("providerChart").getContext("2d");
+            providerChartInstance = new Chart(ctxProv, {
+                type: "doughnut",
+                data: {
+                    labels: ["AWS ($" + awsSum.toFixed(2) + ")", "OCI ($" + ociSum.toFixed(2) + ")"],
+                    datasets: [{
+                        data: [awsSum, ociSum],
+                        backgroundColor: ["#f59e0b", "#ef4444"],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: "bottom", labels: { color: "#e2e8f0", font: { size: 12 } } }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            filterByProvider(idx === 0 ? "AWS" : "OCI");
+                        }
+                    }
+                }
+            });
+
+            const catMap = {};
+            data.forEach(d => {
+                catMap[d.ServiceCategory] = (catMap[d.ServiceCategory] || 0) + d.CostUSD;
+            });
+
+            const catLabels = Object.keys(catMap).sort((a, b) => catMap[b] - catMap[a]);
+            const catValues = catLabels.map(k => catMap[k]);
+
+            if (categoryChartInstance) categoryChartInstance.destroy();
+            const ctxCat = document.getElementById("categoryChart").getContext("2d");
+            categoryChartInstance = new Chart(ctxCat, {
+                type: "bar",
+                data: {
+                    labels: catLabels,
+                    datasets: [{
+                        label: "Spend (USD)",
+                        data: catValues,
+                        backgroundColor: "#3b82f6",
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { ticks: { color: "#94a3b8" }, grid: { color: "#1e293b" } },
+                        x: { ticks: { color: "#94a3b8" }, grid: { display: false } }
+                    },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            filterByCategory(catLabels[idx]);
+                        }
+                    }
+                }
+            });
+        }
+
+        function filterByProvider(prov) {
+            currentProvider = prov;
+            document.getElementById("providerSelect").value = prov;
+            renderDashboard();
+        }
+
+        function filterByCategory(cat) {
+            currentCategory = cat;
+            document.getElementById("categorySelect").value = cat;
+            renderDashboard();
+        }
+
+        function resetFilters() {
+            currentProvider = "ALL";
+            currentCategory = "ALL";
+            document.getElementById("providerSelect").value = "ALL";
+            document.getElementById("categorySelect").value = "ALL";
+            renderDashboard();
+        }
+
+        function filterTable() {
+            const term = document.getElementById("searchInput").value.toLowerCase();
+            const rows = document.querySelectorAll("#costTableBody tr");
+            rows.forEach(r => {
+                r.style.display = r.innerText.toLowerCase().includes(term) ? "" : "none";
+            });
+        }
+
+        window.onload = initDashboard;
+    </script>
+</body>
+</html>

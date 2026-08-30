@@ -1,0 +1,23 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+.env.*
+*.key
+*.pem
+*.token
+*.credentials
+config.json
+credentials.json
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# System
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

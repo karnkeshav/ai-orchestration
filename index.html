@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VidhiDesk AI Studio | Autonomous Cloud & Media Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #090d16;
+      --bg-secondary: #0f172a;
+      --bg-card: #131d35;
+      --bg-glass: rgba(19, 29, 53, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(99, 102, 241, 0.4);
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-main: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15), transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.12), transparent 40%);
+    }
+
+    /* Top Navbar */
+    header {
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-stats {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      color: #a5b4fc;
+      margin-bottom: 1.25rem;
+      font-weight: 600;
+    }
+
+    .hero h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Main Action Hub / Search Box */
+    .command-hub {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .prompt-box-wrapper {
+      position: relative;
+      background: var(--bg-card);
+      border: 2px solid var(--border-active);
+      border-radius: 16px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .prompt-box-wrapper:focus-within {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 25px rgba(99, 102, 241, 0.25);
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      min-height: 110px;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: var(--font-main);
+      font-size: 1.05rem;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+    }
+
+    .prompt-textarea::placeholder {
+      color: var(--text-dim);
+    }
+
+    .prompt-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .prompt-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 1.75rem;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: transform 0.15s ease, filter 0.2s ease;
+    }
+
+    .btn-action:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+    }
+
+    .btn-action:active {
+      transform: translateY(0);
+    }
+
+    /* Template Cards Grid */
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-main);
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .card:hover {
+      border-color: var(--border-active);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+    }
+
+    .icon-video { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+    .icon-finops { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+    .icon-cloud { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+    .icon-dash { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent-indigo);
+    }
+
+    /* Output Gallery / Executed Showcase */
+    .showcase {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+
+    .showcase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .artifact-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .artifact-media {
+      width: 100%;
+      height: 180px;
+      background: #000;
+      position: relative;
+    }
+
+    .artifact-media video, .artifact-media iframe {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border: none;
+    }
+
+    .artifact-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .artifact-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .artifact-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--accent-indigo);
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #1e293b;
+      border: 1px solid var(--accent-emerald);
+      color: #fff;
+      padding: 0.85rem 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header>
+    <div class="brand">
+      <span>VidhiDesk AI</span>
+      <span class="brand-badge">Enterprise Studio</span>
+    </div>
+    <div class="nav-stats">
+      <span><span class="status-dot"></span> Autonomous Core Online</span>
+      <span>WSL2 & Windows Native</span>
+    </div>
+  </header>
+
+  <!-- Main App -->
+  <main>
+    
+    <!-- Hero Header -->
+    <section class="hero">
+      <div class="hero-pill">✨ Autonomous Multi-Cloud & Generative AI Studio</div>
+      <h1>Execute Any AI Mission in One Click</h1>
+      <p>Select any autonomous workflow below or enter your directive. All background commands, APIs, and pipelines execute seamlessly behind the scenes.</p>
+    </section>
+
+    <!-- Main Prompt Input Box -->
+    <section class="command-hub">
+      <div class="prompt-box-wrapper">
+        <textarea id="promptText" class="prompt-textarea" placeholder="Type your directive here or click any template below (e.g. Build multi-cloud FinOps report, generate 3D Pixar animated video, launch OCI Always-Free instance)..."></textarea>
+        <div class="prompt-footer">
+          <div class="prompt-tags">
+            <span class="tag">⚡ Zero-Code Internal Plumb</span>
+            <span class="tag">🔒 White-Labeled Front</span>
+            <span class="tag">🚀 Real-Time Execution</span>
+          </div>
+          <button class="btn-action" onclick="copyAndSubmitPrompt()">
+            <span>📋 Copy Directive</span>
+            <span>➔</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Quick Preset Cards -->
+    <section>
+      <div class="section-title">
+        <span>⚡</span>
+        <span>Instant Workflow Presets (Click to Load)</span>
+      </div>
+      <div class="cards-grid">
+        
+        <!-- Preset 1: 3D Pixar Video -->
+        <div class="card" onclick="loadPrompt('3d-pixar')">
+          <div class="card-top">
+            <div class="card-icon icon-video">🎬</div>
+            <div>
+              <div class="card-title">3D Pixar Story Animation</div>
+              <div class="card-desc">Brother-Sister departure story with Hindi voiceover dialogues & emotional music</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>65s Full HD • Pixar 3D</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Preset 2: FinOps Power BI -->
+        <div class="card" onclick="loadPrompt('finops-powerbi')">
+          <div class="card-top">
+            <div class="card-icon icon-finops">📊</div>
+            <div>
+              <div class="card-title">AWS + OCI FinOps Ingestion</div>
+              <div class="card-desc">Auto-pull S3 CUR + OCI Telemetry, normalize spend, and stream to Power BI</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Multi-Cloud • Power BI API</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Preset 3: FinOps Mystery Video -->
+        <div class="card" onclick="loadPrompt('finops-video')">
+          <div class="card-top">
+            <div class="card-icon icon-dash">🕵️</div>
+            <div>
+              <div class="card-title">FinOps Mystery 60s Video</div>
+              <div class="card-desc">Tech-noir mystery trailer showing multi-cloud spend mystery solved with AI</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>60s 1080p • Cinematic</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Preset 4: OCI Ampere Launcher -->
+        <div class="card" onclick="loadPrompt('oci-ampere')">
+          <div class="card-top">
+            <div class="card-icon icon-cloud">☁️</div>
+            <div>
+              <div class="card-title">OCI Always-Free Ampere</div>
+              <div class="card-desc">Auto-retry loop to capture 4 OCPU 24GB ARM instance when capacity opens</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Cloud Infra • Auto-Retry</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Executive Output Hub (Finished Artifacts Gallery) -->
+    <section class="showcase">
+      <div class="showcase-header">
+        <div class="section-title" style="margin-bottom: 0;">
+          <span>💎</span>
+          <span>Live Executed Deliverables (Ready to Watch & View)</span>
+        </div>
+      </div>
+      
+      <div class="showcase-grid">
+        
+        <!-- Video 1: Pixar 3D Animation -->
+        <div class="artifact-card">
+          <div class="artifact-media">
+            <video controls poster="">
+              <source src="./Brother_Sister_Pixar_Animation_65s.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">🎬 3D Pixar Brother-Sister Emotional Story (65s)</div>
+            <div class="artifact-meta">
+              <span>Full HD 1080p</span> • <span>Hindi Voices</span> • <span>Disney/Pixar 3D</span>
+            </div>
+            <a href="./Brother_Sister_Pixar_Animation_65s.mp4" download class="btn-outline">
+              ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+
+        <!-- Video 2: FinOps Mystery Video -->
+        <div class="artifact-card">
+          <div class="artifact-media">
+            <video controls>
+              <source src="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">🕵️ FinOps Multi-Cloud Mystery Solved (60s)</div>
+            <div class="artifact-meta">
+              <span>Full HD 1080p</span> • <span>Tech-Noir Mystery</span> • <span>Voiceover</span>
+            </div>
+            <a href="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" download class="btn-outline">
+              ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+
+        <!-- Artifact 3: Drill-Through HTML Dashboard -->
+        <div class="artifact-card">
+          <div class="artifact-media" style="background: #0f172a; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 3rem;">📊</span>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">📊 MultiCloud FinOps Drill-Through Dashboard</div>
+            <div class="artifact-meta">
+              <span>Interactive HTML</span> • <span>Chart.js</span> • <span>Edge-to-Edge</span>
+            </div>
+            <a href="./MultiCloud_FinOps_DrillThrough_Dashboard.html" target="_blank" class="btn-outline">
+              👁️ Open Full Dashboard
+            </a>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast">✓ Directive copied to clipboard! Paste directly into your AI text box.</div>
+
+  <script>
+    const prompts = {
+      '3d-pixar': "Generate a 3D Pixar/Disney style animated emotional story video of a brother and sister departing. Little brother starts joyfully yelling \"Didi aa gayi\" with high energy, then realizes married sister is leaving today itself. Didi hugs him warmly, wipes his tears with a chocolate promise. End with tearful smile waving goodbye saying \"Didi... jaldi milengey!\". Include full Hindi voiceovers, Indian classical flute melody, and Full HD animation.",
+      'finops-powerbi': "Fetch AWS CUR report from S3 bucket and OCI usage telemetry from Object Storage bucket, normalize all multi-cloud spend into a unified schema, and stream directly into Power BI Push Dataset \"MultiCloud_FinOps_Costs\" for real-time spend analytics.",
+      'finops-video': "Create a 60-second trending tech-mystery animated video showing multi-cloud FinOps spend mystery between AWS and OCI solved by AI in minutes, pushing data to Power BI with executive dashboard reveal.",
+      'oci-ampere': "Continuously attempt to provision an Always-Free OCI Ampere VM.Standard.A1.Flex compute instance (4 OCPUs, 24GB RAM) with exponential backoff until capacity opens in the Hyderabad region."
+    };
+
+    function loadPrompt(key) {
+      const textarea = document.getElementById("promptText");
+      textarea.value = prompts[key] || "";
+      textarea.focus();
+      showToast("✓ Preset loaded into text box!");
+    }
+
+    function copyAndSubmitPrompt() {
+      const textarea = document.getElementById("promptText");
+      if (!textarea.value.trim()) {
+        showToast("⚠️ Please select a template or enter a prompt first!");
+        return;
+      }
+      navigator.clipboard.writeText(textarea.value).then(() => {
+        showToast("✓ Directive copied to clipboard! Ready to paste.");
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.innerText = msg;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3000);
+    }
+  </script>
+</body>
+</html>

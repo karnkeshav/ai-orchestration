@@ -1,0 +1,8 @@
+version: "3.8"
+services:
+  ai-orchestration:
+    build: .
+    container_name: ai_orchestration_studio
+    restart: always
+    ports:
+      - "80:80"
