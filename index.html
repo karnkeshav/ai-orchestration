@@ -573,10 +573,10 @@
   <header>
     <div class="brand">
       <span>AI Orchestration Studio</span>
-      <span class="brand-badge">Live Core</span>
+      <span class="brand-badge">Cloud Engine</span>
     </div>
     <div class="nav-stats">
-      <span id="backendBadge"><span class="status-dot"></span> CLI Engine Online (:8000)</span>
+      <span id="backendBadge"><span class="status-dot"></span> OCI Always-Free Cloud Online</span>
       <span>AWS • Azure • GCP • OCI • Local</span>
     </div>
   </header>
@@ -586,9 +586,9 @@
     
     <!-- Hero Header -->
     <section class="hero">
-      <div class="hero-pill">✨ Direct CLI Execution & Autonomous Multi-Cloud Engine</div>
+      <div class="hero-pill">✨ Cloud-Native Autonomous Execution (Zero Localhost)</div>
       <h1>Execute Any AI Mission in One Click</h1>
-      <p>Type your directive or click any preset below and hit <strong>Enter</strong>. The engine executes the autonomous pipeline and streams live status in real time.</p>
+      <p>Type your directive or click any preset below and hit <strong>Enter</strong>. Directives execute directly on your secure OCI Cloud instance in Hyderabad.</p>
     </section>
 
     <!-- Main Prompt Input Box -->
@@ -597,7 +597,7 @@
         <textarea id="promptText" class="prompt-textarea" placeholder="Ask a question or type a directive and hit Enter (e.g. how many instances i have on aws, generate 3D Pixar animation, ingest multi-cloud FinOps to Power BI)..."></textarea>
         <div class="prompt-footer">
           <div class="prompt-tags">
-            <span class="tag">⚡ Direct CLI Execution</span>
+            <span class="tag">☁️ OCI Cloud-Native</span>
             <span class="tag">🔒 100% White-Labeled</span>
             <span class="tag">🚀 Press [Enter] to Execute</span>
           </div>
@@ -613,12 +613,12 @@
         <div class="console-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
             <span class="console-spinner" id="consoleSpinner"></span>
-            <span id="consoleStatusText">⚡ Processing Mission in Autonomous Engine...</span>
+            <span id="consoleStatusText">⚡ Executing on OCI Cloud Engine...</span>
           </div>
-          <span class="tag" id="taskTag">TASK #LIVE</span>
+          <span class="tag" id="taskTag">OCI #LIVE</span>
         </div>
         <div class="console-logs" id="consoleLogs">
-          <div class="console-log-item">[00:00] Initializing autonomous execution pipeline...</div>
+          <div class="console-log-item">[00:00] Dispatching directive to OCI Cloud VM...</div>
         </div>
 
         <!-- Executive Answer Box -->
@@ -844,9 +844,12 @@
   </main>
 
   <!-- Toast Notification -->
-  <div id="toast">✓ Directive executing in CLI Engine...</div>
+  <div id="toast">✓ Directive executing on OCI Cloud Engine...</div>
 
   <script>
+    // Live Cloud HTTPS Endpoint on OCI Always-Free VM
+    const CLOUD_BACKEND_URL = "https://burst-village-partner-disclaimers.trycloudflare.com";
+
     const prompts = {
       'media-pixar': "Generate a 3D Pixar/Disney style animated emotional story video of a brother and sister departing. Little brother starts joyfully yelling \"Didi aa gayi\" with high energy, then realizes married sister is leaving today itself. Didi hugs him warmly, wipes his tears with a chocolate promise. End with tearful smile waving goodbye saying \"Didi... jaldi milengey!\". Include full Hindi voiceovers, Indian classical flute melody, and Full HD animation.",
       'finops-powerbi': "Fetch AWS CUR report from S3 bucket and OCI usage telemetry from Object Storage bucket, normalize all multi-cloud spend into a unified schema, and stream directly into Power BI Push Dataset \"MultiCloud_FinOps_Costs\" for real-time spend analytics.",
@@ -893,28 +896,28 @@
       logsBox.innerHTML = "";
       answerBox.style.display = "none";
       answerContent.innerText = "";
-      statusText.innerText = "⚡ Processing Mission in Autonomous Engine...";
+      statusText.innerText = "⚡ Executing on OCI Cloud Engine...";
       statusText.style.color = "var(--accent-cyan)";
       document.getElementById("consoleSpinner").style.display = "inline-block";
       btn.disabled = true;
       btn.style.opacity = "0.6";
 
-      showToast("🚀 Mission sent to CLI Execution Engine!");
+      showToast("🚀 Directive dispatched to OCI Cloud Backend!");
 
       try {
-        const resp = await fetch("http://localhost:8000/api/execute", {
+        const resp = await fetch(CLOUD_BACKEND_URL + "/api/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ prompt: prompt, category: "general" })
         });
 
-        if (!resp.ok) throw new Error("Server bridge not reachable");
+        if (!resp.ok) throw new Error("Cloud backend not reachable");
         const data = await resp.json();
         const taskId = data.task_id;
         document.getElementById("taskTag").innerText = "TASK #" + taskId.toUpperCase();
 
-        // Listen to live Server-Sent Events stream
-        const eventSource = new EventSource("http://localhost:8000/api/stream/" + taskId);
+        // Listen to live Server-Sent Events stream from Cloud HTTPS
+        const eventSource = new EventSource(CLOUD_BACKEND_URL + "/api/stream/" + taskId);
 
         eventSource.onmessage = function(event) {
           const payload = JSON.parse(event.data);
@@ -938,7 +941,7 @@
             document.getElementById("consoleSpinner").style.display = "none";
             btn.disabled = false;
             btn.style.opacity = "1";
-            showToast("💎 Mission completed successfully!");
+            showToast("💎 Cloud mission completed successfully!");
           }
         };
 
@@ -964,11 +967,11 @@
       } else if (pLower.includes("finops") || pLower.includes("power bi")) {
         answer = "✓ AWS CUR + OCI Telemetry ($62.81 Total) normalized and pushed into Power BI Service!";
       } else {
-        answer = "✓ Directive successfully processed by Autonomous Engine.";
+        answer = "✓ Directive successfully processed by OCI Cloud Engine.";
       }
 
       const steps = [
-        "[00:01] ⚡ Directive received: Initializing Autonomous Engine...",
+        "[00:01] ⚡ Directive received: Initializing OCI Cloud Engine...",
         "[00:02] 🔶 Querying Cloud APIs & Generative AI Pipelines...",
         "[00:03] 💎 Execution finished successfully."
       ];
