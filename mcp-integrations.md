@@ -63,3 +63,14 @@ graph TD
 - **Localhost Elimination:** All MCP servers execute in isolated backend runtime environments.
 - **Zero Exposed Keys:** Authentication is managed via server-side IAM roles (`DefaultAzureCredential`, `boto3` IAM profiles, OCI API keys).
 - **Client White-Labeling:** Public web clients interact strictly with high-level prompt directives and finished deliverables.
+
+
+### 12. ⚪ Google Cloud Platform (`gcp`) MCP Server
+* **Engine:** `FastMCP` with `google-cloud-compute`, `google-cloud-storage`, `google-cloud-resource-manager`, `google-auth`
+* **Tools Exposed:**
+  * `gcp_list_projects`: Discovers all accessible GCP projects.
+  * `gcp_list_instances`: Enumerates Compute Engine VMs, machine types (`e2-micro`), zones, and external IPs.
+  * `gcp_instance_action`: Lifecycle controls (`start`, `stop`, `reset`, `delete`).
+  * `gcp_list_buckets`: Scans Google Cloud Storage (GCS) buckets.
+  * `gcp_create_always_free_vm`: 1-click provisioning of Always-Free `e2-micro` instances in `us-central1`, `us-east1`, or `us-west1`.
+  * `gcp_run_script`: Executes dynamic Python SDK workflows against Google Cloud.
