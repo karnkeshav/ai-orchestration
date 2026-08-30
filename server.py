@@ -92,6 +92,37 @@ def query_oci_buckets():
     except Exception as e:
         return f"OCI Storage Error: {str(e)}"
 
+def query_gcp_instances():
+    try:
+        from google.cloud import compute_v1
+        import google.auth
+        credentials, project = google.auth.default()
+        proj = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT") or project
+        if not proj:
+            return "GCP query ready (Set GOOGLE_CLOUD_PROJECT or authenticate with Google Cloud)."
+        client = compute_v1.InstancesClient(credentials=credentials)
+        request = compute_v1.AggregatedListInstancesRequest(project=proj)
+        agg_list = client.aggregated_list(request=request)
+        results = []
+        for zone, response in agg_list:
+            if response.instances:
+                z_name = zone.split("/")[-1]
+                for inst in response.instances:
+                    ext_ip = "N/A"
+                    if inst.network_interfaces:
+                        for ac in inst.network_interfaces[0].access_configs:
+                            if ac.nat_i_p: ext_ip = ac.nat_i_p
+                    results.append({
+                        "name": inst.name,
+                        "zone": z_name,
+                        "type": inst.machine_type.split("/")[-1],
+                        "state": inst.status,
+                        "ip": ext_ip
+                    })
+        return results
+    except Exception as e:
+        return f"GCP Auth/Query Status: {str(e)}"
+
 def query_azure_vms():
     try:
         from azure.identity import DefaultAzureCredential
@@ -127,8 +158,23 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
     prompt_lower = prompt.lower()
     loop = asyncio.get_event_loop()
 
+    # -1. Specific GCP Queries
+    if "gcp" in prompt_lower or "google cloud" in prompt_lower:
+        tasks[task_id]["logs"].append("[00:01] ⚪ Connecting to Google Cloud (GCP) Compute Engine API...")
+        gcp_vms = await loop.run_in_executor(None, query_gcp_instances)
+        if isinstance(gcp_vms, list):
+            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(gcp_vms)} Google Cloud Compute VM(s):")
+            for vm in gcp_vms:
+                tasks[task_id]["logs"].append(f"   • {vm['name']} | Type: {vm['type']} | Zone: {vm['zone']} | State: {vm['state']}")
+            lines = [f"• **{v['name']}**: Machine `{v['type']}`, Zone `{v['zone']}`, State `{v['state']}`, IP `{v['ip']}`" for v in gcp_vms]
+            tasks[task_id]["answer"] = f"You currently have {len(gcp_vms)} instance(s) on Google Cloud Platform (GCP):\n" + "\n".join(lines)
+        else:
+            tasks[task_id]["logs"].append(f"[00:02] ⚪ {gcp_vms}")
+            tasks[task_id]["answer"] = f"⚪ **Google Cloud Platform (GCP) MCP Status:**\n{gcp_vms}"
+        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": "⚪ GCP Cloud Query", "url": "#"}
+
     # 0. Specific Azure Queries
-    if "azure" in prompt_lower:
+    elif "azure" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 🔷 Connecting to Microsoft Azure Compute & Resource APIs...")
         az_vms = await loop.run_in_executor(None, query_azure_vms)
         if isinstance(az_vms, list):
@@ -191,18 +237,20 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
                 tasks[task_id]["answer"] = str(inst_data)
             tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔶 AWS EC2 Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
 
-    # 3. Multi-Cloud Generic Instance Query (AWS + OCI + Azure)
+    # 3. Multi-Cloud Generic Instance Query (AWS + OCI + Azure + GCP)
     elif "instance" in prompt_lower or "vm" in prompt_lower or "servers" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Multi-Hyperscaler Discovery across AWS, OCI, and Azure...")
+        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Quad-Hyperscaler Discovery across AWS, OCI, Azure, and GCP...")
         aws_inst = await loop.run_in_executor(None, query_aws_ec2)
         oci_inst = await loop.run_in_executor(None, query_oci_instances)
         az_inst = await loop.run_in_executor(None, query_azure_vms)
+        gcp_inst = await loop.run_in_executor(None, query_gcp_instances)
         aws_count = len(aws_inst) if isinstance(aws_inst, list) else 0
         oci_count = len(oci_inst) if isinstance(oci_inst, list) else 0
         az_count = len(az_inst) if isinstance(az_inst, list) else 0
-        total = aws_count + oci_count + az_count
-        tasks[task_id]["logs"].append(f"[00:02] ✓ Multi-Cloud Inventory: {aws_count} AWS, {oci_count} OCI, {az_count} Azure ({total} Total).")
-        ans = f"🌐 **Total Multi-Cloud Instances: {total}**\n\n"
+        gcp_count = len(gcp_inst) if isinstance(gcp_inst, list) else 0
+        total = aws_count + oci_count + az_count + gcp_count
+        tasks[task_id]["logs"].append(f"[00:02] ✓ Multi-Cloud Inventory: {aws_count} AWS, {oci_count} OCI, {az_count} Azure, {gcp_count} GCP ({total} Total).")
+        ans = f"🌐 **Total Quad-Cloud Instances: {total}**\n\n"
         ans += f"🔶 **AWS EC2 ({aws_count}):**\n"
         if isinstance(aws_inst, list) and aws_inst:
             ans += "\n".join([f"• **{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`" for i in aws_inst])
@@ -215,8 +263,12 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
         if isinstance(az_inst, list) and az_inst:
             ans += "\n".join([f"• **{v['name']}**: Size `{v['size']}`, Region `{v['location']}`, State `{v['state']}`" for v in az_inst])
         else: ans += "• None\n"
+        ans += f"\n\n⚪ **Google Cloud GCP ({gcp_count}):**\n"
+        if isinstance(gcp_inst, list) and gcp_inst:
+            ans += "\n".join([f"• **{g['name']}**: Machine `{g['type']}`, Zone `{g['zone']}`, State `{g['state']}`" for g in gcp_inst])
+        else: ans += "• None (Ready to deploy Always-Free e2-micro)\n"
         tasks[task_id]["answer"] = ans
-        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {total} Total", "url": "#"}
+        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Quad-Cloud Inventory: {total} Total", "url": "#"}
 
     # 4. 3D Pixar Animation Video
     elif "pixar" in prompt_lower or "story" in prompt_lower or "brother" in prompt_lower or "video" in prompt_lower:
