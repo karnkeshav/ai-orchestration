@@ -50,40 +50,124 @@ def query_aws_s3():
     except Exception as e:
         return f"S3 Error: {str(e)}"
 
+def query_oci_instances():
+    try:
+        import oci
+        config = oci.config.from_file()
+        compute = oci.core.ComputeClient(config)
+        network = oci.core.VirtualNetworkClient(config)
+        compartment_id = config["tenancy"]
+        instances = compute.list_instances(compartment_id).data
+        results = []
+        for inst in instances:
+            pub_ip = "N/A"
+            if inst.lifecycle_state == "RUNNING":
+                try:
+                    vnics = compute.list_vnic_attachments(compartment_id, instance_id=inst.id).data
+                    if vnics:
+                        vnic = network.get_vnic(vnics[0].vnic_id).data
+                        pub_ip = vnic.public_ip or "Private"
+                except Exception:
+                    pass
+            results.append({
+                "name": inst.display_name,
+                "id": inst.id[-18:],
+                "shape": inst.shape,
+                "state": inst.lifecycle_state,
+                "ip": pub_ip
+            })
+        return results
+    except Exception as e:
+        return f"OCI Error: {str(e)}"
+
+def query_oci_buckets():
+    try:
+        import oci
+        config = oci.config.from_file()
+        os_client = oci.object_storage.ObjectStorageClient(config)
+        namespace = os_client.get_namespace().data
+        compartment_id = config["tenancy"]
+        buckets = os_client.list_buckets(namespace, compartment_id).data
+        return [b.name for b in buckets]
+    except Exception as e:
+        return f"OCI Storage Error: {str(e)}"
+
 async def run_mission_pipeline(task_id: str, prompt: str, category: str):
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(0.2)
     prompt_lower = prompt.lower()
+    loop = asyncio.get_event_loop()
 
-    if "instance" in prompt_lower or "ec2" in prompt_lower or "aws" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🔶 Connecting to AWS EC2 API (us-east-1)...")
-        await asyncio.sleep(0.4)
-        loop = asyncio.get_event_loop()
-        inst_data = await loop.run_in_executor(None, query_aws_ec2)
-        if isinstance(inst_data, list):
-            count = len(inst_data)
-            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {count} AWS EC2 instance(s):")
-            for inst in inst_data:
-                tasks[task_id]["logs"].append(f"   • {inst['name']} ({inst['id']}): {inst['type']} | State: {inst['state']} | AZ: {inst['az']}")
-            lines = [f"• {i['name']} ({i['id']}): {i['type']}, State: {i['state']}, AZ: {i['az']}" for i in inst_data]
-            tasks[task_id]["answer"] = f"You currently have {count} instance(s) on AWS EC2:\n" + "\n".join(lines)
+    # 1. Specific OCI Queries
+    if "oci" in prompt_lower or "oracle" in prompt_lower:
+        if "bucket" in prompt_lower or "storage" in prompt_lower:
+            tasks[task_id]["logs"].append("[00:01] 🔴 Querying Oracle Cloud (OCI) Object Storage Buckets...")
+            buckets = await loop.run_in_executor(None, query_oci_buckets)
+            if isinstance(buckets, list):
+                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(buckets)} OCI Bucket(s): {', '.join(buckets) if buckets else 'None'}")
+                tasks[task_id]["answer"] = f"You currently have {len(buckets)} bucket(s) on Oracle Cloud (OCI):\n" + "\n".join([f"• {b}" for b in buckets])
+            else:
+                tasks[task_id]["answer"] = str(buckets)
+            tasks[task_id]["deliverable"] = {"type": "info", "title": "🔴 OCI Storage Inventory", "url": "#"}
         else:
-            tasks[task_id]["logs"].append(f"[00:02] ⚠️ {inst_data}")
-            tasks[task_id]["answer"] = str(inst_data)
-        tasks[task_id]["deliverable"] = {
-            "type": "cloud_query",
-            "title": f"🔶 AWS EC2 Query Result: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)",
-            "url": "#"
-        }
-    elif "s3" in prompt_lower or "bucket" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 📦 Querying AWS S3 Buckets...")
-        loop = asyncio.get_event_loop()
-        buckets = await loop.run_in_executor(None, query_aws_s3)
-        if isinstance(buckets, list):
-            b_list = ", ".join(buckets)
-            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(buckets)} S3 Bucket(s): {b_list}")
-            tasks[task_id]["answer"] = f"Found {len(buckets)} AWS S3 Buckets:\n" + "\n".join([f"• {b}" for b in buckets])
-        tasks[task_id]["deliverable"] = {"type": "info", "title": "📦 AWS S3 Inventory", "url": "#"}
+            tasks[task_id]["logs"].append("[00:01] 🔴 Connecting to Oracle Cloud (OCI) Compute API...")
+            inst_data = await loop.run_in_executor(None, query_oci_instances)
+            if isinstance(inst_data, list):
+                running = [i for i in inst_data if i['state'] == "RUNNING"]
+                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(inst_data)} OCI Instance(s) ({len(running)} RUNNING):")
+                for inst in inst_data:
+                    tasks[task_id]["logs"].append(f"   • {inst['name']} | {inst['shape']} | State: {inst['state']} | IP: {inst['ip']}")
+                lines = [f"• **{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, Public IP `{i['ip']}`" for i in inst_data]
+                tasks[task_id]["answer"] = f"You currently have {len(inst_data)} instance(s) on Oracle Cloud (OCI) ({len(running)} Active):\n" + "\n".join(lines)
+            else:
+                tasks[task_id]["answer"] = str(inst_data)
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔴 OCI Compute Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
+
+    # 2. Specific AWS Queries
+    elif "aws" in prompt_lower or "ec2" in prompt_lower or "s3" in prompt_lower:
+        if "s3" in prompt_lower or "bucket" in prompt_lower:
+            tasks[task_id]["logs"].append("[00:01] 🔶 Querying AWS S3 Buckets...")
+            buckets = await loop.run_in_executor(None, query_aws_s3)
+            if isinstance(buckets, list):
+                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(buckets)} AWS S3 Bucket(s): {', '.join(buckets)}")
+                tasks[task_id]["answer"] = f"Found {len(buckets)} AWS S3 Buckets:\n" + "\n".join([f"• `{b}`" for b in buckets])
+            else:
+                tasks[task_id]["answer"] = str(buckets)
+            tasks[task_id]["deliverable"] = {"type": "info", "title": "🔶 AWS S3 Inventory", "url": "#"}
+        else:
+            tasks[task_id]["logs"].append("[00:01] 🔶 Connecting to AWS EC2 API (us-east-1)...")
+            inst_data = await loop.run_in_executor(None, query_aws_ec2)
+            if isinstance(inst_data, list):
+                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(inst_data)} AWS EC2 instance(s):")
+                for inst in inst_data:
+                    tasks[task_id]["logs"].append(f"   • {inst['name']} ({inst['id']}): {inst['type']} | State: {inst['state']} | AZ: {inst['az']}")
+                lines = [f"• **{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`, AZ `{i['az']}`" for i in inst_data]
+                tasks[task_id]["answer"] = f"You currently have {len(inst_data)} instance(s) on AWS EC2:\n" + "\n".join(lines)
+            else:
+                tasks[task_id]["answer"] = str(inst_data)
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔶 AWS EC2 Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
+
+    # 3. Multi-Cloud Generic Instance Query (Both AWS and OCI)
+    elif "instance" in prompt_lower or "vm" in prompt_lower or "servers" in prompt_lower:
+        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Multi-Cloud Discovery across AWS and OCI...")
+        aws_inst = await loop.run_in_executor(None, query_aws_ec2)
+        oci_inst = await loop.run_in_executor(None, query_oci_instances)
+        aws_count = len(aws_inst) if isinstance(aws_inst, list) else 0
+        oci_count = len(oci_inst) if isinstance(oci_inst, list) else 0
+        tasks[task_id]["logs"].append(f"[00:02] ✓ Discovery Complete: {aws_count} AWS instance(s), {oci_count} OCI instance(s).")
+        ans = f"🌐 **Total Multi-Cloud Instances: {aws_count + oci_count}**\n\n"
+        ans += f"🔶 **AWS EC2 ({aws_count}):**\n"
+        if isinstance(aws_inst, list) and aws_inst:
+            ans += "\n".join([f"• {i['name']} ({i['id']}): `{i['type']}`, State: `{i['state']}`" for i in aws_inst])
+        else: ans += "• None running\n"
+        ans += f"\n\n🔴 **Oracle Cloud OCI ({oci_count}):**\n"
+        if isinstance(oci_inst, list) and oci_inst:
+            ans += "\n".join([f"• {i['name']}: `{i['shape']}`, State: `{i['state']}`, IP: `{i['ip']}`" for i in oci_inst])
+        else: ans += "• None running\n"
+        tasks[task_id]["answer"] = ans
+        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {aws_count + oci_count} Total", "url": "#"}
+
+    # 4. 3D Pixar Animation Video
     elif "pixar" in prompt_lower or "story" in prompt_lower or "brother" in prompt_lower or "video" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 🎬 Synthesizing 3D Pixar scene illustrations & character aesthetics...")
         await asyncio.sleep(0.8)
@@ -97,6 +181,8 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
             "title": "🎬 3D Pixar Brother-Sister Emotional Story (65s)",
             "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
         }
+
+    # 5. FinOps & Power BI
     elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 📦 Pulling AWS S3 CUR (s3://finops-demo-kk) & OCI Object Storage...")
         await asyncio.sleep(0.8)
@@ -115,7 +201,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
         await asyncio.sleep(1.0)
         tasks[task_id]["answer"] = f"✓ Autonomous directive processed successfully: {prompt}"
         tasks[task_id]["deliverable"] = {"type": "info", "title": "✓ Mission Complete", "url": "#"}
-    tasks[task_id]["logs"].append("[00:04] 💎 Mission complete! Execution finished.")
+    tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
 @app.get("/api/health")
@@ -130,7 +216,7 @@ async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):
         "prompt": req.prompt,
         "category": req.category,
         "status": "PROCESSING",
-        "logs": ["[00:00] 🚀 Mission dispatched from Web Studio into CLI Engine..."],
+        "logs": ["[00:00] 🚀 Mission dispatched to OCI Cloud Backend Engine..."],
         "answer": None,
         "deliverable": None,
         "created_at": time.time()
@@ -155,10 +241,9 @@ async def stream(task_id: str):
             if task["status"] == "COMPLETED":
                 yield f"data: {json.dumps({'status': 'COMPLETED', 'log': '[DONE] Finished', 'answer': task['answer'], 'deliverable': task['deliverable']})}\n\n"
                 break
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.2)
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-# Mount Static Files to serve the Web App UI directly on http://localhost:8000
 base_dir = os.path.dirname(os.path.abspath(__file__))
 app.mount("/", StaticFiles(directory=base_dir, html=True), name="static")
 
