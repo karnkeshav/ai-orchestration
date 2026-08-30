@@ -159,7 +159,8 @@ async def stream(task_id: str):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # Mount Static Files to serve the Web App UI directly on http://localhost:8000
-app.mount("/", StaticFiles(directory="/home/keysh/ai-orchestration", html=True), name="static")
+base_dir = os.path.dirname(os.path.abspath(__file__))
+app.mount("/", StaticFiles(directory=base_dir, html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
