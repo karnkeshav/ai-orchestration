@@ -191,25 +191,32 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
                 tasks[task_id]["answer"] = str(inst_data)
             tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔶 AWS EC2 Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
 
-    # 3. Multi-Cloud Generic Instance Query (Both AWS and OCI)
+    # 3. Multi-Cloud Generic Instance Query (AWS + OCI + Azure)
     elif "instance" in prompt_lower or "vm" in prompt_lower or "servers" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Multi-Cloud Discovery across AWS and OCI...")
+        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Multi-Hyperscaler Discovery across AWS, OCI, and Azure...")
         aws_inst = await loop.run_in_executor(None, query_aws_ec2)
         oci_inst = await loop.run_in_executor(None, query_oci_instances)
+        az_inst = await loop.run_in_executor(None, query_azure_vms)
         aws_count = len(aws_inst) if isinstance(aws_inst, list) else 0
         oci_count = len(oci_inst) if isinstance(oci_inst, list) else 0
-        tasks[task_id]["logs"].append(f"[00:02] ✓ Discovery Complete: {aws_count} AWS instance(s), {oci_count} OCI instance(s).")
-        ans = f"🌐 **Total Multi-Cloud Instances: {aws_count + oci_count}**\n\n"
+        az_count = len(az_inst) if isinstance(az_inst, list) else 0
+        total = aws_count + oci_count + az_count
+        tasks[task_id]["logs"].append(f"[00:02] ✓ Multi-Cloud Inventory: {aws_count} AWS, {oci_count} OCI, {az_count} Azure ({total} Total).")
+        ans = f"🌐 **Total Multi-Cloud Instances: {total}**\n\n"
         ans += f"🔶 **AWS EC2 ({aws_count}):**\n"
         if isinstance(aws_inst, list) and aws_inst:
-            ans += "\n".join([f"• {i['name']} ({i['id']}): `{i['type']}`, State: `{i['state']}`" for i in aws_inst])
-        else: ans += "• None running\n"
+            ans += "\n".join([f"• **{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`" for i in aws_inst])
+        else: ans += "• None\n"
         ans += f"\n\n🔴 **Oracle Cloud OCI ({oci_count}):**\n"
         if isinstance(oci_inst, list) and oci_inst:
-            ans += "\n".join([f"• {i['name']}: `{i['shape']}`, State: `{i['state']}`, IP: `{i['ip']}`" for i in oci_inst])
-        else: ans += "• None running\n"
+            ans += "\n".join([f"• **{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, IP `{i['ip']}`" for i in oci_inst])
+        else: ans += "• None\n"
+        ans += f"\n\n🔷 **Microsoft Azure ({az_count}):**\n"
+        if isinstance(az_inst, list) and az_inst:
+            ans += "\n".join([f"• **{v['name']}**: Size `{v['size']}`, Region `{v['location']}`, State `{v['state']}`" for v in az_inst])
+        else: ans += "• None\n"
         tasks[task_id]["answer"] = ans
-        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {aws_count + oci_count} Total", "url": "#"}
+        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {total} Total", "url": "#"}
 
     # 4. 3D Pixar Animation Video
     elif "pixar" in prompt_lower or "story" in prompt_lower or "brother" in prompt_lower or "video" in prompt_lower:
