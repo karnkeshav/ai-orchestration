@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VidhiDesk AI Studio | Autonomous Cloud & Media Engine</title>
+  <title>AI Orchestration Studio | Autonomous Multi-Cloud & Media Engine</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -20,6 +20,7 @@
       --accent-amber: #f59e0b;
       --accent-emerald: #10b981;
       --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
       --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --text-dim: #64748b;
@@ -114,7 +115,7 @@
     /* Hero Section */
     .hero {
       text-align: center;
-      max-width: 760px;
+      max-width: 800px;
       margin: 0 auto;
     }
 
@@ -197,6 +198,8 @@
       margin-top: 1rem;
       padding-top: 0.75rem;
       border-top: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 0.75rem;
     }
 
     .prompt-tags {
@@ -238,7 +241,43 @@
       transform: translateY(0);
     }
 
-    /* Template Cards Grid */
+    /* Category Filter Tabs */
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      color: var(--text-main);
+      border-color: var(--border-active);
+    }
+
+    .filter-btn.active {
+      background: var(--accent-indigo);
+      color: #fff;
+      border-color: var(--accent-indigo);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    /* 8 Template Cards Grid */
     .section-title {
       font-size: 1.15rem;
       font-weight: 700;
@@ -251,7 +290,7 @@
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
       gap: 1.25rem;
     }
 
@@ -276,7 +315,7 @@
 
     .card-top {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 0.75rem;
     }
 
@@ -288,17 +327,23 @@
       align-items: center;
       justify-content: center;
       font-size: 1.25rem;
+      flex-shrink: 0;
     }
 
-    .icon-video { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+    .icon-media { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
     .icon-finops { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
-    .icon-cloud { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
-    .icon-dash { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+    .icon-cloudops { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+    .icon-hybrid { background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); }
+    .icon-m365 { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+    .icon-webapps { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); }
+    .icon-leads { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+    .icon-agents { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
 
     .card-title {
       font-size: 0.95rem;
       font-weight: 700;
       color: var(--text-main);
+      margin-bottom: 0.25rem;
     }
 
     .card-desc {
@@ -314,6 +359,8 @@
       font-size: 0.75rem;
       font-weight: 600;
       color: var(--accent-indigo);
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      padding-top: 0.75rem;
     }
 
     /* Output Gallery / Executed Showcase */
@@ -434,12 +481,12 @@
   <!-- Navbar -->
   <header>
     <div class="brand">
-      <span>VidhiDesk AI</span>
-      <span class="brand-badge">Enterprise Studio</span>
+      <span>AI Orchestration Studio</span>
+      <span class="brand-badge">Autonomous Core</span>
     </div>
     <div class="nav-stats">
-      <span><span class="status-dot"></span> Autonomous Core Online</span>
-      <span>WSL2 & Windows Native</span>
+      <span><span class="status-dot"></span> Multi-Hyperscaler Hub</span>
+      <span>AWS • Azure • GCP • OCI • Local</span>
     </div>
   </header>
 
@@ -448,44 +495,59 @@
     
     <!-- Hero Header -->
     <section class="hero">
-      <div class="hero-pill">✨ Autonomous Multi-Cloud & Generative AI Studio</div>
+      <div class="hero-pill">✨ Autonomous Multi-Cloud, Generative Media & Enterprise Automation</div>
       <h1>Execute Any AI Mission in One Click</h1>
-      <p>Select any autonomous workflow below or enter your directive. All background commands, APIs, and pipelines execute seamlessly behind the scenes.</p>
+      <p>Select any autonomous workflow below or enter your custom directive. All background commands, APIs, and pipelines execute seamlessly behind the scenes.</p>
     </section>
 
     <!-- Main Prompt Input Box -->
     <section class="command-hub">
       <div class="prompt-box-wrapper">
-        <textarea id="promptText" class="prompt-textarea" placeholder="Type your directive here or click any template below (e.g. Build multi-cloud FinOps report, generate 3D Pixar animated video, launch OCI Always-Free instance)..."></textarea>
+        <textarea id="promptText" class="prompt-textarea" placeholder="Type your directive here or click any capability card below (e.g. Build multi-cloud FinOps report, generate 3D Pixar animated video, launch OCI Always-Free instance, create Power Automate flow)..."></textarea>
         <div class="prompt-footer">
           <div class="prompt-tags">
             <span class="tag">⚡ Zero-Code Internal Plumb</span>
-            <span class="tag">🔒 White-Labeled Front</span>
-            <span class="tag">🚀 Real-Time Execution</span>
+            <span class="tag">🔒 100% White-Labeled</span>
+            <span class="tag">🚀 Live CLI Execution</span>
           </div>
           <button class="btn-action" onclick="copyAndSubmitPrompt()">
-            <span>📋 Copy Directive</span>
+            <span>📋 Copy Prompt for AI Chat</span>
             <span>➔</span>
           </button>
         </div>
       </div>
     </section>
 
-    <!-- Quick Preset Cards -->
+    <!-- Category Filter Bar & Preset Cards -->
     <section>
       <div class="section-title">
         <span>⚡</span>
-        <span>Instant Workflow Presets (Click to Load)</span>
+        <span>Capability Catalogs (Click to Load Prompt)</span>
       </div>
-      <div class="cards-grid">
+
+      <!-- Filter Tabs -->
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterCards('all', this)">🌐 All Capabilities</button>
+        <button class="filter-btn" onclick="filterCards('media', this)">🎬 Media & 3D</button>
+        <button class="filter-btn" onclick="filterCards('finops', this)">📊 FinOps & BI</button>
+        <button class="filter-btn" onclick="filterCards('cloudops', this)">☁️ CloudOps</button>
+        <button class="filter-btn" onclick="filterCards('hybrid', this)">🔄 Hybrid & Multi-Cloud</button>
+        <button class="filter-btn" onclick="filterCards('m365', this)">💼 M365 & Flow</button>
+        <button class="filter-btn" onclick="filterCards('webapps', this)">🎯 Web Apps</button>
+        <button class="filter-btn" onclick="filterCards('leads', this)">🔍 B2B Leads</button>
+        <button class="filter-btn" onclick="filterCards('agents', this)">🤖 Multi-Agent</button>
+      </div>
+
+      <!-- 8 Cards Grid -->
+      <div class="cards-grid" id="cardsGrid">
         
-        <!-- Preset 1: 3D Pixar Video -->
-        <div class="card" onclick="loadPrompt('3d-pixar')">
+        <!-- Card 1: 3D Pixar Video (Media) -->
+        <div class="card" data-category="media" onclick="loadPrompt('media-pixar')">
           <div class="card-top">
-            <div class="card-icon icon-video">🎬</div>
+            <div class="card-icon icon-media">🎬</div>
             <div>
               <div class="card-title">3D Pixar Story Animation</div>
-              <div class="card-desc">Brother-Sister departure story with Hindi voiceover dialogues & emotional music</div>
+              <div class="card-desc">Brother-Sister departure story with Hindi voiceover dialogues & emotional Indian music</div>
             </div>
           </div>
           <div class="card-footer">
@@ -494,47 +556,107 @@
           </div>
         </div>
 
-        <!-- Preset 2: FinOps Power BI -->
-        <div class="card" onclick="loadPrompt('finops-powerbi')">
+        <!-- Card 2: Multi-Cloud FinOps (FinOps) -->
+        <div class="card" data-category="finops" onclick="loadPrompt('finops-powerbi')">
           <div class="card-top">
             <div class="card-icon icon-finops">📊</div>
             <div>
               <div class="card-title">AWS + OCI FinOps Ingestion</div>
-              <div class="card-desc">Auto-pull S3 CUR + OCI Telemetry, normalize spend, and stream to Power BI</div>
+              <div class="card-desc">Auto-pull S3 CUR + OCI Telemetry, normalize spend schema, and stream into Power BI</div>
             </div>
           </div>
           <div class="card-footer">
-            <span>Multi-Cloud • Power BI API</span>
+            <span>Multi-Cloud • Power BI REST</span>
             <span>Select ➔</span>
           </div>
         </div>
 
-        <!-- Preset 3: FinOps Mystery Video -->
-        <div class="card" onclick="loadPrompt('finops-video')">
+        <!-- Card 3: CloudOps (CloudOps) -->
+        <div class="card" data-category="cloudops" onclick="loadPrompt('cloudops-ampere')">
           <div class="card-top">
-            <div class="card-icon icon-dash">🕵️</div>
+            <div class="card-icon icon-cloudops">☁️</div>
             <div>
-              <div class="card-title">FinOps Mystery 60s Video</div>
-              <div class="card-desc">Tech-noir mystery trailer showing multi-cloud spend mystery solved with AI</div>
+              <div class="card-title">OCI Always-Free Ampere VM</div>
+              <div class="card-desc">Autonomous background retry daemon to capture 4 OCPU 24GB ARM instance</div>
             </div>
           </div>
           <div class="card-footer">
-            <span>60s 1080p • Cinematic</span>
+            <span>OCI SDK • Auto-Retry Daemon</span>
             <span>Select ➔</span>
           </div>
         </div>
 
-        <!-- Preset 4: OCI Ampere Launcher -->
-        <div class="card" onclick="loadPrompt('oci-ampere')">
+        <!-- Card 4: Hybrid & Multi-Cloud DR (Hybrid) -->
+        <div class="card" data-category="hybrid" onclick="loadPrompt('hybrid-dr')">
           <div class="card-top">
-            <div class="card-icon icon-cloud">☁️</div>
+            <div class="card-icon icon-hybrid">🔄</div>
             <div>
-              <div class="card-title">OCI Always-Free Ampere</div>
-              <div class="card-desc">Auto-retry loop to capture 4 OCPU 24GB ARM instance when capacity opens</div>
+              <div class="card-title">Multi-Cloud DR & Egress Arbitrage</div>
+              <div class="card-desc">Automated failover between AWS EKS & OCI DB with 10TB free egress media distribution</div>
             </div>
           </div>
           <div class="card-footer">
-            <span>Cloud Infra • Auto-Retry</span>
+            <span>Cross-Cloud • Zero Downtime</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Microsoft 365 & Power Automate (M365) -->
+        <div class="card" data-category="m365" onclick="loadPrompt('m365-flow')">
+          <div class="card-top">
+            <div class="card-icon icon-m365">💼</div>
+            <div>
+              <div class="card-title">Power Automate & Teams ChatOps</div>
+              <div class="card-desc">Automated cloud flow triggers, incident response cards in Teams, and Outlook executive digests</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>M365 Graph • Power Automate</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 6: Web Apps & UI/UX (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('webapps-spa')">
+          <div class="card-top">
+            <div class="card-icon icon-webapps">🎯</div>
+            <div>
+              <div class="card-title">White-Labeled Web Apps & UI</div>
+              <div class="card-desc">Dark-mode glassmorphic single-page applications with Google Stitch design systems</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Google Stitch • HTML5/CSS3</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 7: B2B Leads & Growth (Leads) -->
+        <div class="card" data-category="leads" onclick="loadPrompt('leads-apollo')">
+          <div class="card-top">
+            <div class="card-icon icon-leads">🔍</div>
+            <div>
+              <div class="card-title">B2B Prospecting & Intelligence</div>
+              <div class="card-desc">Targeted CTO/FinOps lead lists via Apollo.io with company technographics and email drafts</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Apollo.io • Lead Enrichment</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 8: Multi-Agent Swarms (Agents) -->
+        <div class="card" data-category="agents" onclick="loadPrompt('agents-swarm')">
+          <div class="card-top">
+            <div class="card-icon icon-agents">🤖</div>
+            <div>
+              <div class="card-title">Multi-Agent Swarm Orchestration</div>
+              <div class="card-desc">Parallel subagents for codebase research, continuous cron monitors, and self-healing systems</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Subagent Swarm • Cron Monitors</span>
             <span>Select ➔</span>
           </div>
         </div>
@@ -556,7 +678,7 @@
         <!-- Video 1: Pixar 3D Animation -->
         <div class="artifact-card">
           <div class="artifact-media">
-            <video controls poster="">
+            <video controls>
               <source src="./Brother_Sister_Pixar_Animation_65s.mp4" type="video/mp4">
             </video>
           </div>
@@ -611,14 +733,18 @@
   </main>
 
   <!-- Toast Notification -->
-  <div id="toast">✓ Directive copied to clipboard! Paste directly into your AI text box.</div>
+  <div id="toast">✓ Directive copied to clipboard! Paste directly into your AI chat window.</div>
 
   <script>
     const prompts = {
-      '3d-pixar': "Generate a 3D Pixar/Disney style animated emotional story video of a brother and sister departing. Little brother starts joyfully yelling \"Didi aa gayi\" with high energy, then realizes married sister is leaving today itself. Didi hugs him warmly, wipes his tears with a chocolate promise. End with tearful smile waving goodbye saying \"Didi... jaldi milengey!\". Include full Hindi voiceovers, Indian classical flute melody, and Full HD animation.",
+      'media-pixar': "Generate a 3D Pixar/Disney style animated emotional story video of a brother and sister departing. Little brother starts joyfully yelling \"Didi aa gayi\" with high energy, then realizes married sister is leaving today itself. Didi hugs him warmly, wipes his tears with a chocolate promise. End with tearful smile waving goodbye saying \"Didi... jaldi milengey!\". Include full Hindi voiceovers, Indian classical flute melody, and Full HD animation.",
       'finops-powerbi': "Fetch AWS CUR report from S3 bucket and OCI usage telemetry from Object Storage bucket, normalize all multi-cloud spend into a unified schema, and stream directly into Power BI Push Dataset \"MultiCloud_FinOps_Costs\" for real-time spend analytics.",
-      'finops-video': "Create a 60-second trending tech-mystery animated video showing multi-cloud FinOps spend mystery between AWS and OCI solved by AI in minutes, pushing data to Power BI with executive dashboard reveal.",
-      'oci-ampere': "Continuously attempt to provision an Always-Free OCI Ampere VM.Standard.A1.Flex compute instance (4 OCPUs, 24GB RAM) with exponential backoff until capacity opens in the Hyderabad region."
+      'cloudops-ampere': "Continuously attempt to provision an Always-Free OCI Ampere VM.Standard.A1.Flex compute instance (4 OCPUs, 24GB RAM) with exponential backoff until capacity opens in the Hyderabad region.",
+      'hybrid-dr': "Architect a Multi-Cloud Disaster Recovery pipeline between AWS EKS and OCI Autonomous Database with automated DNS failover, and route heavy media distribution through OCI 10TB free egress storage.",
+      'm365-flow': "Build a Power Automate flow that monitors cloud spend anomalies, sends actionable incident approval cards into Microsoft Teams, and drafts a weekly executive summary in Outlook.",
+      'webapps-spa': "Generate a white-labeled responsive dark-mode Single-Page Web Application with glassmorphism UI, interactive charts, and Google Stitch design token components.",
+      'leads-apollo': "Search and enrich verified B2B decision-maker leads (Cloud Architects, FinOps Leaders, CTOs) via Apollo.io, extracting verified work emails, LinkedIn profiles, and draft personalized outreach sequences.",
+      'agents-swarm': "Deploy parallel autonomous subagents to audit multi-cloud infrastructure, run scheduled cron health check monitors, and establish self-healing server restart daemons."
     };
 
     function loadPrompt(key) {
@@ -635,7 +761,21 @@
         return;
       }
       navigator.clipboard.writeText(textarea.value).then(() => {
-        showToast("✓ Directive copied to clipboard! Ready to paste.");
+        showToast("✓ Copied! Paste directly into your AI chat window (Ctrl+V).");
+      });
+    }
+
+    function filterCards(category, btn) {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const cards = document.querySelectorAll("#cardsGrid .card");
+      cards.forEach(card => {
+        if (category === "all" || card.getAttribute("data-category") === category) {
+          card.style.display = "flex";
+        } else {
+          card.style.display = "none";
+        }
       });
     }
 
@@ -645,7 +785,7 @@
       toast.classList.add("show");
       setTimeout(() => {
         toast.classList.remove("show");
-      }, 3000);
+      }, 3500);
     }
   </script>
 </body>
