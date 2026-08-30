@@ -98,7 +98,7 @@ def query_azure_vms():
         from azure.mgmt.compute import ComputeManagementClient
         from azure.mgmt.subscription import SubscriptionClient
         cred = DefaultAzureCredential()
-        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID")
+        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
         if not sub_id:
             try:
                 sub_client = SubscriptionClient(cred)
