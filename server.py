@@ -92,14 +92,58 @@ def query_oci_buckets():
     except Exception as e:
         return f"OCI Storage Error: {str(e)}"
 
+def query_azure_vms():
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.mgmt.compute import ComputeManagementClient
+        from azure.mgmt.subscription import SubscriptionClient
+        cred = DefaultAzureCredential()
+        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID")
+        if not sub_id:
+            try:
+                sub_client = SubscriptionClient(cred)
+                subs = list(sub_client.subscriptions.list())
+                if subs: sub_id = subs[0].subscription_id
+            except Exception: pass
+        if not sub_id:
+            return "Azure query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
+        comp_client = ComputeManagementClient(cred, sub_id)
+        vms = list(comp_client.virtual_machines.list_all())
+        results = []
+        for vm in vms:
+            results.append({
+                "name": vm.name,
+                "size": vm.hardware_profile.vm_size if vm.hardware_profile else "N/A",
+                "location": vm.location,
+                "state": vm.provisioning_state
+            })
+        return results
+    except Exception as e:
+        return f"Azure Query Status: {str(e)}"
+
 async def run_mission_pipeline(task_id: str, prompt: str, category: str):
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     await asyncio.sleep(0.2)
     prompt_lower = prompt.lower()
     loop = asyncio.get_event_loop()
 
+    # 0. Specific Azure Queries
+    if "azure" in prompt_lower:
+        tasks[task_id]["logs"].append("[00:01] 🔷 Connecting to Microsoft Azure Compute & Resource APIs...")
+        az_vms = await loop.run_in_executor(None, query_azure_vms)
+        if isinstance(az_vms, list):
+            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(az_vms)} Azure Virtual Machine(s):")
+            for vm in az_vms:
+                tasks[task_id]["logs"].append(f"   • {vm['name']} | Size: {vm['size']} | Region: {vm['location']} | State: {vm['state']}")
+            lines = [f"• **{v['name']}**: Size `{v['size']}`, Region `{v['location']}`, State `{v['state']}`" for v in az_vms]
+            tasks[task_id]["answer"] = f"You currently have {len(az_vms)} Virtual Machine(s) on Microsoft Azure:\n" + "\n".join(lines)
+        else:
+            tasks[task_id]["logs"].append(f"[00:02] 🔷 {az_vms}")
+            tasks[task_id]["answer"] = f"🔷 **Microsoft Azure MCP Status:**\n{az_vms}"
+        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": "🔷 Azure Cloud Query", "url": "#"}
+
     # 1. Specific OCI Queries
-    if "oci" in prompt_lower or "oracle" in prompt_lower:
+    elif "oci" in prompt_lower or "oracle" in prompt_lower:
         if "bucket" in prompt_lower or "storage" in prompt_lower:
             tasks[task_id]["logs"].append("[00:01] 🔴 Querying Oracle Cloud (OCI) Object Storage Buckets...")
             buckets = await loop.run_in_executor(None, query_oci_buckets)
