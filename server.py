@@ -2,6 +2,7 @@ import os, asyncio, json, time, uuid
 from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 app = FastAPI(title="AI Orchestration Studio Backend")
@@ -156,6 +157,9 @@ async def stream(task_id: str):
                 break
             await asyncio.sleep(0.3)
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+# Mount Static Files to serve the Web App UI directly on http://localhost:8000
+app.mount("/", StaticFiles(directory="/home/keysh/ai-orchestration", html=True), name="static")
 
 if __name__ == "__main__":
     import uvicorn
