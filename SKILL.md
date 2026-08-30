@@ -89,3 +89,9 @@ Deploy white-labeled web frontends with real-time cloud backend execution engine
 2. **Backend Execution Host:** Oracle Cloud Always-Free Compute VM (`VM.Standard.E2.1.Micro`) running FastAPI and `uvicorn` as a 24/7 `systemd` daemon.
 3. **Zero-Config HTTPS Ingress:** Cloudflare Tunnel (`cloudflared`) routing external HTTPS requests to `http://localhost:8000` with automated TLS certificates (preventing browser Mixed Content blocks).
 4. **Real-Time Streaming Logs:** Server-Sent Events (SSE) streaming progress stages (`[00:01] Initializing...`, `[00:03] Executing...`, `[00:05] Complete!`) back to the client interface.
+
+
+### 4. ⚪ Google Cloud Platform (GCP) MCP Integration
+* **Projects & Compute Discovery:** Enumerates Compute Engine VMs, machine types (`e2-micro`), zones, and external IPs across all active GCP projects.
+* **Always-Free Provisioning:** Automated deployment of Always-Free `e2-micro` instances in `us-central1`, `us-east1`, or `us-west1`.
+* **Storage & Action Lifecycle:** Full lifecycle control (`start`, `stop`, `reset`, `delete`) and GCS bucket management.
