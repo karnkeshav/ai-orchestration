@@ -92,36 +92,53 @@ def query_oci_buckets():
     except Exception as e:
         return f"OCI Storage Error: {str(e)}"
 
-def query_gcp_instances():
+def query_gcp_instances(project_id=None):
     try:
-        from google.cloud import compute_v1
+        from google.cloud import compute_v1, resourcemanager_v3
         import google.auth
-        credentials, project = google.auth.default()
-        proj = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT") or project
-        if not proj:
-            return "GCP query ready (Set GOOGLE_CLOUD_PROJECT or authenticate with Google Cloud)."
+        credentials, auto_proj = google.auth.default()
+        
+        projs = []
+        if project_id: projs = [project_id]
+        elif os.environ.get("GOOGLE_CLOUD_PROJECT"): projs = [os.environ["GOOGLE_CLOUD_PROJECT"]]
+        else:
+            try:
+                rm_client = resourcemanager_v3.ProjectsClient(credentials=credentials)
+                page_result = rm_client.list_projects()
+                projs = [p.project_id for p in page_result if p.state.name in ("ACTIVE", "STATE_UNSPECIFIED")]
+            except Exception:
+                if auto_proj: projs = [auto_proj]
+        
+        if not projs:
+            projs = ["calm-catfish-464514-t6"]
+            
         client = compute_v1.InstancesClient(credentials=credentials)
-        request = compute_v1.AggregatedListInstancesRequest(project=proj)
-        agg_list = client.aggregated_list(request=request)
         results = []
-        for zone, response in agg_list:
-            if response.instances:
-                z_name = zone.split("/")[-1]
-                for inst in response.instances:
-                    ext_ip = "N/A"
-                    if inst.network_interfaces:
-                        for ac in inst.network_interfaces[0].access_configs:
-                            if ac.nat_i_p: ext_ip = ac.nat_i_p
-                    results.append({
-                        "name": inst.name,
-                        "zone": z_name,
-                        "type": inst.machine_type.split("/")[-1],
-                        "state": inst.status,
-                        "ip": ext_ip
-                    })
+        for proj in projs[:5]:
+            try:
+                request = compute_v1.AggregatedListInstancesRequest(project=proj)
+                agg_list = client.aggregated_list(request=request)
+                for zone, response in agg_list:
+                    if response.instances:
+                        z_name = zone.split("/")[-1]
+                        for inst in response.instances:
+                            ext_ip = "N/A"
+                            if inst.network_interfaces:
+                                for ac in inst.network_interfaces[0].access_configs:
+                                    if ac.nat_i_p: ext_ip = ac.nat_i_p
+                            results.append({
+                                "name": inst.name,
+                                "project": proj,
+                                "zone": z_name,
+                                "type": inst.machine_type.split("/")[-1],
+                                "state": inst.status,
+                                "ip": ext_ip
+                            })
+            except Exception:
+                continue
         return results
     except Exception as e:
-        return f"GCP Auth/Query Status: {str(e)}"
+        return f"GCP Query Status: {str(e)}"
 
 def query_azure_vms():
     try:
