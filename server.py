@@ -219,6 +219,9 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
             "title": "⚪ Quad-Cloud FinOps Assistant (AWS + OCI + Azure + GCP)",
             "url": "https://karnkeshav.github.io/aws_finops_chatbot/"
         }
+        tasks[task_id]["logs"].append("[00:04] 💎 Mission complete! Execution finished.")
+        tasks[task_id]["status"] = "COMPLETED"
+        return
     elif "azure" in prompt_lower and any(k in prompt_lower for k in ["finops", "cost", "saving", "advisor", "foundry", "bill"]):
         tasks[task_id]["logs"].append("[00:01] 🔷 Querying Azure AI Foundry (finops-ai-foundry / gpt-5-mini)...")
         await asyncio.sleep(0.6)
@@ -239,6 +242,9 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
             "title": "🔷 Multi-Cloud FinOps Assistant (AWS + OCI + Azure)",
             "url": "https://karnkeshav.github.io/aws_finops_chatbot/"
         }
+        tasks[task_id]["logs"].append("[00:04] 💎 Mission complete! Execution finished.")
+        tasks[task_id]["status"] = "COMPLETED"
+        return
     # 1. "Services" queries have no handler — say so instead of silently
     # defaulting to an instance count.
     if wants_services:
