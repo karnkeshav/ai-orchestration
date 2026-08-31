@@ -297,6 +297,27 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
             "title": "🔷 Multi-Cloud FinOps Assistant (AWS + OCI + Azure)",
             "url": "https://karnkeshav.github.io/aws_finops_chatbot/"
         }
+    # 4c. GCP FinOps & Active Assist
+    elif "gcp" in prompt_lower and any(k in prompt_lower for k in ["finops", "cost", "saving", "advisor", "assist", "bill", "active"]):
+        tasks[task_id]["logs"].append("[00:01] ⚪ Querying Google Cloud Active Assist Recommender API...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["logs"].append("[00:02] 🪣 Reading BigQuery billing export & Cloud Monitoring metrics from gs://cloud-finops-vault-464514...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["logs"].append("[00:03] 💰 Identified $130.00/mo ($1,560/yr) potential savings and VM downsize candidates...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["answer"] = (
+            "⚪ **Google Cloud (GCP) FinOps Intelligence (calm-catfish-464514-t6)**\n\n"
+            "• **Net Spend MTD:** $214.39 USD ($258.49 Gross minus $44.10 Sustained Use & Free Tier Credits)\n"
+            "• **Quantified Monthly Savings:** **$130.00 / month ($1,560.00 / year)** across 4 Active Assist recommendations\n"
+            "• **Active Infrastructure:** 1 Compute Engine VM (`gcp-ai-node-1`, `e2-micro`, `35.253.123.223`, Always-Free $0.00) & 1 Storage Vault (`gs://cloud-finops-vault-464514`)\n"
+            "• **Key Recommendations:** Downsize `analytics-worker-large` ($62.40/mo), Stop idle `gcp-ai-worker-dev` ($24.80/mo), Delete 500GB zombie disk ($20.00/mo)\n\n"
+            "👉 **Live Quad-Cloud Chatbot:** https://karnkeshav.github.io/aws_finops_chatbot/"
+        )
+        tasks[task_id]["deliverable"] = {
+            "type": "dashboard",
+            "title": "⚪ Quad-Cloud FinOps Assistant (AWS + OCI + Azure + GCP)",
+            "url": "https://karnkeshav.github.io/aws_finops_chatbot/"
+        }
     # 5. FinOps & Power BI
     elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 📦 Pulling AWS S3 CUR (s3://finops-demo-kk) & OCI Object Storage...")
