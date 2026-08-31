@@ -565,7 +565,133 @@
       opacity: 1;
       transform: translateY(0);
     }
+
+    /* Embedded Quad-Cloud FinOps Console */
+    .finops-hub-section {
+      margin-top: 3rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .finops-tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .finops-tab-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .finops-tab-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-main); }
+    .finops-tab-btn.active.aws { background: rgba(255, 153, 0, 0.15); border-color: #ff9900; color: #ffc082; }
+    .finops-tab-btn.active.oci { background: rgba(199, 70, 52, 0.15); border-color: #c74634; color: #ff9a89; }
+    .finops-tab-btn.active.azure { background: rgba(0, 120, 212, 0.15); border-color: #0078d4; color: #70b8ff; }
+    .finops-tab-btn.active.gcp { background: rgba(66, 133, 244, 0.15); border-color: #4285f4; color: #8ab4f8; }
+
+    .finops-quick-chips {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .finops-chip {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .finops-chip:hover { border-color: var(--accent-cyan); color: var(--text-main); }
+
+    .finops-chat-feed {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 240px;
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .finops-msg {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .finops-msg.user { justify-content: flex-end; }
+    .finops-bubble {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      max-width: 80%;
+      white-space: pre-wrap;
+    }
+    .finops-msg.user .finops-bubble { background: rgba(99, 102, 241, 0.2); border-color: var(--accent-indigo); }
+    .finops-visual-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-top: 0.5rem;
+      width: 100%;
+      max-width: 650px;
+    }
+    .finops-input-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .finops-input-row input {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: var(--font-main);
+      font-size: 0.9rem;
+    }
+    .finops-input-row input:focus { outline: none; border-color: var(--accent-cyan); }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, theme: "dark" });
+    window.renderMermaid = async (id, code) => {
+      try {
+        const { svg } = await mermaid.render(id + "-svg", code);
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = svg;
+      } catch (err) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<div style="color:#ffb4ab;font-size:12px;">Diagram error: ${err.message}</div>`;
+      }
+    };
+  </script>
 </head>
 <body>
 
@@ -626,6 +752,52 @@
           <div class="answer-title">💎 Executive Query Answer</div>
           <div class="answer-text" id="answerContent"></div>
         </div>
+      </div>
+    </section>
+
+
+    <!-- Embedded Quad-Cloud FinOps Intelligence Terminal -->
+    <section class="finops-hub-section" id="finopsTerminalSection">
+      <div class="section-title">
+        <span>💬</span>
+        <span>Quad-Cloud FinOps Intelligence Terminal (AWS • OCI • Azure • GCP)</span>
+      </div>
+      
+      <!-- Provider Tabs -->
+      <div class="finops-tabs">
+        <button class="finops-tab-btn active gcp" id="tab-gcp" onclick="switchFinopsTab('gcp')">⚪ Google Cloud (GCP)</button>
+        <button class="finops-tab-btn azure" id="tab-azure" onclick="switchFinopsTab('azure')">🔷 Microsoft Azure</button>
+        <button class="finops-tab-btn oci" id="tab-oci" onclick="switchFinopsTab('oci')">🔴 Oracle Cloud (OCI)</button>
+        <button class="finops-tab-btn aws" id="tab-aws" onclick="switchFinopsTab('aws')">🔶 Amazon Web Services (AWS)</button>
+      </div>
+
+      <!-- Quick Directive Chips -->
+      <div class="finops-quick-chips" id="finopsQuickChips">
+        <span class="finops-chip" onclick="askFinops('What is my total potential savings on GCP?')">💰 Potential Savings</span>
+        <span class="finops-chip" onclick="askFinops('Show me a chart of cost by service')">📊 Cost Breakdown Chart</span>
+        <span class="finops-chip" onclick="askFinops('Flowchart of Active Assist rightsizing workflow')">🔄 Remediation Flowchart</span>
+        <span class="finops-chip" onclick="askFinops('How many VMs and storage vaults are active?')">🖥️ Active Resource Inventory</span>
+      </div>
+
+      <!-- Chat Feed -->
+      <div class="finops-chat-feed" id="finopsChatFeed">
+        <div class="finops-msg bot">
+          <div class="finops-bubble" id="finopsWelcomeBubble">
+👋 <strong>Google Cloud (GCP) FinOps Agent Active (calm-catfish-464514-t6)</strong><br>
+• BigQuery detailed billing export and Active Assist recommenders ready.<br>
+• 1 Compute Engine VM (<code>gcp-ai-node-1</code>, <code>e2-micro</code>, Always-Free) & 1 Storage Vault (<code>gs://cloud-finops-vault-464514</code>) connected.<br>
+• Type any query below or click one of the quick analysis chips above!
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="finops-input-row">
+        <input type="text" id="finopsQueryInput" placeholder="Ask about GCP billing export, Active Assist savings, or VM metrics..." onkeydown="if(event.key==='Enter') submitFinopsQuery()">
+        <button class="btn-action" style="padding: 0 1.25rem; font-size: 0.85rem;" onclick="submitFinopsQuery()">
+          <span>Send</span>
+          <span>➔</span>
+        </button>
       </div>
     </section>
 
