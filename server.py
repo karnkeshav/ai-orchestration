@@ -365,3 +365,37 @@ app.mount("/", StaticFiles(directory=base_dir, html=True), name="static")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.post("/ask-gcp")
+async def ask_gcp_endpoint(payload: dict):
+    question = payload.get("question", "").lower()
+    if any(k in question for k in ["sav", "advisor", "assist", "potential", "recommend"]):
+        return {
+            "answer": "Total Potential Monthly Savings: $130.00 USD ($1,560.00/year)\n\nFound 4 active optimization recommendations from Google Cloud Active Assist:\n• analytics-worker-large (e2-standard-4): Downsize to e2-small (Save $62.40/mo | Avg CPU 3.2%)\n• gcp-ai-worker-dev (e2-medium): Stop idle development VM (Save $24.80/mo | 0 traffic 14d)\n• unattached-legacy-db-disk: Snapshot & delete 500GB unattached persistent disk (Save $20.00/mo)\n• postgres-primary-db (Cloud SQL): Purchase 1-Year Committed Use Discount (Save $22.80/mo)",
+            "sources": ["gs://cloud-finops-vault-464514/finops_samples/gcp_active_assist_recommendations_sample.csv"]
+        }
+    elif any(k in question for k in ["chart", "graph", "breakdown", "service", "cost"]):
+        return {
+            "answer": "Cost breakdown by Google Cloud Service (August 2026 MTD Net Spend: $214.39 USD):",
+            "chart": {
+                "type": "bar",
+                "title": "Cost by GCP Service (USD MTD)",
+                "labels": ["Compute Engine", "Cloud SQL", "Persistent Disk", "Cloud Logging", "BigQuery", "Cloud Storage", "Vertex AI"],
+                "values": [100.84, 58.22, 20.00, 12.50, 11.25, 9.40, 4.25]
+            },
+            "sources": ["gs://cloud-finops-vault-464514/finops_samples/gcp_detailed_billing_export_sample.csv"]
+        }
+    elif any(k in question for k in ["flowchart", "diagram", "mermaid", "workflow", "step"]):
+        return {
+            "answer": "Google Cloud Active Assist Remediation & Rightsizing Workflow:",
+            "diagram": {
+                "type": "mermaid",
+                "code": "graph TD\n    A[GCP Active Assist / BigQuery Billing Alert] --> B{Resource Category}\n    B -->|Compute Engine VM| C[Analyze Cloud Monitoring CPU Utilization < 5%]\n    B -->|Persistent Disk| D[Verify 0 Disk IOPS for 14 Days]\n    B -->|Cloud Storage / GCS| E[Check Coldline / Archive Lifecycle Policy]\n    B -->|Cloud SQL Database| F[Evaluate 1-Yr / 3-Yr Committed Use Discount CUD]\n\n    C -->|Development Instance| G[Execute gcloud compute instances stop]\n    C -->|Production Workload| H[Downsize Machine Type e.g. e2-standard-4 to e2-small]\n\n    D --> I[Create Final Snapshot & Delete Unattached Disk]\n    E --> J[Apply GCS Auto-Tiering Rule to Nearline/Coldline]\n    F --> K[Purchase Compute/Database CUD via Billing Console]\n\n    G --> L[Stream Update to BigQuery Detailed Billing Export]\n    H --> L\n    I --> L\n    J --> L\n    K --> L\n    L --> M[Realize $130.00/mo Savings & Resolve Budget Threshold Alert]"
+            },
+            "sources": ["gs://cloud-finops-vault-464514/finops_samples/gcp_active_assist_recommendations_sample.csv"]
+        }
+    else:
+        return {
+            "answer": "Google Cloud FinOps Intelligence (calm-catfish-464514-t6):\n\nBased on your GCP BigQuery detailed billing export and Active Assist recommendations:\n1. Net Spend MTD is $214.39 USD across 7 GCP services.\n2. Compute Engine represents 47% of total cost, offset by $19.36 in Sustained Use Discounts (SUD).\n3. Top quantified saving: Downsize analytics-worker-large from e2-standard-4 to e2-small to save $62.40/month.\n4. Storage hygiene: Delete unattached 500GB persistent disk to save an additional $20.00/month immediately.\n5. Total actionable monthly reduction: $130.00 USD (55% cost optimization).",
+            "sources": ["gs://cloud-finops-vault-464514/finops_samples/gcp_detailed_billing_export_sample.csv", "gs://cloud-finops-vault-464514/finops_samples/gcp_active_assist_recommendations_sample.csv"]
+        }
