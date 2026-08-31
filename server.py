@@ -312,7 +312,11 @@ def _fetch_azure_pdf_bytes():
 
 def _fetch_gcp_pdf_bytes():
     from google.cloud import storage
-    client = storage.Client()
+    # Explicit project, matching query_gcp_instances()'s fallback — some
+    # credential sources (e.g. certain service accounts) have no default
+    # project, and storage.Client() then fails with "Project was not
+    # passed and could not be determined from the environment."
+    client = storage.Client(project=os.environ.get("GOOGLE_CLOUD_PROJECT", "calm-catfish-464514-t6"))
     blob = client.bucket("cloud-finops-vault-464514").blob(
         "documents/cloud-finops-collaborative-real-time-cloud-financial-management.pdf"
     )
