@@ -22,3 +22,9 @@ Pillow
 azure-mgmt-web
 google-cloud-run
 google-cloud-functions
+google-genai
+python-dotenv
+httpx
+beautifulsoup4
+curl-cffi
+fastmcp
