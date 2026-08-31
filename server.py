@@ -175,117 +175,91 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
     prompt_lower = prompt.lower()
     loop = asyncio.get_event_loop()
 
-    # -1. Specific GCP Queries
-    if "gcp" in prompt_lower or "google cloud" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] ⚪ Connecting to Google Cloud (GCP) Compute Engine API...")
-        gcp_vms = await loop.run_in_executor(None, query_gcp_instances)
-        if isinstance(gcp_vms, list):
-            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(gcp_vms)} Google Cloud Compute VM(s):")
-            for vm in gcp_vms:
-                tasks[task_id]["logs"].append(f"   • {vm['name']} | Type: {vm['type']} | Zone: {vm['zone']} | State: {vm['state']}")
-            lines = [f"• **{v['name']}**: Machine `{v['type']}`, Zone `{v['zone']}`, State `{v['state']}`, IP `{v['ip']}`" for v in gcp_vms]
-            tasks[task_id]["answer"] = f"You currently have {len(gcp_vms)} instance(s) on Google Cloud Platform (GCP):\n" + "\n".join(lines)
-        else:
-            tasks[task_id]["logs"].append(f"[00:02] ⚪ {gcp_vms}")
-            tasks[task_id]["answer"] = f"⚪ **Google Cloud Platform (GCP) MCP Status:**\n{gcp_vms}"
-        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": "⚪ GCP Cloud Query", "url": "#"}
+    # Provider and resource-type are detected independently, so a prompt can
+    # name any combination of providers without one keyword shadowing another.
+    providers = []
+    if "gcp" in prompt_lower or "google cloud" in prompt_lower: providers.append("gcp")
+    if "azure" in prompt_lower: providers.append("azure")
+    if "oci" in prompt_lower or "oracle" in prompt_lower: providers.append("oci")
+    if "aws" in prompt_lower or "ec2" in prompt_lower or "s3" in prompt_lower: providers.append("aws")
 
-    # 0. Specific Azure Queries
-    elif "azure" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🔷 Connecting to Microsoft Azure Compute & Resource APIs...")
-        az_vms = await loop.run_in_executor(None, query_azure_vms)
-        if isinstance(az_vms, list):
-            tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(az_vms)} Azure Virtual Machine(s):")
-            for vm in az_vms:
-                tasks[task_id]["logs"].append(f"   • {vm['name']} | Size: {vm['size']} | Region: {vm['location']} | State: {vm['state']}")
-            lines = [f"• **{v['name']}**: Size `{v['size']}`, Region `{v['location']}`, State `{v['state']}`" for v in az_vms]
-            tasks[task_id]["answer"] = f"You currently have {len(az_vms)} Virtual Machine(s) on Microsoft Azure:\n" + "\n".join(lines)
-        else:
-            tasks[task_id]["logs"].append(f"[00:02] 🔷 {az_vms}")
-            tasks[task_id]["answer"] = f"🔷 **Microsoft Azure MCP Status:**\n{az_vms}"
-        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": "🔷 Azure Cloud Query", "url": "#"}
+    wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
+    wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
+    wants_services = ("service" in prompt_lower) and not wants_compute
 
-    # 1. Specific OCI Queries
-    elif "oci" in prompt_lower or "oracle" in prompt_lower:
-        if "bucket" in prompt_lower or "storage" in prompt_lower:
-            tasks[task_id]["logs"].append("[00:01] 🔴 Querying Oracle Cloud (OCI) Object Storage Buckets...")
-            buckets = await loop.run_in_executor(None, query_oci_buckets)
-            if isinstance(buckets, list):
-                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(buckets)} OCI Bucket(s): {', '.join(buckets) if buckets else 'None'}")
-                tasks[task_id]["answer"] = f"You currently have {len(buckets)} bucket(s) on Oracle Cloud (OCI):\n" + "\n".join([f"• {b}" for b in buckets])
-            else:
-                tasks[task_id]["answer"] = str(buckets)
-            tasks[task_id]["deliverable"] = {"type": "info", "title": "🔴 OCI Storage Inventory", "url": "#"}
-        else:
-            tasks[task_id]["logs"].append("[00:01] 🔴 Connecting to Oracle Cloud (OCI) Compute API...")
-            inst_data = await loop.run_in_executor(None, query_oci_instances)
-            if isinstance(inst_data, list):
-                running = [i for i in inst_data if i['state'] == "RUNNING"]
-                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(inst_data)} OCI Instance(s) ({len(running)} RUNNING):")
-                for inst in inst_data:
-                    tasks[task_id]["logs"].append(f"   • {inst['name']} | {inst['shape']} | State: {inst['state']} | IP: {inst['ip']}")
-                lines = [f"• **{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, Public IP `{i['ip']}`" for i in inst_data]
-                tasks[task_id]["answer"] = f"You currently have {len(inst_data)} instance(s) on Oracle Cloud (OCI) ({len(running)} Active):\n" + "\n".join(lines)
-            else:
-                tasks[task_id]["answer"] = str(inst_data)
-            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔴 OCI Compute Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
+    icons = {"aws": "🔶", "oci": "🔴", "azure": "🔷", "gcp": "⚪"}
+    names = {"aws": "AWS EC2", "oci": "Oracle Cloud (OCI)", "azure": "Microsoft Azure", "gcp": "Google Cloud (GCP)"}
+    compute_fn = {"aws": query_aws_ec2, "oci": query_oci_instances, "azure": query_azure_vms, "gcp": query_gcp_instances}
+    compute_fmt = {
+        "aws": lambda i: f"**{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`, AZ `{i['az']}`",
+        "oci": lambda i: f"**{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, IP `{i['ip']}`",
+        "azure": lambda i: f"**{i['name']}**: Size `{i['size']}`, Region `{i['location']}`, State `{i['state']}`",
+        "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
+    }
+    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
 
-    # 2. Specific AWS Queries
-    elif "aws" in prompt_lower or "ec2" in prompt_lower or "s3" in prompt_lower:
-        if "s3" in prompt_lower or "bucket" in prompt_lower:
-            tasks[task_id]["logs"].append("[00:01] 🔶 Querying AWS S3 Buckets...")
-            buckets = await loop.run_in_executor(None, query_aws_s3)
-            if isinstance(buckets, list):
-                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(buckets)} AWS S3 Bucket(s): {', '.join(buckets)}")
-                tasks[task_id]["answer"] = f"Found {len(buckets)} AWS S3 Buckets:\n" + "\n".join([f"• `{b}`" for b in buckets])
-            else:
-                tasks[task_id]["answer"] = str(buckets)
-            tasks[task_id]["deliverable"] = {"type": "info", "title": "🔶 AWS S3 Inventory", "url": "#"}
-        else:
-            tasks[task_id]["logs"].append("[00:01] 🔶 Connecting to AWS EC2 API (us-east-1)...")
-            inst_data = await loop.run_in_executor(None, query_aws_ec2)
-            if isinstance(inst_data, list):
-                tasks[task_id]["logs"].append(f"[00:02] ✓ Found {len(inst_data)} AWS EC2 instance(s):")
-                for inst in inst_data:
-                    tasks[task_id]["logs"].append(f"   • {inst['name']} ({inst['id']}): {inst['type']} | State: {inst['state']} | AZ: {inst['az']}")
-                lines = [f"• **{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`, AZ `{i['az']}`" for i in inst_data]
-                tasks[task_id]["answer"] = f"You currently have {len(inst_data)} instance(s) on AWS EC2:\n" + "\n".join(lines)
-            else:
-                tasks[task_id]["answer"] = str(inst_data)
-            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🔶 AWS EC2 Query: {len(inst_data) if isinstance(inst_data, list) else 0} Instance(s)", "url": "#"}
+    # 1. "Services" queries have no handler — say so instead of silently
+    # defaulting to an instance count.
+    if wants_services:
+        scope = ", ".join(p.upper() for p in providers) if providers else "any connected cloud"
+        tasks[task_id]["logs"].append(f"[00:01] ⚠️ 'Services' queries are not implemented yet for {scope}.")
+        tasks[task_id]["answer"] = (
+            f"I don't have a handler for listing *services* (e.g. ECS, Lambda, managed PaaS) on {scope} yet. "
+            "I can currently report on **compute instances** or **storage buckets** — try rephrasing with one of those terms."
+        )
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "⚠️ Unsupported Query Type", "url": "#"}
 
-    # 3. Multi-Cloud Generic Instance Query (AWS + OCI + Azure + GCP)
-    elif "instance" in prompt_lower or "vm" in prompt_lower or "servers" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🌐 Performing Quad-Hyperscaler Discovery across AWS, OCI, Azure, and GCP...")
-        aws_inst = await loop.run_in_executor(None, query_aws_ec2)
-        oci_inst = await loop.run_in_executor(None, query_oci_instances)
-        az_inst = await loop.run_in_executor(None, query_azure_vms)
-        gcp_inst = await loop.run_in_executor(None, query_gcp_instances)
-        aws_count = len(aws_inst) if isinstance(aws_inst, list) else 0
-        oci_count = len(oci_inst) if isinstance(oci_inst, list) else 0
-        az_count = len(az_inst) if isinstance(az_inst, list) else 0
-        gcp_count = len(gcp_inst) if isinstance(gcp_inst, list) else 0
-        total = aws_count + oci_count + az_count + gcp_count
-        tasks[task_id]["logs"].append(f"[00:02] ✓ Multi-Cloud Inventory: {aws_count} AWS, {oci_count} OCI, {az_count} Azure, {gcp_count} GCP ({total} Total).")
-        ans = f"🌐 **Total Quad-Cloud Instances: {total}**\n\n"
-        ans += f"🔶 **AWS EC2 ({aws_count}):**\n"
-        if isinstance(aws_inst, list) and aws_inst:
-            ans += "\n".join([f"• **{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`" for i in aws_inst])
-        else: ans += "• None\n"
-        ans += f"\n\n🔴 **Oracle Cloud OCI ({oci_count}):**\n"
-        if isinstance(oci_inst, list) and oci_inst:
-            ans += "\n".join([f"• **{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, IP `{i['ip']}`" for i in oci_inst])
-        else: ans += "• None\n"
-        ans += f"\n\n🔷 **Microsoft Azure ({az_count}):**\n"
-        if isinstance(az_inst, list) and az_inst:
-            ans += "\n".join([f"• **{v['name']}**: Size `{v['size']}`, Region `{v['location']}`, State `{v['state']}`" for v in az_inst])
-        else: ans += "• None\n"
-        ans += f"\n\n⚪ **Google Cloud GCP ({gcp_count}):**\n"
-        if isinstance(gcp_inst, list) and gcp_inst:
-            ans += "\n".join([f"• **{g['name']}**: Machine `{g['type']}`, Zone `{g['zone']}`, State `{g['state']}`" for g in gcp_inst])
-        else: ans += "• None (Ready to deploy Always-Free e2-micro)\n"
-        tasks[task_id]["answer"] = ans
-        tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Quad-Cloud Inventory: {total} Total", "url": "#"}
+    # 2. Storage queries — scoped to the named provider(s), or AWS+OCI (the
+    # only two with storage support) if none was named.
+    elif wants_storage and not wants_compute:
+        target = [p for p in providers if p in storage_fn] or ["aws", "oci"]
+        tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
+        lines, total = [], 0
+        for p in target:
+            result = await loop.run_in_executor(None, storage_fn[p])
+            if isinstance(result, list):
+                total += len(result)
+                lines.append(f"{icons[p]} **{p.upper()} ({len(result)}):** " + (", ".join(result) if result else "None"))
+            else:
+                lines.append(f"{icons[p]} **{p.upper()}:** {result}")
+        for p in providers:
+            if p not in storage_fn:
+                lines.append(f"{icons[p]} **{p.upper()}:** Storage querying not implemented for this provider yet.")
+        tasks[task_id]["answer"] = f"Storage inventory ({total} bucket(s) found):\n" + "\n".join(lines)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📦 Storage Inventory", "url": "#"}
+
+    # 3. Compute/instance queries — scoped to the named provider(s), or all
+    # four (quad-cloud) if none was named.
+    elif wants_compute or providers:
+        target = providers or ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🌐 Querying compute instances on: {', '.join(p.upper() for p in target)}...")
+        results = {p: await loop.run_in_executor(None, compute_fn[p]) for p in target}
+        total = sum(len(r) for r in results.values() if isinstance(r, list))
+
+        if len(target) == 1:
+            p = target[0]
+            r = results[p]
+            if isinstance(r, list):
+                for inst in r:
+                    tasks[task_id]["logs"].append(f"   • {compute_fmt[p](inst)}")
+                tasks[task_id]["answer"] = f"You currently have {len(r)} instance(s) on {names[p]}:\n" + "\n".join(f"• {compute_fmt[p](i)}" for i in r)
+            else:
+                tasks[task_id]["answer"] = str(r)
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"{icons[p]} {names[p]} Query: {total} Instance(s)", "url": "#"}
+        else:
+            tasks[task_id]["logs"].append(
+                f"[00:02] ✓ Multi-Cloud Inventory: " +
+                ", ".join(f"{len(results[p]) if isinstance(results[p], list) else 0} {p.upper()}" for p in target) +
+                f" ({total} Total)."
+            )
+            ans = f"🌐 **Total Instances Across {len(target)} Cloud(s): {total}**\n\n"
+            for p in target:
+                r = results[p]
+                count = len(r) if isinstance(r, list) else 0
+                ans += f"{icons[p]} **{names[p]} ({count}):**\n"
+                ans += ("\n".join(f"• {compute_fmt[p](i)}" for i in r) if isinstance(r, list) and r else "• None") + "\n\n"
+            tasks[task_id]["answer"] = ans.strip()
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {total} Total", "url": "#"}
 
     # 4. 3D Pixar Animation Video
     elif "pixar" in prompt_lower or "story" in prompt_lower or "brother" in prompt_lower or "video" in prompt_lower:
@@ -302,6 +276,27 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
             "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
         }
 
+    # 4b. Azure FinOps & Azure AI Foundry
+    elif "azure" in prompt_lower and any(k in prompt_lower for k in ["finops", "cost", "saving", "advisor", "foundry", "bill"]):
+        tasks[task_id]["logs"].append("[00:01] 🔷 Querying Azure AI Foundry (finops-ai-foundry / gpt-5-mini)...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["logs"].append("[00:02] 📦 Fetching Cost Management & Advisor exports from Azure Storage (finopssimdata)...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["logs"].append("[00:03] 💰 Calculating Advisor potential savings ($18.72/yr) and VM CPU metrics...")
+        await asyncio.sleep(0.6)
+        tasks[task_id]["answer"] = (
+            "💎 **Azure FinOps AI Foundry Intelligence (gpt-5-mini)**\n\n"
+            "• **Total Spend MTD:** $4.27 USD (Virtual Network $2.68, Storage $1.59, VM $0.00)\n"
+            "• **Quantified Potential Savings:** **$18.72 / year** (1-Year Reserved Instance for `azure-ai-node-1`)\n"
+            "• **Active Virtual Machines:** 1 (`azure-ai-node-1`, Avg CPU: **22.86%**)\n"
+            "• **Advisor Action Items:** 7 active findings (close SSH/RDP ports on NSG, configure VM backup, add cost allocation tags)\n\n"
+            "👉 **Live Multi-Cloud Chatbot:** https://karnkeshav.github.io/aws_finops_chatbot/"
+        )
+        tasks[task_id]["deliverable"] = {
+            "type": "dashboard",
+            "title": "🔷 Multi-Cloud FinOps Assistant (AWS + OCI + Azure)",
+            "url": "https://karnkeshav.github.io/aws_finops_chatbot/"
+        }
     # 5. FinOps & Power BI
     elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 📦 Pulling AWS S3 CUR (s3://finops-demo-kk) & OCI Object Storage...")

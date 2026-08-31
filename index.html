@@ -682,6 +682,22 @@
           </div>
         </div>
 
+        
+        <!-- Card 2b: Azure FinOps Assistant (FinOps & Hybrid) -->
+        <div class="card" data-category="finops" onclick="loadPrompt('finops-azure-foundry')">
+          <div class="card-top">
+            <div class="card-icon icon-finops" style="background: rgba(0, 120, 212, 0.18); color: #70b8ff;">🔷</div>
+            <div>
+              <div class="card-title">Azure FinOps AI Assistant</div>
+              <div class="card-desc">Azure AI Foundry (gpt-5-mini) cost intelligence, Advisor savings (8.72/yr), Chart.js breakdowns & Mermaid workflows</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Azure AI Foundry • gpt-5-mini</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
         <!-- Card 3: CloudOps (CloudOps) -->
         <div class="card" data-category="cloudops" onclick="loadPrompt('cloudops-ampere')">
           <div class="card-top">
@@ -818,6 +834,24 @@
             </div>
             <a href="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" download class="btn-outline">
               ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+
+        
+        <!-- Artifact 4: Multi-Cloud FinOps Assistant (AWS + OCI + Azure) -->
+        <div class="artifact-card">
+          <div class="artifact-media" style="background: radial-gradient(circle at center, #0078d4 0%, #090d16 80%); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;">
+            <span style="font-size: 2.6rem;">🔷 🔶 🔴</span>
+            <span style="font-family: var(--font-mono); font-size: 0.8rem; color: #70b8ff; font-weight: 700;">AWS • OCI • AZURE</span>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">💬 Multi-Cloud FinOps Assistant (AWS + OCI + Azure)</div>
+            <div class="artifact-meta">
+              <span>Azure AI Foundry (gpt-5-mini)</span> • <span>AWS Bedrock</span> • <span>Live Interactive Chat</span>
+            </div>
+            <a href="https://karnkeshav.github.io/aws_finops_chatbot/" target="_blank" class="btn-outline" style="border-color: #0078d4; color: #70b8ff;">
+              🚀 Launch Multi-Cloud Chatbot
             </a>
           </div>
         </div>
@@ -964,7 +998,17 @@
         answer = "You currently have 1 instance(s) on AWS EC2:\n• cheapest-test-instance (i-01fbc0b7bb46ec091): t4g.nano, State: stopped, AZ: us-east-1a";
       } else if (pLower.includes("pixar") || pLower.includes("video")) {
         answer = "✓ 65-Second 3D Pixar Animated Hindi Story Video rendered and available in showcase gallery!";
-      } else if (pLower.includes("finops") || pLower.includes("power bi")) {
+      }       else if (pLower.includes("azure") && (pLower.includes("finops") || pLower.includes("cost") || pLower.includes("advisor") || pLower.includes("saving") || pLower.includes("foundry"))) {
+        answer = "💎 Azure FinOps AI Foundry Analysis (gpt-5-mini):
+
+• Total Spend MTD: .27 USD (Virtual Network .68, Storage .59, VM bash.00)
+• Potential Annual Savings: 8.72/yr (1-Yr/3-Yr Reserved Instance for azure-ai-node-1)
+• Active VMs: 1 (azure-ai-node-1, avg CPU: 22.86%)
+• Advisor Recommendations: 7 Active (NSG port security, Backup, Tags, Reserved Instance)
+
+👉 Launch Live Multi-Cloud Assistant: https://karnkeshav.github.io/aws_finops_chatbot/";
+      }
+      else if (pLower.includes("finops") || pLower.includes("power bi")) {
         answer = "✓ AWS CUR + OCI Telemetry ($62.81 Total) normalized and pushed into Power BI Service!";
       } else {
         answer = "✓ Directive successfully processed by OCI Cloud Engine.";
