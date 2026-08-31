@@ -18,3 +18,4 @@ edge-tts
 imageio-ffmpeg
 scipy
 tabulate
+Pillow
