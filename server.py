@@ -169,6 +169,80 @@ def query_azure_vms():
     except Exception as e:
         return f"Azure Query Status: {str(e)}"
 
+# --- Managed / serverless "services" queries (ECS/Lambda, OCI Functions/OKE,
+# Azure App Service/Functions, GCP Cloud Run/Cloud Functions) -------------
+
+def query_aws_services():
+    try:
+        import boto3
+        results = []
+        lam = boto3.client("lambda", region_name="us-east-1")
+        for fn in lam.list_functions().get("Functions", []):
+            results.append({"type": "Lambda", "name": fn["FunctionName"], "state": fn.get("State", "Active")})
+        ecs = boto3.client("ecs", region_name="us-east-1")
+        for cluster_arn in ecs.list_clusters().get("clusterArns", []):
+            svc_arns = ecs.list_services(cluster=cluster_arn).get("serviceArns", [])
+            if not svc_arns:
+                continue
+            for svc in ecs.describe_services(cluster=cluster_arn, services=svc_arns).get("services", []):
+                results.append({"type": "ECS Service", "name": svc["serviceName"], "state": svc.get("status", "N/A")})
+        return results
+    except Exception as e:
+        return f"AWS Services Error: {str(e)}"
+
+def query_oci_services():
+    try:
+        import oci
+        config = oci.config.from_file()
+        compartment_id = config["tenancy"]
+        results = []
+        fn_client = oci.functions.FunctionsManagementClient(config)
+        for app in fn_client.list_applications(compartment_id).data:
+            results.append({"type": "Functions App", "name": app.display_name, "state": app.lifecycle_state})
+            for fn in fn_client.list_functions(app.id).data:
+                results.append({"type": "Function", "name": fn.display_name, "state": fn.lifecycle_state})
+        oke_client = oci.container_engine.ContainerEngineClient(config)
+        for cluster in oke_client.list_clusters(compartment_id).data:
+            results.append({"type": "OKE Cluster", "name": cluster.name, "state": cluster.lifecycle_state})
+        return results
+    except Exception as e:
+        return f"OCI Services Error: {str(e)}"
+
+def query_azure_services():
+    try:
+        from azure.identity import DefaultAzureCredential
+        from azure.mgmt.web import WebSiteManagementClient
+        cred = DefaultAzureCredential()
+        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
+        if not sub_id:
+            return "Azure services query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
+        client = WebSiteManagementClient(cred, sub_id)
+        results = []
+        for site in client.web_apps.list():
+            kind = (site.kind or "").lower()
+            svc_type = "Function App" if "functionapp" in kind else "App Service"
+            results.append({"type": svc_type, "name": site.name, "state": site.state or "N/A"})
+        return results
+    except Exception as e:
+        return f"Azure Services Error: {str(e)}"
+
+def query_gcp_services():
+    try:
+        from google.cloud import run_v2, functions_v2
+        import google.auth
+        credentials, auto_proj = google.auth.default()
+        project = os.environ.get("GOOGLE_CLOUD_PROJECT", auto_proj or "calm-catfish-464514-t6")
+        results = []
+        run_client = run_v2.ServicesClient(credentials=credentials)
+        for svc in run_client.list_services(parent=f"projects/{project}/locations/-"):
+            results.append({"type": "Cloud Run", "name": svc.name.split("/")[-1], "state": "READY" if svc.terminal_condition.state == 1 else "NOT_READY"})
+        fn_client = functions_v2.FunctionServiceClient(credentials=credentials)
+        for fn in fn_client.list_functions(parent=f"projects/{project}/locations/-"):
+            results.append({"type": "Cloud Function", "name": fn.name.split("/")[-1], "state": fn.state.name if hasattr(fn.state, "name") else str(fn.state)})
+        return results
+    except Exception as e:
+        return f"GCP Services Error: {str(e)}"
+
 def query_aws_cost():
     try:
         import boto3
@@ -419,6 +493,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
     }
     storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
     cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost}
+    services_fn = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 
     # 0. Cloud FinOps guide citation — takes priority over the showcase
     # panels below for genuine recommendation/advice questions.
@@ -481,16 +556,33 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str):
         tasks[task_id]["logs"].append("[00:04] 💎 Mission complete! Execution finished.")
         tasks[task_id]["status"] = "COMPLETED"
         return
-    # 1. "Services" queries have no handler — say so instead of silently
-    # defaulting to an instance count.
+    # 1. Managed/serverless "services" queries — ECS/Lambda (AWS), Functions/
+    # OKE (OCI), App Service/Functions (Azure), Cloud Run/Functions (GCP).
+    # Scoped to the named provider(s), or all four if none was named.
+    # Rendered as a markdown table.
     if wants_services:
-        scope = ", ".join(p.upper() for p in providers) if providers else "any connected cloud"
-        tasks[task_id]["logs"].append(f"[00:01] ⚠️ 'Services' queries are not implemented yet for {scope}.")
-        tasks[task_id]["answer"] = (
-            f"I don't have a handler for listing *services* (e.g. ECS, Lambda, managed PaaS) on {scope} yet. "
-            "I can currently report on **compute instances** or **storage buckets** — try rephrasing with one of those terms."
-        )
-        tasks[task_id]["deliverable"] = {"type": "info", "title": "⚠️ Unsupported Query Type", "url": "#"}
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
+        rows, errors = [], []
+        for p in target:
+            result = await loop.run_in_executor(None, services_fn[p])
+            if isinstance(result, list):
+                for svc in result:
+                    rows.append((p.upper(), svc["type"], svc["name"], svc["state"]))
+            else:
+                errors.append(f"{icons[p]} **{p.upper()}:** {result}")
+        if rows:
+            table = "| Provider | Type | Name | State |\n|---|---|---|---|\n"
+            table += "\n".join(f"| {p} | {t} | {n} | {s} |" for p, t, n, s in rows)
+            answer = f"🧩 **Managed/Serverless Services ({len(rows)} found):**\n\n{table}"
+            if errors:
+                answer += "\n\n" + "\n".join(errors)
+        elif errors:
+            answer = "🧩 **Managed/Serverless Services:**\n\n" + "\n".join(errors)
+        else:
+            answer = f"No managed/serverless services (Lambda/ECS, Functions/OKE, App Service/Functions, Cloud Run/Functions) found on {', '.join(p.upper() for p in target)}."
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"🧩 Services Inventory: {len(rows)} Found", "url": "#"}
 
     # 1.5 Cost / billing queries — scoped to the named provider(s), or
     # AWS+OCI+Azure (GCP has no cost handler yet) if none was named. Amounts

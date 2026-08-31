@@ -19,3 +19,6 @@ imageio-ffmpeg
 scipy
 tabulate
 Pillow
+azure-mgmt-web
+google-cloud-run
+google-cloud-functions
