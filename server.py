@@ -359,12 +359,7 @@ async def stream(task_id: str):
             await asyncio.sleep(0.2)
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
-app.mount("/", StaticFiles(directory=base_dir, html=True), name="static")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 @app.post("/ask-gcp")
 async def ask_gcp_endpoint(payload: dict):
@@ -399,3 +394,11 @@ async def ask_gcp_endpoint(payload: dict):
             "answer": "Google Cloud FinOps Intelligence (calm-catfish-464514-t6):\n\nBased on your GCP BigQuery detailed billing export and Active Assist recommendations:\n1. Net Spend MTD is $214.39 USD across 7 GCP services.\n2. Compute Engine represents 47% of total cost, offset by $19.36 in Sustained Use Discounts (SUD).\n3. Top quantified saving: Downsize analytics-worker-large from e2-standard-4 to e2-small to save $62.40/month.\n4. Storage hygiene: Delete unattached 500GB persistent disk to save an additional $20.00/month immediately.\n5. Total actionable monthly reduction: $130.00 USD (55% cost optimization).",
             "sources": ["gs://cloud-finops-vault-464514/finops_samples/gcp_detailed_billing_export_sample.csv", "gs://cloud-finops-vault-464514/finops_samples/gcp_active_assist_recommendations_sample.csv"]
         }
+
+
+base_dir = os.path.dirname(os.path.abspath(__file__))
+app.mount("/", StaticFiles(directory=base_dir, html=True), name="static")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
