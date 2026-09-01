@@ -2517,8 +2517,8 @@ _AGY_TOOL_HINT = (
     "whatsapp/facebook/linkedin posting, flowagent for Power Automate, aws-mcp/azure/gcp/oci "
     "for cloud). If one does, call it directly via call_mcp_tool instead of using "
     "search_web or answering from general knowledge — the MCP tools return real computed "
-    "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola) and must be preferred "
-    "whenever one applies.\n\nUser request: "
+    "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola, compare_zomato_vs_swiggy "
+    "on the zomato server) and must be preferred whenever one applies.\n\nUser request: "
 )
 
 async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
