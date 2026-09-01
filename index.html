@@ -776,6 +776,9 @@
       background: rgba(6, 182, 212, 0.05) !important;
     }
     #answerContent table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
       width: 100%;
       border-collapse: collapse;
       margin: 1rem 0;
@@ -809,6 +812,51 @@
       padding: 0.75rem 1rem;
       border-radius: 0 8px 8px 0;
       margin: 0.75rem 0;
+    }
+
+    /* Guard against any single long token (URLs, JSON tool-call logs, etc.)
+       forcing horizontal scroll of the whole page. */
+    .answer-text, #answerContent, .finops-bubble, .console-log-item, .hero p {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    @media (max-width: 640px) {
+      header {
+        padding: 0.85rem 1rem;
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+      }
+      .brand { font-size: 1rem; gap: 0.5rem; }
+      .brand-badge { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
+      .nav-stats {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+      }
+      /* Decorative provider list is the first thing to go on a narrow screen */
+      .nav-stats span:last-child { display: none; }
+
+      main { padding: 1.5rem 1rem; gap: 1.75rem; }
+
+      .hero h1 { font-size: clamp(1.6rem, 8vw, 2.75rem); }
+      .hero p { font-size: 0.95rem; }
+      .hero-pill { font-size: 0.72rem; padding: 0.3rem 0.7rem; text-align: center; }
+
+      .command-hub { padding: 1rem; border-radius: 14px; }
+      .prompt-box-wrapper { padding: 1rem; }
+
+      .cards-grid, .showcase-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .finops-bubble { max-width: 92%; }
+      .finops-visual-container { max-width: 100%; }
+      .finops-input-row { flex-wrap: wrap; }
+
+      #answerContent table { font-size: 0.78rem; }
+      #answerContent th, #answerContent td { padding: 0.5rem 0.6rem; }
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
