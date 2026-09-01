@@ -1,4 +1,4 @@
-import os, asyncio, json, time, uuid, base64, io, urllib.parse, re
+import os, asyncio, json, time, uuid, base64, io, urllib.parse, re, platform
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 # Explicit path (not cwd-dependent) and override=True: this project's own
@@ -609,6 +609,152 @@ def _gemini_tool_declarations():
                 "passengers": types.Schema(type="INTEGER", description="Number of passengers (1 to 6). Default: 1."),
             }, required=["pickup", "drop"]),
         ),
+        types.FunctionDeclaration(
+            name="get_rapido_ride_estimate",
+            description="Calculate live Rapido ride estimates, fare breakdown, and ETA across Rapido Bike Taxi, Auto, Economy Cab, and Parcel delivery.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "pickup": types.Schema(type="STRING", description="Starting pickup location (e.g. 'Koramangala 5th Block, Bangalore', 'Connaught Place, Delhi')."),
+                "drop": types.Schema(type="STRING", description="Destination drop location (e.g. 'Kempegowda Airport', 'Cyber Hub, Gurgaon')."),
+            }, required=["pickup", "drop"]),
+        ),
+        types.FunctionDeclaration(
+            name="compare_rapido_vs_uber_vs_ola",
+            description="3-Way Mobility Arbitrage: Compare ride fares side-by-side between Rapido, Uber, and Ola (Bike Taxi, Auto Rickshaw, Economy Cab) for any route in India to find the absolute cheapest service.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "pickup": types.Schema(type="STRING", description="Starting pickup location or landmark."),
+                "drop": types.Schema(type="STRING", description="Destination drop location or landmark."),
+            }, required=["pickup", "drop"]),
+        ),
+        types.FunctionDeclaration(
+            name="check_account_logins",
+            description="Check which user accounts and memberships (Amazon Prime, Flipkart Plus, Swiggy One, Zomato Gold, Uber, Ola, etc.) are connected and authenticated via persistent browser sessions.",
+            parameters=types.Schema(type="OBJECT", properties={}),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_generate_marketing_copy",
+            description="Generate high-converting WhatsApp marketing campaign copy with emojis, bold headers, bullet highlights, urgency hooks, and clear CTA for Indian shoppers.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "campaign_goal": types.Schema(type="STRING", description="Goal (e.g. 'Flash Sale', 'Festival Offer', 'Product Launch', 'Cart Recovery', 'VIP Member Deal')."),
+                "product_or_service": types.Schema(type="STRING", description="Product or service name with key highlights (e.g. 'boAt Rockerz 255 Pro+ 60H battery earphones')."),
+                "discount_or_offer": types.Schema(type="STRING", description="Optional discount or coupon code (e.g. 'Flat 40% OFF + Extra 10% code DEAL10')."),
+                "urgency_hook": types.Schema(type="STRING", description="Optional scarcity trigger (e.g. 'Limited time offer — expires in 24 hours!')."),
+                "call_to_action": types.Schema(type="STRING", description="Action link or instruction (e.g. 'https://dealstore.in/boat')."),
+                "brand_name": types.Schema(type="STRING", description="Brand or store name."),
+                "language": types.Schema(type="STRING", description="Language: 'English' or 'Hinglish'."),
+            }, required=["campaign_goal", "product_or_service"]),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_send_marketing_message",
+            description="Send a WhatsApp promotional text message or campaign to a customer's phone number via Meta Cloud API or Preview Simulation.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "recipient_phone": types.Schema(type="STRING", description="Destination phone number (e.g. '9876543210' or '+919876543210')."),
+                "message_text": types.Schema(type="STRING", description="WhatsApp formatted text message with bolding and emojis."),
+            }, required=["recipient_phone", "message_text"]),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_send_media_campaign",
+            description="Send a promotional product image, video banner, or PDF catalog with caption to a customer on WhatsApp.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "recipient_phone": types.Schema(type="STRING", description="Recipient phone number."),
+                "media_type": types.Schema(type="STRING", description="'image', 'video', or 'document'."),
+                "media_url": types.Schema(type="STRING", description="Public HTTPS link to the media file."),
+                "caption": types.Schema(type="STRING", description="Optional promotional caption text."),
+            }, required=["recipient_phone", "media_type", "media_url"]),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_send_interactive_buttons",
+            description="Send an interactive WhatsApp message with up to 3 Quick Reply action buttons (e.g. 'Claim 20% Off', 'View Catalog', 'Chat with Agent').",
+            parameters=types.Schema(type="OBJECT", properties={
+                "recipient_phone": types.Schema(type="STRING", description="Recipient phone number."),
+                "body_text": types.Schema(type="STRING", description="Main offer description."),
+                "buttons": types.Schema(type="ARRAY", items=types.Schema(type="STRING"), description="List of 1 to 3 button titles."),
+                "header_text": types.Schema(type="STRING", description="Optional bold header."),
+            }, required=["recipient_phone", "body_text", "buttons"]),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_abandoned_cart_recovery",
+            description="Generate and dispatch an automated WhatsApp abandoned cart recovery message with discount incentive and 1-click checkout URL.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "customer_name": types.Schema(type="STRING", description="Customer's first name."),
+                "customer_phone": types.Schema(type="STRING", description="Customer's phone number."),
+                "item_name": types.Schema(type="STRING", description="Product left in cart."),
+                "cart_total_inr": types.Schema(type="NUMBER", description="Cart total in INR."),
+                "discount_percent": types.Schema(type="INTEGER", description="Incentive discount % (e.g. 15)."),
+            }, required=["customer_name", "customer_phone", "item_name", "cart_total_inr"]),
+        ),
+        types.FunctionDeclaration(
+            name="whatsapp_check_account_status",
+            description="Check WhatsApp Business Cloud API connection status, token configuration, and marketing capabilities.",
+            parameters=types.Schema(type="OBJECT", properties={}),
+        ),
+        types.FunctionDeclaration(
+            name="facebook_generate_post_copy",
+            description="Generate viral Facebook Page posts with storytelling hooks, emojis, hashtags, and CTA optimized for organic reach.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "topic_or_product": types.Schema(type="STRING", description="Subject or product of the post."),
+                "post_goal": types.Schema(type="STRING", description="Goal: 'Engagement & Brand Awareness', 'Direct Sales & Clicks', 'Product Announcement'."),
+                "offer_or_discount": types.Schema(type="STRING", description="Optional discount or promotional hook."),
+                "call_to_action_url": types.Schema(type="STRING", description="Optional link to website or product."),
+                "brand_name": types.Schema(type="STRING", description="Brand name."),
+            }, required=["topic_or_product"]),
+        ),
+        types.FunctionDeclaration(
+            name="facebook_publish_post",
+            description="Publish text updates and link posts to a Facebook Business Page via Meta Graph API v20.0.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "message_text": types.Schema(type="STRING", description="Facebook post message text."),
+                "link_url": types.Schema(type="STRING", description="Optional website link preview."),
+            }, required=["message_text"]),
+        ),
+        types.FunctionDeclaration(
+            name="facebook_create_ad_campaign",
+            description="Generate a complete Facebook Ad campaign blueprint (Primary Text, Headline, Description, Demographic Targeting, CTA Button).",
+            parameters=types.Schema(type="OBJECT", properties={
+                "campaign_name": types.Schema(type="STRING", description="Ad campaign name."),
+                "product_name": types.Schema(type="STRING", description="Product being advertised."),
+                "daily_budget_inr": types.Schema(type="NUMBER", description="Daily ad budget in INR."),
+                "offer_highlight": types.Schema(type="STRING", description="Offer hook (e.g. 'Flat 40% OFF')."),
+            }, required=["campaign_name", "product_name"]),
+        ),
+        types.FunctionDeclaration(
+            name="facebook_check_page_status",
+            description="Check Facebook Page Access Token configuration and Meta Graph API capabilities.",
+            parameters=types.Schema(type="OBJECT", properties={}),
+        ),
+        types.FunctionDeclaration(
+            name="linkedin_generate_thought_leadership_post",
+            description="Generate high-impact B2B LinkedIn thought-leadership posts with line-spaced viral formatting, bullet takeaways, and discussion hooks.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "topic_or_insight": types.Schema(type="STRING", description="Theme or topic (e.g. 'Multi-Cloud FinOps Optimization with OCI and AWS')."),
+                "target_industry_or_role": types.Schema(type="STRING", description="Target audience (e.g. 'CTOs, Cloud Engineers, FinOps Leaders')."),
+                "core_lesson_or_takeaway": types.Schema(type="STRING", description="Central framework or lesson."),
+                "storytelling_hook": types.Schema(type="STRING", description="Opening hook line."),
+            }, required=["topic_or_insight"]),
+        ),
+        types.FunctionDeclaration(
+            name="linkedin_publish_post",
+            description="Publish a thought-leadership text post or article link to a LinkedIn personal profile or Company Page via LinkedIn REST API.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "post_text": types.Schema(type="STRING", description="LinkedIn post text content."),
+                "share_to": types.Schema(type="STRING", description="'personal_profile' or 'organization_page'."),
+                "article_url": types.Schema(type="STRING", description="Optional external article URL."),
+            }, required=["post_text"]),
+        ),
+        types.FunctionDeclaration(
+            name="linkedin_b2b_lead_outreach",
+            description="Draft high-converting B2B connection notes (300-char limit) and InMail outreach sequences for CTOs, Founders, and VP Engineering prospects.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "prospect_name": types.Schema(type="STRING", description="Name of prospect."),
+                "prospect_company": types.Schema(type="STRING", description="Prospect's company name."),
+                "prospect_title": types.Schema(type="STRING", description="Job title (e.g. 'VP of Infrastructure')."),
+                "value_proposition": types.Schema(type="STRING", description="Core value proposition."),
+            }, required=["prospect_name", "prospect_company", "prospect_title"]),
+        ),
+        types.FunctionDeclaration(
+            name="linkedin_check_account_status",
+            description="Check LinkedIn OAuth 2.0 connection, Access Token status, and profile URNs.",
+            parameters=types.Schema(type="OBJECT", properties={}),
+        ),
     ]
 
 _GEMINI_ICONS = {"aws": "🔶", "oci": "🔴", "azure": "🔷", "gcp": "⚪"}
@@ -634,6 +780,29 @@ def _clean_price_num(val) -> Optional[float]:
         return float(cleaned)
     except Exception:
         return None
+
+_RELEVANCE_STOPWORDS = {
+    "the", "a", "an", "for", "on", "in", "at", "of", "and", "or", "with", "to", "is",
+    "best", "deal", "deals", "price", "prices", "buy", "get", "find", "cheap",
+    "cheapest", "cheaper", "faster", "fastest", "fast", "quick", "quickest", "where",
+    "can", "i", "me", "compare", "search", "order", "show", "want", "need", "please",
+    "pack", "standard", "delivery", "deliver", "food", "dish", "item", "product",
+}
+
+def _relevance_tokens(text: str) -> set:
+    return {t for t in re.findall(r"[a-z0-9]+", (text or "").lower()) if t not in _RELEVANCE_STOPWORDS and len(t) > 1}
+
+def _is_relevant_match(query: str, candidate_title: str, threshold: float = 0.5) -> bool:
+    """Checks whether a scraped result actually matches what was searched for, instead of
+    trusting whatever a platform's search/fallback happened to return as 'the' result."""
+    q_tokens = _relevance_tokens(query)
+    if not q_tokens:
+        return True
+    title_tokens = _relevance_tokens(candidate_title)
+    if not title_tokens:
+        return False
+    hits = sum(1 for t in q_tokens if any(t in tt or tt in t for tt in title_tokens))
+    return (hits / len(q_tokens)) >= threshold
 
 def analyze_product_image_with_gemini(client, image_data_uri: str) -> dict:
     """Uses Gemini Vision to visually identify product brand, model, and search keywords."""
@@ -901,13 +1070,23 @@ async def find_best_deals_across_platforms(query: str, location: str = "Bangalor
             "is_quick": False,
         })
 
-    # Determine Best Deal Winner (lowest numeric price)
-    valid_prices = [s for s in stores_data if s["price_num"] is not None and s["price_num"] > 0]
+    # Tag whether each platform's result actually matches what was asked for. A platform
+    # (Blinkit/Zepto especially) can return HTTP 200 with a real product on its shelves that
+    # has nothing to do with the query (e.g. a grocery item for an electronics search) when it
+    # simply doesn't stock anything relevant — that must not be allowed to "win" on price alone.
+    match_ref = clean_query
+    if product_meta and (product_meta.get("brand") or product_meta.get("product_name")):
+        match_ref = f"{product_meta.get('brand', '')} {product_meta.get('product_name', '')}".strip()
+    for s in stores_data:
+        s["relevant"] = _is_relevant_match(match_ref, s["title"]) or _is_relevant_match(clean_query, s["title"])
+
+    # Determine Best Deal Winner (lowest numeric price among genuinely matching results only)
+    valid_prices = [s for s in stores_data if s["price_num"] is not None and s["price_num"] > 0 and s["relevant"]]
+    no_verified_match = False
     if valid_prices:
         winner = min(valid_prices, key=lambda x: x["price_num"])
-    elif stores_data:
-        winner = stores_data[0]
     else:
+        no_verified_match = True
         winner = {
             "platform": "Amazon / Flipkart",
             "price": "Check Live",
@@ -916,8 +1095,8 @@ async def find_best_deals_across_platforms(query: str, location: str = "Bangalor
             "icon": "🛍️"
         }
 
-    # Find Quick Commerce option
-    quick_option = next((s for s in stores_data if s.get("is_quick")), None)
+    # Find Quick Commerce option (must also be a genuine match, not just whatever a dark store had in stock)
+    quick_option = next((s for s in stores_data if s.get("is_quick") and s["relevant"]), None)
 
     # Build Header Section
     display_title = product_meta.get("product_name") if product_meta else clean_query
@@ -931,11 +1110,23 @@ async def find_best_deals_across_platforms(query: str, location: str = "Bangalor
         "",
         "---",
         "",
-        f"#### 🏆 **Best Deal Winner (Lowest Price):**",
-        f"> {winner['icon']} **{winner['platform']}:** **{winner['price']}** *(Live on {winner['platform']})*",
-        f"> 🔗 **[Direct Product Link on {winner['platform']}]({winner['url']})**",
-        "",
     ]
+
+    if no_verified_match:
+        lines.extend([
+            f"#### ⚠️ **No Verified Matching Listing Found**",
+            f"None of the checked platforms returned a result that actually matches **{display_title}** right now "
+            f"(some may not stock this item, or the live search didn't return a confident match). "
+            f"Search directly instead: **[Amazon]({winner['url']})**",
+            "",
+        ])
+    else:
+        lines.extend([
+            f"#### 🏆 **Best Deal Winner (Lowest Price):**",
+            f"> {winner['icon']} **{winner['platform']}:** **{winner['price']}** *(Live on {winner['platform']})*",
+            f"> 🔗 **[Direct Product Link on {winner['platform']}]({winner['url']})**",
+            "",
+        ])
 
     if quick_option and quick_option != winner:
         lines.extend([
@@ -955,24 +1146,36 @@ async def find_best_deals_across_platforms(query: str, location: str = "Bangalor
     ])
 
     for s in stores_data:
-        p_badge = f"**{s['price']}**" if s == winner else s['price']
-        title_snippet = s['title'][:40] + ("…" if len(s['title']) > 40 else "")
+        if not s["relevant"]:
+            title_snippet = f"⚠️ No matching listing (closest: {s['title'][:30]})"
+            p_badge = "— *(not a match)*"
+        else:
+            p_badge = f"**{s['price']}**" if s == winner else s['price']
+            title_snippet = s['title'][:40] + ("…" if len(s['title']) > 40 else "")
         link_md = f"[{s['platform']}]({s['url']})"
         lines.append(f"| {s['icon']} **{s['platform']}** | {title_snippet} | {p_badge} | {s['mrp']} ({s['discount']}) | {s['delivery']} | {s['rating']} | {link_md} |")
 
-    lines.extend([
-        "",
-        "---",
-        "",
-        "💡 **Smart Buying Recommendation:**",
-        f"• **For Lowest Price:** Choose **{winner['platform']}** at **{winner['price']}** for maximum budget savings.",
-        f"• **For Instant 10-Minute Need:** Choose **Blinkit / Zepto** for instant doorstep delivery in `{location}`.",
-    ])
+    if no_verified_match:
+        lines.extend([
+            "",
+            "---",
+            "",
+            "💡 **Recommendation:** Try a more specific search term, or check each platform's app directly using the links above.",
+        ])
+    else:
+        lines.extend([
+            "",
+            "---",
+            "",
+            "💡 **Smart Buying Recommendation:**",
+            f"• **For Lowest Price:** Choose **{winner['platform']}** at **{winner['price']}** for maximum budget savings.",
+            f"• **For Instant 10-Minute Need:** Choose **Blinkit / Zepto** for instant doorstep delivery in `{location}`.",
+        ])
 
     answer_text = "\n".join(lines)
     deliverable = {
         "type": "deal_comparison",
-        "title": f"🛍️ Best Deal: {winner['platform']} ({winner['price']})",
+        "title": "🛍️ No Verified Match Found" if no_verified_match else f"🛍️ Best Deal: {winner['platform']} ({winner['price']})",
         "url": winner['url']
     }
     return answer_text, deliverable
@@ -1053,11 +1256,20 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
     zomato_list = zomato_raw if isinstance(zomato_raw, list) else []
 
     all_options = []
+    is_illustrative = False
 
-    # Parse Swiggy options
+    # Parse Swiggy options — only keep dishes that actually match what was asked for. Swiggy's
+    # search can return an entire restaurant's menu; without this filter, an unrelated cheap
+    # side item (e.g. a ₹35 Butter Naan) could get declared "the cheapest {clean_dish}".
     for s in swiggy_list:
         price_num = s.get("price_raw") or parse_price_num(s.get("price"))
         if price_num >= 9999:
+            continue
+        dish_name = s.get("dish_name") or ""
+        # Dish names are short and share generic words ("butter", "masala") across many
+        # unrelated items, so a partial-overlap threshold isn't strict enough — require every
+        # word of the requested dish to appear (order-independent) before calling it a match.
+        if not _is_relevant_match(clean_dish, dish_name, threshold=0.99):
             continue
         eta_num = parse_time_num(s.get("delivery_time"))
         rating_val = s.get("restaurant_rating") or s.get("dish_rating")
@@ -1070,7 +1282,7 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
             "platform": "Swiggy",
             "icon": "🟠",
             "restaurant_name": s.get("restaurant_name") or "Restaurant on Swiggy",
-            "dish_name": s.get("dish_name") or clean_dish.title(),
+            "dish_name": dish_name or clean_dish.title(),
             "price": s.get("price") or f"₹{int(price_num)}",
             "price_num": price_num,
             "delivery_time": s.get("delivery_time") or f"{int(eta_num)} mins",
@@ -1079,10 +1291,15 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
             "rating_num": rating_num or 4.2,
             "locality": s.get("restaurant_area") or clean_loc,
             "offers": s.get("cost_for_two") or "Special App Discount",
-            "url": s.get("swiggy_url") or f"https://www.swiggy.com/restaurants/{s.get('restaurant_id', '')}"
+            "url": s.get("swiggy_url") or f"https://www.swiggy.com/restaurants/{s.get('restaurant_id', '')}",
+            "estimated": False,
         })
 
-    # Parse Zomato options
+    verified_options = list(all_options)
+
+    # Parse Zomato options. Zomato's public search returns matching restaurants, not per-dish
+    # menu prices, so this is only ever an estimate (half of "cost for two") — it must be
+    # labeled as such rather than presented as a confirmed dish price like the old "{dish} Portion" label was.
     for z in zomato_list:
         cft_num = z.get("cost_numeric") or parse_price_num(z.get("cost_for_two"))
         price_num = round(cft_num / 2) if cft_num and cft_num < 9999 else 280.0
@@ -1098,8 +1315,8 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
             "platform": "Zomato",
             "icon": "🔴",
             "restaurant_name": z.get("name") or "Restaurant on Zomato",
-            "dish_name": f"{clean_dish.title()} Portion",
-            "price": f"₹{int(price_num)}",
+            "dish_name": f"~{clean_dish.title()} (est., not menu-confirmed)",
+            "price": f"~₹{int(price_num)}",
             "price_num": price_num,
             "delivery_time": eta_str,
             "eta_num": eta_num,
@@ -1107,11 +1324,18 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
             "rating_num": rating_num,
             "locality": z.get("locality") or clean_loc,
             "offers": (z.get("offers") or ["₹100 OFF Promo"])[0] if z.get("offers") else z.get("cost_for_two") or "Promo Available",
-            "url": z.get("zomato_url") or f"https://www.zomato.com/{clean_loc.lower()}"
+            "url": z.get("zomato_url") or f"https://www.zomato.com/{clean_loc.lower()}",
+            "estimated": True,
         })
+
+    # Winners come from verified (actual dish-matched) results whenever any exist. Falling back
+    # to estimated-only results, or to the illustrative sample, must be visible in the output —
+    # not silently presented as if it were a confirmed live price.
+    winner_pool = verified_options if verified_options else all_options
 
     # Fallback default items if live APIs were blocked
     if not all_options:
+        is_illustrative = True
         all_options = [
             {
                 "platform": "Swiggy",
@@ -1126,7 +1350,8 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
                 "rating_num": 4.3,
                 "locality": f"BTM Layout, {clean_loc}",
                 "offers": "₹200 FOR TWO",
-                "url": f"https://www.swiggy.com/city/{clean_loc.lower()}"
+                "url": f"https://www.swiggy.com/city/{clean_loc.lower()}",
+                "estimated": False,
             },
             {
                 "platform": "Swiggy",
@@ -1141,7 +1366,8 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
                 "rating_num": 4.4,
                 "locality": f"Basavanagudi, {clean_loc}",
                 "offers": "50% OFF up to ₹100",
-                "url": f"https://www.swiggy.com/city/{clean_loc.lower()}"
+                "url": f"https://www.swiggy.com/city/{clean_loc.lower()}",
+                "estimated": False,
             },
             {
                 "platform": "Zomato",
@@ -1156,21 +1382,26 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
                 "rating_num": 4.2,
                 "locality": f"Residency Road, {clean_loc}",
                 "offers": "₹100 OFF with Zomato Gold",
-                "url": f"https://www.zomato.com/{clean_loc.lower()}/order-food-online"
+                "url": f"https://www.zomato.com/{clean_loc.lower()}/order-food-online",
+                "estimated": False,
             }
         ]
+        winner_pool = all_options
 
-    # Select Winners
-    cheapest = min(all_options, key=lambda x: x["price_num"])
-    fastest = min(all_options, key=lambda x: x["eta_num"])
-    best_rated = max(all_options, key=lambda x: (x["rating_num"], -x["price_num"]))
+    # Select Winners (from verified matches when available, otherwise the estimated/illustrative pool)
+    cheapest = min(winner_pool, key=lambda x: x["price_num"])
+    fastest = min(winner_pool, key=lambda x: x["eta_num"])
+    best_rated = max(winner_pool, key=lambda x: (x["rating_num"], -x["price_num"]))
 
     # Sort all options by price for the comparison table
     sorted_options = sorted(all_options, key=lambda x: x["price_num"])
 
+    platforms_with_data = sorted({o["platform"] for o in all_options})
+    audit_label = " vs. ".join(platforms_with_data) if platforms_with_data else "Zomato vs. Swiggy"
+
     lines = [
         f"### 🍲 Food Delivery Comparison: **{clean_dish.title()}**",
-        f"📍 **Location:** `{clean_loc}` • Live Multi-App Audit (**Zomato vs. Swiggy**)",
+        f"📍 **Location:** `{clean_loc}` • {'Illustrative Example (live data unavailable)' if is_illustrative else f'Live Multi-App Audit ({audit_label})'}",
         "",
         "---",
         "",
@@ -1185,13 +1416,22 @@ async def compare_food_delivery_zomato_swiggy(dish: str, location: str = "Bangal
         f"> ⭐ **BEST RATED OPTION:** **{best_rated['icon']} {best_rated['platform']}** — **{best_rated['restaurant_name']}** ({best_rated['rating']}) at **{best_rated['price']}**",
         f"> 🔗 **[Order Top Rated on {best_rated['platform']}]({best_rated['url']})**",
         "",
+    ]
+
+    if not verified_options and not is_illustrative:
+        lines.extend([
+            f"> ⚠️ **Note:** No platform returned a confirmed **{clean_dish.title()}** menu match right now — the figures above are per-restaurant cost estimates, not a verified dish price.",
+            "",
+        ])
+
+    lines.extend([
         "---",
         "",
-        "#### 📊 **All Restaurants Live Comparison Matrix (Zomato vs. Swiggy):**",
+        f"#### 📊 **All Restaurants Live Comparison Matrix ({audit_label}):**",
         "",
         "| Platform | Restaurant Name | Dish Match | Live Price | Delivery ETA | Rating | Locality & Offers | Direct Order Link |",
         "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
-    ]
+    ])
 
     for opt in sorted_options[:10]:
         badge = opt["price"]
@@ -1382,6 +1622,346 @@ async def _gemini_exec_compare_uber_vs_ola(loop, pickup, drop, passengers):
     except Exception as e:
         return f"Error comparing Uber vs Ola: {str(e)}"
 
+async def _gemini_exec_get_rapido_ride_estimate(loop, pickup, drop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from rapido_mcp_server import get_rapido_ride_estimate
+        raw = await get_rapido_ride_estimate(pickup=pickup, drop=drop)
+        data = json.loads(raw)
+        trip = data.get("trip", {})
+        services = data.get("rapido_services", [])
+        lines = [
+            "### 🟡 Rapido Ride & Fare Matrix",
+            f"📍 **Route:** `{trip.get('pickup')}` ➔ `{trip.get('drop')}`",
+            f"📏 **Distance:** `{trip.get('distance_km')} km` • ⏱️ **Duration:** `~{trip.get('estimated_travel_time_mins')} mins`",
+            "",
+            "| Service | Fare Estimate | ETA | Travel Time | Seats | Rate / Km |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- |",
+        ]
+        for s in services:
+            lines.append(f"| {s['icon']} **{s['service_name']}** | **{s['fare_range']}** | {s['eta_mins']} mins | {s['trip_duration_mins']} mins | {s['capacity']} | {s['per_km']} |")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error calculating Rapido ride estimate: {str(e)}"
+
+async def _gemini_exec_compare_rapido_vs_uber_vs_ola(loop, pickup, drop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from rapido_mcp_server import compare_rapido_vs_uber_vs_ola
+        raw = await compare_rapido_vs_uber_vs_ola(pickup=pickup, drop=drop)
+        data = json.loads(raw)
+        return data.get("markdown_table") or raw
+    except Exception as e:
+        return f"Error comparing Rapido vs Uber vs Ola: {str(e)}"
+
+async def _gemini_exec_check_account_logins(loop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from browser_session_helper import get_all_login_statuses
+        statuses = await get_all_login_statuses()
+        lines = [
+            "### 🔐 Connected Account & Member Session Status",
+            "Persistent session profile directory: `/home/keysh/.gemini/browser_sessions/`\n",
+            "| Platform | Account Status | Active Perks / Membership |",
+            "| :--- | :--- | :--- |",
+        ]
+        active_count = 0
+        for s in statuses:
+            st = "🟢 **Connected**" if s["logged_in"] else "⚪ *Guest / Unlinked*"
+            if s["logged_in"]:
+                active_count += 1
+            perks = s.get("membership") or s.get("details", "-")
+            lines.append(f"| {s['icon']} **{s['name']}** | {st} | {perks} |")
+
+        lines.extend([
+            "",
+            "---",
+            "",
+            f"📊 **Connected Accounts:** `{active_count} / {len(statuses)}`",
+            "",
+            "💡 **To log into any service (e.g. Amazon Prime, Swiggy One, Zomato Gold, Uber):**",
+            "Run the interactive login command in your terminal:",
+            "```bash",
+            "python3 /home/keysh/auth_session_manager.py --login <service_name>",
+            "# Examples:",
+            "python3 /home/keysh/auth_session_manager.py --login amazon",
+            "python3 /home/keysh/auth_session_manager.py --login swiggy",
+            "python3 /home/keysh/auth_session_manager.py --login zomato",
+            "python3 /home/keysh/auth_session_manager.py --login uber",
+            "```"
+        ])
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error checking account login statuses: {str(e)}"
+
+async def _gemini_exec_whatsapp_generate_marketing_copy(loop, campaign_goal, product_or_service, discount_or_offer, urgency_hook, call_to_action, brand_name, language):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_generate_marketing_copy
+        raw = await loop.run_in_executor(None, lambda: whatsapp_generate_marketing_copy(
+            campaign_goal=campaign_goal or "Special Promotion",
+            product_or_service=product_or_service or "Featured Product",
+            discount_or_offer=discount_or_offer,
+            urgency_hook=urgency_hook or "Limited time offer",
+            call_to_action=call_to_action or "Tap to shop now",
+            brand_name=brand_name or "DealStore",
+            language=language or "English"
+        ))
+        data = json.loads(raw)
+        lines = [
+            f"### 📱 AI WhatsApp Marketing Copy Studio — *{data.get('campaign_goal')}*",
+            f"🎯 **Product:** `{data.get('product')}`\n",
+            "#### ✨ **Primary Copy Variant (Value & Conversion Focused):**",
+            "```whatsapp",
+            data.get("primary_copy", ""),
+            "```\n",
+            "#### ⚡ **Short & Punchy Variant (Flash Sale / SMS Style):**",
+            "```whatsapp",
+            data.get("short_copy_variant", ""),
+            "```\n",
+            f"📊 **Character Count:** `{data.get('estimated_character_count')}` / 1024 (Meta Compliant)\n",
+            "💡 **Marketing Pro-Tips:**"
+        ]
+        for tip in data.get("best_practices", []):
+            lines.append(f"• {tip}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error generating WhatsApp marketing copy: {str(e)}"
+
+async def _gemini_exec_whatsapp_send_marketing_message(loop, recipient_phone, message_text):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_send_marketing_message
+        raw = await whatsapp_send_marketing_message(recipient_phone=recipient_phone, message_text=message_text)
+        return raw
+    except Exception as e:
+        return f"Error sending WhatsApp message: {str(e)}"
+
+async def _gemini_exec_whatsapp_send_media_campaign(loop, recipient_phone, media_type, media_url, caption):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_send_media_campaign
+        raw = await whatsapp_send_media_campaign(recipient_phone=recipient_phone, media_type=media_type, media_url=media_url, caption=caption)
+        return raw
+    except Exception as e:
+        return f"Error sending WhatsApp media campaign: {str(e)}"
+
+async def _gemini_exec_whatsapp_send_interactive_buttons(loop, recipient_phone, body_text, buttons, header_text):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_send_interactive_buttons
+        raw = await whatsapp_send_interactive_buttons(recipient_phone=recipient_phone, body_text=body_text, buttons=buttons or ["Claim Offer", "View Catalog"], header_text=header_text)
+        return raw
+    except Exception as e:
+        return f"Error sending WhatsApp interactive buttons: {str(e)}"
+
+async def _gemini_exec_whatsapp_abandoned_cart_recovery(loop, customer_name, customer_phone, item_name, cart_total_inr, discount_percent):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_abandoned_cart_recovery
+        raw = await loop.run_in_executor(None, lambda: whatsapp_abandoned_cart_recovery(
+            customer_name=customer_name or "Valued Shopper",
+            customer_phone=customer_phone or "919876543210",
+            item_name=item_name or "Selected Item",
+            cart_total_inr=float(cart_total_inr or 999.0),
+            discount_percent=int(discount_percent or 15)
+        ))
+        data = json.loads(raw)
+        return f"""### 🛒 WhatsApp Abandoned Cart Recovery Sequence
+👤 **Customer:** `{data.get('customer', {}).get('name')}` (`+{data.get('customer', {}).get('phone')}`)
+💰 **Savings Incentive:** `{data.get('recovery_incentive', {}).get('discount_percent')}% OFF` (Code: `{data.get('recovery_incentive', {}).get('coupon_code')}`) • Final Price: **₹{data.get('recovery_incentive', {}).get('final_price_inr'):,}**
+
+#### 📱 **Dispatched WhatsApp Message:**
+```whatsapp
+{data.get('recovery_message')}
+```
+"""
+    except Exception as e:
+        return f"Error creating abandoned cart recovery: {str(e)}"
+
+async def _gemini_exec_whatsapp_check_account_status(loop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from whatsapp_mcp_server import whatsapp_check_account_status
+        raw = await loop.run_in_executor(None, whatsapp_check_account_status)
+        data = json.loads(raw)
+        lines = [
+            "### 📱 WhatsApp Business Marketing MCP Server Status",
+            f"⚡ **Connection Mode:** `{data.get('connection_mode')}`",
+            f"🔑 **Meta Access Token Configured:** `{'Yes 🟢' if data.get('credentials', {}).get('whatsapp_access_token_configured') else 'No (AI Simulation Studio Active) ⚪'}`",
+            f"📞 **Phone Number ID Configured:** `{'Yes 🟢' if data.get('credentials', {}).get('whatsapp_phone_number_id_configured') else 'No ⚪'}`",
+            f"🏢 **WABA ID Configured:** `{'Yes 🟢' if data.get('credentials', {}).get('whatsapp_business_account_id_configured') else 'No ⚪'}`\n",
+            "#### 🌟 **Supported Marketing Capabilities:**"
+        ]
+        for feat in data.get("features_available", []):
+            lines.append(f"• {feat}")
+        lines.append(f"\n💡 **Configuration Guide:**\n{data.get('setup_guide')}")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Error checking WhatsApp status: {str(e)}"
+
+async def _gemini_exec_facebook_generate_post_copy(loop, topic_or_product, post_goal, offer_or_discount, call_to_action_url, brand_name):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from facebook_mcp_server import facebook_generate_post_copy
+        raw = await loop.run_in_executor(None, lambda: facebook_generate_post_copy(
+            topic_or_product=topic_or_product or "Featured Product",
+            post_goal=post_goal or "Engagement & Brand Awareness",
+            offer_or_discount=offer_or_discount,
+            call_to_action_url=call_to_action_url,
+            brand_name=brand_name or "DealStore"
+        ))
+        data = json.loads(raw)
+        return f"""### 🔵 AI Facebook Page Post Copy Studio
+🎯 **Topic:** `{data.get('topic')}` • **Goal:** `{data.get('post_goal')}`
+
+#### 📱 **Primary Facebook Post (High Organic Reach):**
+```text
+{data.get('primary_post_copy')}
+```
+
+#### ⚡ **Short & Punchy Variant:**
+```text
+{data.get('short_variant_copy')}
+```
+
+🏷️ **Hashtags:** {' '.join(data.get('suggested_hashtags', []))}
+"""
+    except Exception as e:
+        return f"Error generating Facebook post copy: {str(e)}"
+
+async def _gemini_exec_facebook_publish_post(loop, message_text, link_url):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from facebook_mcp_server import facebook_publish_post
+        raw = await facebook_publish_post(message_text=message_text, link_url=link_url)
+        return raw
+    except Exception as e:
+        return f"Error publishing Facebook post: {str(e)}"
+
+async def _gemini_exec_facebook_create_ad_campaign(loop, campaign_name, product_name, daily_budget_inr, offer_highlight):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from facebook_mcp_server import facebook_create_ad_campaign
+        raw = await loop.run_in_executor(None, lambda: facebook_create_ad_campaign(
+            campaign_name=campaign_name or "Campaign_01",
+            product_name=product_name or "Featured Product",
+            daily_budget_inr=float(daily_budget_inr or 1000.0),
+            offer_highlight=offer_highlight or "Special Discount"
+        ))
+        data = json.loads(raw)
+        ad = data.get("ad_campaign_blueprint", {})
+        return f"""### 🔵 Facebook Sponsored Ad Campaign Blueprint
+📢 **Campaign:** `{ad.get('campaign_name')}` • **Objective:** `{ad.get('objective')}`
+💰 **Daily Budget:** `₹{ad.get('budget', {}).get('daily_budget_inr'):,}` • **Placements:** {', '.join(ad.get('targeting', {}).get('placements', []))}
+
+#### 🖼️ **Ad Creative & Copy:**
+> **Primary Text:** {ad.get('ad_creative', {}).get('primary_text')}
+> **Headline:** **{ad.get('ad_creative', {}).get('headline')}**
+> **Description:** {ad.get('ad_creative', {}).get('description')}
+> **CTA Button:** `[{ad.get('ad_creative', {}).get('call_to_action_button')}]`
+"""
+    except Exception as e:
+        return f"Error creating Facebook ad campaign: {str(e)}"
+
+async def _gemini_exec_facebook_check_page_status(loop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from facebook_mcp_server import facebook_check_page_status
+        raw = await loop.run_in_executor(None, facebook_check_page_status)
+        return raw
+    except Exception as e:
+        return f"Error checking Facebook page status: {str(e)}"
+
+async def _gemini_exec_linkedin_generate_thought_leadership_post(loop, topic_or_insight, target_industry_or_role, core_lesson_or_takeaway, storytelling_hook):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from linkedin_mcp_server import linkedin_generate_thought_leadership_post
+        raw = await loop.run_in_executor(None, lambda: linkedin_generate_thought_leadership_post(
+            topic_or_insight=topic_or_insight or "Cloud FinOps & Infrastructure Optimization",
+            target_industry_or_role=target_industry_or_role or "Cloud Engineers & CTOs",
+            core_lesson_or_takeaway=core_lesson_or_takeaway or "Automating resource right-sizing cuts spend without performance penalty.",
+            storytelling_hook=storytelling_hook
+        ))
+        data = json.loads(raw)
+        return f"""### 🔷 AI LinkedIn B2B Thought-Leadership Studio
+🎯 **Topic:** `{data.get('topic')}` • **Target:** `{data.get('target_audience')}`
+
+#### 📝 **Formatted LinkedIn Post (Line-Spaced for Maximum Engagement):**
+```text
+{data.get('post_content')}
+```
+
+📊 **Length:** `{data.get('formatting_analysis', {}).get('character_count')}` characters • Verified Hook & Line Spacing ✅
+"""
+    except Exception as e:
+        return f"Error generating LinkedIn post: {str(e)}"
+
+async def _gemini_exec_linkedin_publish_post(loop, post_text, share_to, article_url):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from linkedin_mcp_server import linkedin_publish_post
+        raw = await linkedin_publish_post(post_text=post_text, share_to=share_to, article_url=article_url)
+        return raw
+    except Exception as e:
+        return f"Error publishing LinkedIn post: {str(e)}"
+
+async def _gemini_exec_linkedin_b2b_lead_outreach(loop, prospect_name, prospect_company, prospect_title, value_proposition):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from linkedin_mcp_server import linkedin_b2b_lead_outreach
+        raw = await loop.run_in_executor(None, lambda: linkedin_b2b_lead_outreach(
+            prospect_name=prospect_name or "Leader",
+            prospect_company=prospect_company or "Target Corp",
+            prospect_title=prospect_title or "VP Engineering",
+            value_proposition=value_proposition or "Autonomous multi-cloud cost reduction."
+        ))
+        data = json.loads(raw)
+        conn = data.get("connection_request_note_300char", {})
+        inmail = data.get("full_inmail_outreach", {})
+        return f"""### 🔷 LinkedIn B2B Lead Outreach Sequences
+👤 **Prospect:** `{data.get('prospect', {}).get('name')}` ({data.get('prospect', {}).get('title')} at {data.get('prospect', {}).get('company')})
+
+#### 🤝 **1. Connection Request Note (Mobile-Optimized • {conn.get('character_count')}/300 chars):**
+```text
+{conn.get('text')}
+```
+
+#### ✉️ **2. Direct InMail Outreach:**
+> **Subject:** {inmail.get('subject_line')}
+```text
+{inmail.get('body')}
+```
+"""
+    except Exception as e:
+        return f"Error generating LinkedIn outreach: {str(e)}"
+
+async def _gemini_exec_linkedin_check_account_status(loop):
+    try:
+        import sys
+        sys.path.insert(0, '/home/keysh')
+        from linkedin_mcp_server import linkedin_check_account_status
+        raw = await loop.run_in_executor(None, linkedin_check_account_status)
+        return raw
+    except Exception as e:
+        return f"Error checking LinkedIn status: {str(e)}"
+
 _GEMINI_DISPATCH = {
     "query_compute": lambda loop, args: _gemini_exec_query_compute(loop, args.get("provider")),
     "query_storage": lambda loop, args: _gemini_exec_query_storage(loop, args.get("provider")),
@@ -1395,18 +1975,55 @@ _GEMINI_DISPATCH = {
     "get_ola_electric_models": lambda loop, args: _gemini_exec_get_ola_electric_models(loop, args.get("model_name")),
     "get_uber_ride_estimate": lambda loop, args: _gemini_exec_get_uber_ride_estimate(loop, args.get("pickup"), args.get("drop"), args.get("passengers")),
     "compare_uber_vs_ola": lambda loop, args: _gemini_exec_compare_uber_vs_ola(loop, args.get("pickup"), args.get("drop"), args.get("passengers")),
+    "get_rapido_ride_estimate": lambda loop, args: _gemini_exec_get_rapido_ride_estimate(loop, args.get("pickup"), args.get("drop")),
+    "compare_rapido_vs_uber_vs_ola": lambda loop, args: _gemini_exec_compare_rapido_vs_uber_vs_ola(loop, args.get("pickup"), args.get("drop")),
+    "check_account_logins": lambda loop, args: _gemini_exec_check_account_logins(loop),
+    "whatsapp_generate_marketing_copy": lambda loop, args: _gemini_exec_whatsapp_generate_marketing_copy(loop, args.get("campaign_goal"), args.get("product_or_service"), args.get("discount_or_offer"), args.get("urgency_hook"), args.get("call_to_action"), args.get("brand_name"), args.get("language")),
+    "whatsapp_send_marketing_message": lambda loop, args: _gemini_exec_whatsapp_send_marketing_message(loop, args.get("recipient_phone"), args.get("message_text")),
+    "whatsapp_send_media_campaign": lambda loop, args: _gemini_exec_whatsapp_send_media_campaign(loop, args.get("recipient_phone"), args.get("media_type"), args.get("media_url"), args.get("caption")),
+    "whatsapp_send_interactive_buttons": lambda loop, args: _gemini_exec_whatsapp_send_interactive_buttons(loop, args.get("recipient_phone"), args.get("body_text"), args.get("buttons"), args.get("header_text")),
+    "whatsapp_abandoned_cart_recovery": lambda loop, args: _gemini_exec_whatsapp_abandoned_cart_recovery(loop, args.get("customer_name"), args.get("customer_phone"), args.get("item_name"), args.get("cart_total_inr"), args.get("discount_percent")),
+    "whatsapp_check_account_status": lambda loop, args: _gemini_exec_whatsapp_check_account_status(loop),
+    "facebook_generate_post_copy": lambda loop, args: _gemini_exec_facebook_generate_post_copy(loop, args.get("topic_or_product"), args.get("post_goal"), args.get("offer_or_discount"), args.get("call_to_action_url"), args.get("brand_name")),
+    "facebook_publish_post": lambda loop, args: _gemini_exec_facebook_publish_post(loop, args.get("message_text"), args.get("link_url")),
+    "facebook_create_ad_campaign": lambda loop, args: _gemini_exec_facebook_create_ad_campaign(loop, args.get("campaign_name"), args.get("product_name"), args.get("daily_budget_inr"), args.get("offer_highlight")),
+    "facebook_check_page_status": lambda loop, args: _gemini_exec_facebook_check_page_status(loop),
+    "linkedin_generate_thought_leadership_post": lambda loop, args: _gemini_exec_linkedin_generate_thought_leadership_post(loop, args.get("topic_or_insight"), args.get("target_industry_or_role"), args.get("core_lesson_or_takeaway"), args.get("storytelling_hook")),
+    "linkedin_publish_post": lambda loop, args: _gemini_exec_linkedin_publish_post(loop, args.get("post_text"), args.get("share_to"), args.get("article_url")),
+    "linkedin_b2b_lead_outreach": lambda loop, args: _gemini_exec_linkedin_b2b_lead_outreach(loop, args.get("prospect_name"), args.get("prospect_company"), args.get("prospect_title"), args.get("value_proposition")),
+    "linkedin_check_account_status": lambda loop, args: _gemini_exec_linkedin_check_account_status(loop),
 }
 
 _GEMINI_SYSTEM_INSTRUCTION = (
     "You are the routing brain for an autonomous AI orchestration assistant covering Multi-Cloud (AWS, OCI, Azure, GCP), "
     "GitHub repository management, Indian E-Commerce Comparison (Amazon, Flipkart, Blinkit, Zepto, Meesho), "
     "Food Delivery Intelligence (Zomato vs. Swiggy price & speed comparisons), "
-    "and On-Demand Mobility (Uber vs. Ola ride comparisons, cab fares, rentals & EV mobility). "
+    "3-Way On-Demand Mobility Arbitrage (Rapido vs. Uber vs. Ola ride comparisons, bike taxi, auto rickshaw, cab economy & EV mobility), "
+    "Persistent Account Login Management, and Omni-Channel Social Media Growth (WhatsApp Marketing, Facebook Page Campaigns & Ads, LinkedIn B2B Thought Leadership & Outreach). "
     "Given the user's free-form request, call the appropriate tool(s) to answer it. "
-    "If the user asks to compare Uber vs Ola or asks which cab service is cheaper, call 'compare_uber_vs_ola'. "
-    "If the user asks for Uber ride fares, cab costs, auto prices, or travel estimates between locations, call 'get_uber_ride_estimate'. "
-    "If the user asks for Ola ride fares, cab costs, auto prices, or travel estimates between locations, call 'get_ola_ride_estimate'. "
-    "If the user asks about Ola Electric scooters, range, speed, battery or models, call 'get_ola_electric_models'. "
+    "If the user asks to generate Facebook post copy, announcements, or Facebook ads, call 'facebook_generate_post_copy' or 'facebook_create_ad_campaign'. "
+    "If the user asks to publish to Facebook, call 'facebook_publish_post'. "
+    "If the user asks to generate LinkedIn thought leadership, executive articles, or B2B outreach/InMail notes, call 'linkedin_generate_thought_leadership_post' or 'linkedin_b2b_lead_outreach'. "
+    "If the user asks to publish to LinkedIn, call 'linkedin_publish_post'. "
+    "If the user asks about WhatsApp marketing copy, broadcasts, buttons, or abandoned cart recovery, call the respective WhatsApp tools. "
+    "If the user asks about login status, account authentication, or how to connect their accounts (e.g. 'check my logins', 'are my accounts connected', 'login status'), "
+    "call 'check_account_logins'. "
+    "If the user asks to generate WhatsApp marketing copy, promotional message, festival campaign, flash sale pitch, or WhatsApp broadcast, "
+    "call 'whatsapp_generate_marketing_copy'. "
+    "If the user asks to send a WhatsApp marketing message, call 'whatsapp_send_marketing_message'. "
+    "If the user asks to send WhatsApp interactive buttons or quick replies, call 'whatsapp_send_interactive_buttons'. "
+    "If the user asks to send a WhatsApp media campaign (image flyer, product video, PDF catalog), call 'whatsapp_send_media_campaign'. "
+    "If the user asks about WhatsApp cart recovery or abandoned checkout sequence, call 'whatsapp_abandoned_cart_recovery'. "
+    "If the user asks about WhatsApp account status or Cloud API setup, call 'whatsapp_check_account_status'. "
+    "If the user asks about login status, account authentication, or how to connect their accounts (e.g. 'check my logins', 'are my accounts connected', 'login status'), "
+    "call 'check_account_logins'. "
+    "If the user asks to compare rides, find the cheapest cab/auto/bike across all services, or compare Rapido vs Uber vs Ola, "
+    "call 'compare_rapido_vs_uber_vs_ola'. "
+    "If the user asks specifically to compare Uber vs Ola, call 'compare_uber_vs_ola'. "
+    "If the user asks specifically for Rapido fares or bike taxi estimates, call 'get_rapido_ride_estimate'. "
+    "If the user asks specifically for Uber ride fares, call 'get_uber_ride_estimate'. "
+    "If the user asks specifically for Ola ride fares, call 'get_ola_ride_estimate'. "
+    "If the user asks about Ola Electric scooters or models, call 'get_ola_electric_models'. "
     "If the user asks where a food dish is cheaper, faster, or asks to compare food delivery between Zomato and Swiggy, call 'compare_food_delivery'. "
     "If the user asks where to buy a physical product item, best deal, or product prices, call 'find_best_deals'. "
     "If the request names a specific cloud, pass that as the provider argument; if it spans multiple or all clouds, pass provider='all'. "
@@ -1809,19 +2426,224 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
-async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
-    """Entry point: try the Gemini intent router first (handles arbitrary
-    free-form requests via real tool-calling and image vision); fall back to the fixed
-    keyword router if Gemini is unavailable or errors out, so a missing/bad
-    API key or an API outage degrades gracefully instead of breaking the app."""
+# Path to the agy binary inside WSL (used when this server runs on native Windows
+# and has to cross the Windows->WSL boundary via wsl.exe) vs. the bare command name
+# (used when this server itself already runs on Linux/WSL, e.g. inside the Docker
+# container, where agy is just another binary on PATH). Both are overridable via env
+# so a production host can point at wherever it installs agy without code changes.
+_AGY_BIN_WSL = os.environ.get("AGY_BIN_WSL", "/home/keysh/.local/bin/agy")
+_AGY_BIN = os.environ.get("AGY_BIN", "agy")
+
+def _agy_command(args: List[str]) -> List[str]:
+    if platform.system() == "Windows":
+        # -e runs the binary directly (bypassing WSL's default login shell), so we
+        # pass the absolute path rather than relying on a PATH that -e wouldn't load.
+        return ["wsl.exe", "-e", _AGY_BIN_WSL] + args
+    return [_AGY_BIN] + args
+
+def _agy_path(native_path: str) -> str:
+    """Translate a native filesystem path to the path agy itself will see. On
+    Windows that means the WSL /mnt/c/... equivalent (agy runs inside WSL, reached
+    via wsl.exe); on Linux (e.g. inside the eventual Docker deployment) agy runs
+    in the same filesystem as this process, so the path is used as-is."""
+    if platform.system() == "Windows":
+        drive, rest = os.path.splitdrive(native_path)
+        return f"/mnt/{drive[0].lower()}" + rest.replace("\\", "/")
+    return native_path
+
+# Schema that forces agy's final answer into {markdown, winner}, so a comparison's
+# winning provider can be turned into a real "Book/Order Now" deep link. `winner`
+# is always present (provider: "none" when the request isn't a bookable comparison)
+# so this schema is safe to apply to every request, not just shopping/food/rides.
+_BOOK_SCHEMA_PATH = _agy_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "agy_book_schema.json"))
+
+# --- Provider deep-link registry -------------------------------------------------
+# To add a new bookable provider (e.g. a pharmacy app, BigBasket, JioMart):
+#   1. Add its key to the "provider" enum in agy_book_schema.json
+#   2. Add one lambda here building its deep link/search URL from `winner`
+#   3. Add a display label in PROVIDER_LABELS
+# Nothing else needs to change — run_agy_pipeline and the frontend button are
+# already generic over whatever provider key comes back.
+
+def _search_link(base_url: str, query: str) -> str:
+    return base_url + urllib.parse.quote(query or "")
+
+PROVIDER_BOOK_LINKS: Dict[str, Any] = {
+    "amazon":   lambda w: _search_link("https://www.amazon.in/s?k=", w.get("query")),
+    "flipkart": lambda w: _search_link("https://www.flipkart.com/search?q=", w.get("query")),
+    "blinkit":  lambda w: _search_link("https://blinkit.com/s/?q=", w.get("query")),
+    "zepto":    lambda w: _search_link("https://www.zeptonow.com/search?query=", w.get("query")),
+    "meesho":   lambda w: _search_link("https://www.meesho.com/search?q=", w.get("query")),
+    "swiggy":   lambda w: _search_link("https://www.swiggy.com/search?query=", w.get("query")),
+    "zomato":   lambda w: _search_link("https://www.zomato.com/search?q=", w.get("query")),
+    "uber":     lambda w: (
+        "https://m.uber.com/ul/?action=setPickup"
+        f"&pickup[formatted_address]={urllib.parse.quote(w.get('pickup') or '')}"
+        f"&dropoff[formatted_address]={urllib.parse.quote(w.get('drop') or '')}"
+    ),
+    "ola":      lambda w: "https://book.olacabs.com/",
+    "rapido":   lambda w: "https://rapido.bike/",
+}
+
+PROVIDER_LABELS = {
+    "amazon": "🛒 Book on Amazon", "flipkart": "🛒 Book on Flipkart",
+    "blinkit": "🛒 Order on Blinkit", "zepto": "🛒 Order on Zepto", "meesho": "🛒 Book on Meesho",
+    "swiggy": "🍔 Order on Swiggy", "zomato": "🍔 Order on Zomato",
+    "uber": "🚗 Book on Uber", "ola": "🚕 Book on Ola", "rapido": "🏍️ Book on Rapido",
+}
+
+def build_book_action(winner: Optional[dict]) -> Optional[dict]:
+    if not winner:
+        return None
+    provider = (winner.get("provider") or "none").lower()
+    builder = PROVIDER_BOOK_LINKS.get(provider)
+    if not builder:
+        return None
     try:
-        await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        url = builder(winner)
+    except Exception:
+        url = None
+    if not url:
+        return None
+    return {"provider": provider, "label": PROVIDER_LABELS.get(provider, f"Book on {provider.title()}"), "url": url}
+
+# Without this, agy tends to default to search_web/general knowledge even when a
+# purpose-built MCP tool exists for the request (observed: it answered a live Uber vs
+# Ola fare question from web search hits instead of calling compare_uber_vs_ola).
+_AGY_TOOL_HINT = (
+    "Before answering, check whether one of your configured MCP servers already "
+    "exposes a tool for this exact request (e.g. uber/ola/rapido ride comparisons, "
+    "amazon/flipkart/blinkit/zepto/meesho product deals, swiggy/zomato food comparisons, "
+    "whatsapp/facebook/linkedin posting, flowagent for Power Automate, aws-mcp/azure/gcp/oci "
+    "for cloud). If one does, call it directly via call_mcp_tool instead of using "
+    "search_web or answering from general knowledge — the MCP tools return real computed "
+    "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola) and must be preferred "
+    "whenever one applies.\n\nUser request: "
+)
+
+async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+    """Hands the raw directive to the Antigravity CLI agent (agy), which has its
+    own MCP toolset (cloud providers, shopping, social, Power Automate, etc.)
+    configured independently of this app's fixed Gemini function-tools.
+    --dangerously-skip-permissions auto-approves every tool call agy wants to
+    make, since this backend has no human present to answer its prompts."""
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+    tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
+
+    full_prompt = _AGY_TOOL_HINT + prompt
+    cmd = _agy_command([
+        "-p", full_prompt,
+        "--output-format", "stream-json",
+        "--json-schema", _BOOK_SCHEMA_PATH,
+        "--dangerously-skip-permissions",
+    ])
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    final_response = None
+    final_structured = None
+    final_status = None
+    responded_logged = False
+
+    async for raw_line in proc.stdout:
+        line = raw_line.decode("utf-8", errors="ignore").strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            tasks[task_id]["logs"].append(f"[agy] {line[:200]}")
+            continue
+
+        etype = event.get("event")
+
+        if etype == "step_update":
+            step = event.get("step_update", {})
+            step_type = step.get("step_type")
+            state = step.get("state")
+
+            if step_type == "agent_response":
+                # With --json-schema, the final turn's text_delta chunks are raw
+                # JSON fragments (not display text), so we only log that a response
+                # is being composed instead of streaming these into the answer box.
+                if step.get("text_delta") and not responded_logged:
+                    tasks[task_id]["logs"].append("🧠 Antigravity is composing a response...")
+                    responded_logged = True
+
+            elif step_type == "tool":
+                name = step.get("tool_name", "tool")
+                params = (step.get("tool_info") or {}).get("parameters", {})
+                if state == "ACTIVE":
+                    tasks[task_id]["logs"].append(f"🔧 Calling tool: {name}({params})")
+                elif state == "DONE":
+                    tasks[task_id]["logs"].append(f"📥 {name} finished")
+
+            elif step_type and step_type != "user_input":
+                tasks[task_id]["logs"].append(f"[{step_type}] {state}")
+
+        elif etype == "result":
+            result = event.get("result", {})
+            final_status = result.get("status")
+            final_response = result.get("response")
+            final_structured = result.get("structured_output")
+
+    stderr_bytes = await proc.stderr.read()
+    await proc.wait()
+
+    markdown_answer = None
+    winner = None
+    if isinstance(final_structured, dict):
+        markdown_answer = final_structured.get("markdown")
+        winner = final_structured.get("winner")
+    elif final_response:
+        # Fallback for an agy build that doesn't emit structured_output: the
+        # schema-shaped JSON may still come back as a plain string in `response`.
+        try:
+            parsed = json.loads(final_response)
+            markdown_answer = parsed.get("markdown")
+            winner = parsed.get("winner")
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            markdown_answer = final_response
+
+    if markdown_answer:
+        tasks[task_id]["answer"] = markdown_answer
+    elif not tasks[task_id].get("answer"):
+        stderr_text = stderr_bytes.decode("utf-8", errors="ignore").strip()
+        tasks[task_id]["answer"] = "⚠️ Antigravity agent produced no output." + (f"\n{stderr_text[-500:]}" if stderr_text else "")
+
+    if proc.returncode != 0 and final_status != "SUCCESS":
+        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ agy exited with code {proc.returncode}")
+
+    deliverable = {"type": "info", "title": "🤖 Antigravity Agent Result", "url": "#"}
+    book_action = build_book_action(winner)
+    if book_action:
+        deliverable["book_action"] = book_action
+    tasks[task_id]["deliverable"] = deliverable
+    tasks[task_id]["status"] = "COMPLETED"
+
+async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+    """Entry point: try the Antigravity CLI agent first (real tool access via its
+    own configured MCP servers, including Power Automate); fall back to the
+    Gemini intent router, then the fixed keyword router, if agy is unreachable
+    or errors out, so a missing binary or a bad run doesn't break the app."""
+    try:
+        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
     except Exception as e:
-        tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e)}), falling back to keyword routing...")
+        tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e)}), falling back to Gemini router...")
         tasks[task_id]["status"] = "PROCESSING"
         tasks[task_id]["answer"] = None
         tasks[task_id]["deliverable"] = None
-        await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        try:
+            await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        except Exception as e2:
+            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e2)}), falling back to keyword routing...")
+            tasks[task_id]["status"] = "PROCESSING"
+            tasks[task_id]["answer"] = None
+            tasks[task_id]["deliverable"] = None
+            await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
 
 @app.get("/api/health")
 def health():

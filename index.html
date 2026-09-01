@@ -317,6 +317,20 @@
       color: #fff;
     }
 
+    .book-action-btn {
+      display: inline-block;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan));
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+      transition: transform 0.15s ease;
+    }
+    .book-action-btn:hover { transform: translateY(-2px); }
+
     .answer-title {
       font-size: 0.85rem;
       font-weight: 700;
@@ -892,6 +906,7 @@
         <div id="answerBox">
           <div class="answer-title">💎 Executive Query Answer</div>
           <div class="answer-text" id="answerContent"></div>
+          <div id="bookActionBox" style="display:none; margin-top:1rem;"></div>
         </div>
       </div>
     </section>
@@ -1162,6 +1177,81 @@
           </div>
         </div>
 
+        <!-- Card 12: Rapido vs Uber vs Ola 3-Way Arbitrage (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('rapido-vs-uber-vs-ola')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24;">🟡</div>
+            <div>
+              <div class="card-title">Rapido vs Uber vs Ola Arbitrage</div>
+              <div class="card-desc">3-Way real-time fare battle comparing Rapido, Uber, and Ola across Bike Taxi, Auto, and Economy Cab</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>3 Mobility MCPs • Cheapest Ride Guarantee</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 13: Connected Account Logins & Member Perks (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('account-logins')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(168, 85, 247, 0.18); color: #c084fc;">🔐</div>
+            <div>
+              <div class="card-title">Connected Accounts & Perks</div>
+              <div class="card-desc">Check authenticated browser sessions for Prime, Swiggy One, Zomato Gold, and Uber One</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Playwright Persistent Sessions • 10 Platforms</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 14: WhatsApp Marketing & AI Campaigns (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('whatsapp-marketing')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(37, 211, 102, 0.18); color: #25D366;">📱</div>
+            <div>
+              <div class="card-title">WhatsApp Marketing & Broadcasts</div>
+              <div class="card-desc">AI-powered WhatsApp promotional copy, Meta Cloud API broadcasts, quick-reply buttons & cart recovery</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Meta Cloud API • Rich Media & Buttons</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 15: Facebook Marketing & Ads (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('facebook-marketing')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(24, 119, 242, 0.18); color: #1877F2;">🔵</div>
+            <div>
+              <div class="card-title">Facebook Page Posts & Ads</div>
+              <div class="card-desc">Viral Facebook post copy, Meta Graph API v20.0 publishing, photo/video uploads & Sponsored Ad blueprints</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Meta Graph API • Page Growth & Ads</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 16: LinkedIn Thought Leadership & B2B Leads (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('linkedin-growth')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(10, 102, 194, 0.18); color: #0A66C2;">🔷</div>
+            <div>
+              <div class="card-title">LinkedIn B2B & Thought Leadership</div>
+              <div class="card-desc">Line-spaced viral thought-leadership articles, document carousels, and 300-char InMail executive outreach</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>LinkedIn REST API • B2B Growth Engine</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -1270,6 +1360,11 @@
     let attachedImageData = null;
 
     const prompts = {
+      'facebook-marketing': "Create a viral Facebook Page post and a complete Sponsored Ad campaign blueprint (Primary Text, Headline, Description, Targeting, and CTA) for boAt Rockerz 255 Pro+ with Flat 40% OFF.",
+      'linkedin-growth': "Generate a high-impact B2B thought-leadership LinkedIn post on \"Multi-Cloud FinOps Optimization (AWS + OCI) saving 35% on infrastructure\", with line-spaced viral hooks, and draft a 300-char executive connection note for a CTO prospect.",
+      'whatsapp-marketing': "Generate a high-converting WhatsApp marketing campaign copy for boAt Rockerz 255 Pro+ Wireless Earphones with a Flat 40% OFF Flash Sale offer, urgency trigger, emojis, and interactive Quick Reply buttons.",
+      'account-logins': "Check the login and membership status of all my connected accounts across Amazon, Flipkart, Swiggy, Zomato, Blinkit, Zepto, Meesho, Uber, Ola, and Rapido.",
+      'rapido-vs-uber-vs-ola': "Which is cheapest between Rapido, Uber, and Ola for a ride from Koramangala to Indiranagar, Bangalore? Compare all 3 services.",
       'uber-vs-ola': "Compare live cab and auto fares between Uber and Ola for a ride from Indiranagar to Whitefield, Bangalore and tell me which service is cheaper.",
       'food-paneer-butter-masala': "Where is paneer butter masala cheaper and faster to get? Compare all restaurants on Zomato and Swiggy.",
       'ecommerce-deals': "Search and compare live prices, discounts, and delivery speeds for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal.",
@@ -1397,6 +1492,9 @@
       logsBox.innerHTML = "";
       answerBox.style.display = "none";
       answerContent.innerHTML = "";
+      const bookActionBoxReset = document.getElementById("bookActionBox");
+      bookActionBoxReset.style.display = "none";
+      bookActionBoxReset.innerHTML = "";
       statusText.innerText = "⚡ Executing on OCI Cloud Engine...";
       statusText.style.color = "var(--accent-cyan)";
       document.getElementById("consoleSpinner").style.display = "inline-block";
@@ -1440,6 +1538,16 @@
           if (resPayload.answer) {
             answerBox.style.display = "block";
             answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+          }
+
+          const bookActionBox = document.getElementById("bookActionBox");
+          const bookAction = resPayload.deliverable && resPayload.deliverable.book_action;
+          if (bookAction && bookAction.url) {
+            bookActionBox.style.display = "block";
+            bookActionBox.innerHTML = `<a class="book-action-btn" href="${bookAction.url}" target="_blank" rel="noopener">${bookAction.label}</a>`;
+          } else {
+            bookActionBox.style.display = "none";
+            bookActionBox.innerHTML = "";
           }
 
           if (resPayload.status === "COMPLETED") {

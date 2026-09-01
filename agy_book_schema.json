@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "properties": {
+    "markdown": {
+      "type": "string",
+      "description": "The full formatted answer to show the user, exactly as it would otherwise be written in plain text/markdown."
+    },
+    "winner": {
+      "type": "object",
+      "description": "If this response identifies a single cheapest/best provider to complete a real-world booking or purchase on, describe it here so a direct link to that provider can be built. Otherwise set provider to 'none'.",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "The winning provider's key. Use 'none' if this response isn't a comparison with a bookable winner.",
+          "enum": ["amazon", "flipkart", "blinkit", "zepto", "meesho", "swiggy", "zomato", "uber", "ola", "rapido", "none"]
+        },
+        "query": {
+          "type": "string",
+          "description": "For shopping/food providers: the product name or dish/restaurant to search for on the winning provider's site."
+        },
+        "pickup": {
+          "type": "string",
+          "description": "For ride providers only: the pickup location."
+        },
+        "drop": {
+          "type": "string",
+          "description": "For ride providers only: the destination."
+        }
+      },
+      "required": ["provider"]
+    }
+  },
+  "required": ["markdown", "winner"]
+}
