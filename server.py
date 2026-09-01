@@ -2492,20 +2492,44 @@ PROVIDER_LABELS = {
     "uber": "🚗 Book on Uber", "ola": "🚕 Book on Ola", "rapido": "🏍️ Book on Rapido",
 }
 
-def build_book_action(winner: Optional[dict]) -> Optional[dict]:
-    if not winner:
-        return None
-    provider = (winner.get("provider") or "none").lower()
-    builder = PROVIDER_BOOK_LINKS.get(provider)
-    if not builder:
-        return None
+def _is_safe_http_url(url: Any) -> bool:
+    if not isinstance(url, str) or not url:
+        return False
     try:
-        url = builder(winner)
+        parsed = urllib.parse.urlparse(url)
+        return parsed.scheme in ("http", "https") and bool(parsed.netloc)
     except Exception:
-        url = None
+        return False
+
+def build_book_action(option: Optional[dict]) -> Optional[dict]:
+    if not option:
+        return None
+    provider = (option.get("provider") or "none").lower()
+    # Prefer the exact URL agy copied from the MCP tool's own result (a real
+    # restaurant/product/listing link) over a generic reconstructed search link.
+    direct_url = option.get("direct_url")
+    if _is_safe_http_url(direct_url):
+        url = direct_url
+    else:
+        builder = PROVIDER_BOOK_LINKS.get(provider)
+        try:
+            url = builder(option) if builder else None
+        except Exception:
+            url = None
     if not url:
         return None
-    return {"provider": provider, "label": PROVIDER_LABELS.get(provider, f"Book on {provider.title()}"), "url": url}
+    label = option.get("label") or PROVIDER_LABELS.get(provider, f"Book on {provider.title()}")
+    return {"provider": provider, "label": label, "url": url}
+
+def build_book_actions(options: Optional[List[dict]]) -> List[dict]:
+    if not options:
+        return []
+    actions = []
+    for opt in options[:5]:
+        action = build_book_action(opt)
+        if action:
+            actions.append(action)
+    return actions
 
 # Without this, agy tends to default to search_web/general knowledge even when a
 # purpose-built MCP tool exists for the request (observed: it answered a live Uber vs
@@ -2594,17 +2618,17 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     await proc.wait()
 
     markdown_answer = None
-    winner = None
+    options = None
     if isinstance(final_structured, dict):
         markdown_answer = final_structured.get("markdown")
-        winner = final_structured.get("winner")
+        options = final_structured.get("options")
     elif final_response:
         # Fallback for an agy build that doesn't emit structured_output: the
         # schema-shaped JSON may still come back as a plain string in `response`.
         try:
             parsed = json.loads(final_response)
             markdown_answer = parsed.get("markdown")
-            winner = parsed.get("winner")
+            options = parsed.get("options")
         except (json.JSONDecodeError, AttributeError, TypeError):
             markdown_answer = final_response
 
@@ -2618,9 +2642,9 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
         tasks[task_id]["logs"].append(f"[00:0X] ⚠️ agy exited with code {proc.returncode}")
 
     deliverable = {"type": "info", "title": "🤖 Antigravity Agent Result", "url": "#"}
-    book_action = build_book_action(winner)
-    if book_action:
-        deliverable["book_action"] = book_action
+    book_actions = build_book_actions(options)
+    if book_actions:
+        deliverable["book_actions"] = book_actions
     tasks[task_id]["deliverable"] = deliverable
     tasks[task_id]["status"] = "COMPLETED"
 

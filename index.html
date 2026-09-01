@@ -1589,10 +1589,16 @@
           }
 
           const bookActionBox = document.getElementById("bookActionBox");
-          const bookAction = resPayload.deliverable && resPayload.deliverable.book_action;
-          if (bookAction && bookAction.url) {
-            bookActionBox.style.display = "block";
-            bookActionBox.innerHTML = `<a class="book-action-btn" href="${bookAction.url}" target="_blank" rel="noopener">${bookAction.label}</a>`;
+          const bookActions = (resPayload.deliverable && resPayload.deliverable.book_actions) || [];
+          if (bookActions.length) {
+            const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+            bookActionBox.style.display = "flex";
+            bookActionBox.style.flexWrap = "wrap";
+            bookActionBox.style.gap = "0.6rem";
+            bookActionBox.innerHTML = bookActions
+              .filter((a) => a && a.url)
+              .map((a) => `<a class="book-action-btn" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.label)}</a>`)
+              .join("");
           } else {
             bookActionBox.style.display = "none";
             bookActionBox.innerHTML = "";

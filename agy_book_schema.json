@@ -5,30 +5,41 @@
       "type": "string",
       "description": "The full formatted answer to show the user, exactly as it would otherwise be written in plain text/markdown."
     },
-    "winner": {
-      "type": "object",
-      "description": "If this response identifies a single cheapest/best provider to complete a real-world booking or purchase on, describe it here so a direct link to that provider can be built. Otherwise set provider to 'none'.",
-      "properties": {
-        "provider": {
-          "type": "string",
-          "description": "The winning provider's key. Use 'none' if this response isn't a comparison with a bookable winner.",
-          "enum": ["amazon", "flipkart", "blinkit", "zepto", "meesho", "swiggy", "zomato", "uber", "ola", "rapido", "none"]
+    "options": {
+      "type": "array",
+      "description": "One entry per real, distinct bookable candidate this response actually found (e.g. each restaurant in a food comparison, each ride category, each product listing) - so the user can choose between them, not just get a single auto-picked winner. Empty array if this response isn't a bookable comparison. List every real candidate you found, most relevant/cheapest first, up to 5.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "This option's provider key.",
+            "enum": ["amazon", "flipkart", "blinkit", "zepto", "meesho", "swiggy", "zomato", "uber", "ola", "rapido"]
+          },
+          "label": {
+            "type": "string",
+            "description": "Short human-readable label for this specific option, e.g. 'Bhagatram Sweets - Paneer Butter Masala Combo (₹130)' or 'Uber Auto (₹245)'. This is what the user sees on the button."
+          },
+          "direct_url": {
+            "type": "string",
+            "description": "The EXACT url field already present in the MCP tool's own JSON result for this specific item (e.g. its swiggy_url, zomato_url, product url, restaurant url) - copy it verbatim, do not invent one. Omit entirely if the tool result didn't include a real url for this item."
+          },
+          "query": {
+            "type": "string",
+            "description": "Fallback only, used when direct_url is not available: the product/restaurant/dish name to search for on the provider's own site."
+          },
+          "pickup": {
+            "type": "string",
+            "description": "For ride providers only: the pickup location."
+          },
+          "drop": {
+            "type": "string",
+            "description": "For ride providers only: the destination."
+          }
         },
-        "query": {
-          "type": "string",
-          "description": "For shopping/food providers: the product name or dish/restaurant to search for on the winning provider's site."
-        },
-        "pickup": {
-          "type": "string",
-          "description": "For ride providers only: the pickup location."
-        },
-        "drop": {
-          "type": "string",
-          "description": "For ride providers only: the destination."
-        }
-      },
-      "required": ["provider"]
+        "required": ["provider", "label"]
+      }
     }
   },
-  "required": ["markdown", "winner"]
+  "required": ["markdown", "options"]
 }
