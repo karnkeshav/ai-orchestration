@@ -2649,19 +2649,53 @@ class AgyWarmSession:
                 tasks[task_id]["logs"].append("[00:01] ♨️ Reusing warm Antigravity CLI session...")
 
             proc = self.process
-            # NDJSON turn message for `--input-format stream-json`. First guess
-            # ({"type":"user",...}) failed live: "stream input message is missing
-            # the \"event\" field" — agy's own output events all use "event" as
-            # the discriminator ({"event":"init",...}, {"event":"step_update",...},
-            # {"event":"result",...}), and step_update's step_type enum already
-            # includes "user_input" as a known concept, so this mirrors that.
-            message = json.dumps({"event": "user_input", "user_input": {"content": full_prompt}}) + "\n"
+
+            # TEMPORARY PROBE: two live guesses have failed so far --
+            # {"type":"user",...} -> "missing the \"event\" field", and
+            # {"event":"user_input",...} -> "ignoring unsupported stream input
+            # message event \"user_input\"" (a warning, not fatal -- the process
+            # stayed alive waiting for a valid line). Since a bad guess is only
+            # ever ignored (not fatal), pipeline several candidate event
+            # names/shapes into the one already-open process in a single shot
+            # instead of paying a full restart per guess. Whichever one is
+            # correct will produce real step_update/result activity; the rest
+            # just get logged as ignored. Remove this block once the right
+            # shape is found and hardcode it like the single-message version.
+            candidates = [
+                {"event": "user_message", "user_message": {"content": full_prompt}},
+                {"event": "message", "message": {"role": "user", "content": full_prompt}},
+                {"event": "prompt", "prompt": full_prompt},
+                {"event": "input", "input": full_prompt},
+                {"event": "text", "text": full_prompt},
+                {"event": "user_turn", "user_turn": {"content": full_prompt}},
+            ]
             try:
-                proc.stdin.write(message.encode("utf-8"))
+                for i, cand in enumerate(candidates):
+                    line_out = json.dumps(cand) + "\n"
+                    tasks[task_id]["logs"].append(f"[probe {i}] sending {line_out.strip()[:120]}")
+                    proc.stdin.write(line_out.encode("utf-8"))
                 await proc.stdin.drain()
             except Exception as e:
                 await self._kill()
                 raise RuntimeError(f"agy warm session pipe broken: {e}")
+
+            async def _drain_probe_output():
+                while True:
+                    raw_line = await proc.stdout.readline()
+                    if not raw_line:
+                        tasks[task_id]["logs"].append("[probe] stdout closed (process exited)")
+                        return
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if line:
+                        tasks[task_id]["logs"].append(f"[probe out] {line[:500]}")
+
+            try:
+                await asyncio.wait_for(_drain_probe_output(), timeout=25)
+            except asyncio.TimeoutError:
+                tasks[task_id]["logs"].append("[probe] 25s collection window elapsed")
+
+            await self._kill()
+            raise RuntimeError("probe run: see [probe out] / [agy stderr] logs for the correct event shape")
 
             final_response = None
             final_structured = None
