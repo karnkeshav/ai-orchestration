@@ -477,6 +477,30 @@
       background: rgba(99, 102, 241, 0.1);
     }
 
+    /* Mobile Overlay */
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      z-index: 149;
+      animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .sidebar-overlay.open {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
       header {
@@ -494,6 +518,11 @@
 
       .hamburger-btn {
         display: block;
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .hamburger-btn.open {
+        transform: rotate(90deg);
       }
 
       .main-layout {
@@ -511,14 +540,17 @@
         border-radius: 0;
         z-index: 150;
         transform: translateX(-100%);
-        transition: transform 0.3s ease;
+        will-change: transform;
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
         gap: 0.5rem;
         overflow-y: auto;
+        box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
+        backface-visibility: hidden;
+        -webkit-font-smoothing: antialiased;
       }
 
       .sidebar.open {
         transform: translateX(0);
-        box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
       }
 
       .hero h1 {
@@ -567,11 +599,18 @@
 
       .sidebar {
         width: 240px;
+        will-change: transform;
       }
 
       .nav-item {
         padding: 0.6rem;
         font-size: 0.75rem;
+        will-change: background-color;
+      }
+
+      .sidebar-overlay {
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
       }
     }
   </style>
@@ -606,6 +645,9 @@
     </div>
     <button class="hamburger-btn" id="hamburgerBtn">☰</button>
   </header>
+
+  <!-- Mobile Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
   <!-- Main Layout -->
   <div class="main-layout">
@@ -776,16 +818,33 @@
       'm365-flow': "Build a Power Automate flow for cloud spend anomalies."
     };
 
-    // Hamburger Menu
-    document.getElementById('hamburgerBtn').addEventListener('click', () => {
-      document.getElementById('sidebar').classList.toggle('open');
-    });
+    // Hamburger Menu & Overlay
+    const hamburgerBtn = document.getElementById('hamburgerBtn');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+
+    function toggleSidebar() {
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('open');
+      hamburgerBtn.classList.toggle('open');
+    }
+
+    function closeSidebar() {
+      sidebar.classList.remove('open');
+      overlay.classList.remove('open');
+      hamburgerBtn.classList.remove('open');
+    }
+
+    hamburgerBtn.addEventListener('click', toggleSidebar);
+
+    // Close sidebar on overlay click
+    overlay.addEventListener('click', closeSidebar);
 
     // Close sidebar when clicking on a nav item
     document.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => {
         if (window.innerWidth <= 768) {
-          document.getElementById('sidebar').classList.remove('open');
+          closeSidebar();
         }
       });
     });
@@ -793,7 +852,7 @@
     // Hide sidebar on prompt focus (mobile)
     document.getElementById('promptText').addEventListener('focus', () => {
       if (window.innerWidth <= 768) {
-        document.getElementById('sidebar').classList.remove('open');
+        closeSidebar();
       }
     });
 
