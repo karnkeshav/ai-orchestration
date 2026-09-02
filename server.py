@@ -2649,57 +2649,22 @@ class AgyWarmSession:
                 tasks[task_id]["logs"].append("[00:01] ♨️ Reusing warm Antigravity CLI session...")
 
             proc = self.process
-
-            # TEMPORARY PROBE: two live guesses have failed so far --
-            # {"type":"user",...} -> "missing the \"event\" field", and
-            # {"event":"user_input",...} -> "ignoring unsupported stream input
-            # message event \"user_input\"" (a warning, not fatal -- the process
-            # stayed alive waiting for a valid line). Since a bad guess is only
-            # ever ignored (not fatal), pipeline several candidate event
-            # names/shapes into the one already-open process in a single shot
-            # instead of paying a full restart per guess. Whichever one is
-            # correct will produce real step_update/result activity; the rest
-            # just get logged as ignored. Remove this block once the right
-            # shape is found and hardcode it like the single-message version.
-            # Round 1 (all confirmed rejected via live stderr warnings, no crash):
-            # user_input, user_message, message, prompt, input, text, user_turn.
-            candidates = [
-                {"event": "user", "user": {"content": full_prompt}},
-                {"event": "query", "query": full_prompt},
-                {"event": "chat", "chat": {"content": full_prompt}},
-                {"event": "conversation_message", "conversation_message": {"content": full_prompt}},
-                {"event": "user_prompt", "user_prompt": full_prompt},
-                {"event": "send_message", "send_message": {"content": full_prompt}},
-                {"event": "turn", "turn": {"content": full_prompt}},
-                {"event": "request", "request": {"content": full_prompt}},
-            ]
+            # NDJSON turn message for `--input-format stream-json`. Determined
+            # live via a multi-candidate probe: agy validates a top-level
+            # "event" discriminator (not "type" — first guess failed on that),
+            # "user" is a recognized event value (7 other guesses — user_input,
+            # user_message, message, prompt, input, text, user_turn, query,
+            # chat, conversation_message, user_prompt, send_message, turn,
+            # request — were all rejected as unsupported), and its payload key
+            # is specifically "message" (error: 'stream input "user" message is
+            # missing the "message" field'), not the event name mirrored.
+            message = json.dumps({"event": "user", "message": {"role": "user", "content": full_prompt}}) + "\n"
             try:
-                for i, cand in enumerate(candidates):
-                    line_out = json.dumps(cand) + "\n"
-                    tasks[task_id]["logs"].append(f"[probe {i}] sending {line_out.strip()[:120]}")
-                    proc.stdin.write(line_out.encode("utf-8"))
+                proc.stdin.write(message.encode("utf-8"))
                 await proc.stdin.drain()
             except Exception as e:
                 await self._kill()
                 raise RuntimeError(f"agy warm session pipe broken: {e}")
-
-            async def _drain_probe_output():
-                while True:
-                    raw_line = await proc.stdout.readline()
-                    if not raw_line:
-                        tasks[task_id]["logs"].append("[probe] stdout closed (process exited)")
-                        return
-                    line = raw_line.decode("utf-8", errors="ignore").strip()
-                    if line:
-                        tasks[task_id]["logs"].append(f"[probe out] {line[:500]}")
-
-            try:
-                await asyncio.wait_for(_drain_probe_output(), timeout=25)
-            except asyncio.TimeoutError:
-                tasks[task_id]["logs"].append("[probe] 25s collection window elapsed")
-
-            await self._kill()
-            raise RuntimeError("probe run: see [probe out] / [agy stderr] logs for the correct event shape")
 
             final_response = None
             final_structured = None
