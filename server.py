@@ -2559,7 +2559,9 @@ _AGY_TOOL_HINT = (
 # quiet period, then stays warm for WARM_IDLE_TIMEOUT_SECONDS after its last
 # turn; a background reaper kills it once nothing has used it for that long
 # so it stops holding the OCI VM's resources between visitors.
-WARM_IDLE_TIMEOUT_SECONDS = 30 * 60
+# Overridable via env so idle duration can be tuned per-deployment (e.g. a
+# long testing session) without a code change/redeploy.
+WARM_IDLE_TIMEOUT_SECONDS = int(os.environ.get("AGY_WARM_IDLE_SECONDS", 30 * 60))
 WARM_REAP_INTERVAL_SECONDS = 60
 WARM_TURN_TIMEOUT_SECONDS = 6 * 60  # backstop above agy's own 5m --print-timeout
 
@@ -2610,6 +2612,16 @@ class AgyWarmSession:
             except Exception:
                 pass
         self.process = None
+
+    async def ensure_warm(self):
+        """Pre-spawns the process at server startup (or right after a cooldown)
+        instead of waiting for the first real instruction to trigger the cold
+        start. Testing traffic is sporadic, not continuous, so without this the
+        'first hit' that pays the full MCP bootstrap is effectively every hit."""
+        async with self.lock:
+            if self.process is None or self.process.returncode is not None:
+                self.process = await self._spawn()
+            self.last_used = time.monotonic()
 
     async def reap_if_idle(self):
         async with self.lock:
@@ -2700,6 +2712,11 @@ _agy_session = AgyWarmSession()
 
 @app.on_event("startup")
 async def _start_agy_reaper():
+    # Background, not awaited: don't make the server's own startup (and health
+    # checks) wait on agy's MCP bootstrap. Fire-and-forget so the process is
+    # already warm by the time a real instruction shows up.
+    asyncio.create_task(_agy_session.ensure_warm())
+
     async def _loop():
         while True:
             await asyncio.sleep(WARM_REAP_INTERVAL_SECONDS)
