@@ -2585,7 +2585,13 @@ class AgyWarmSession:
 
     async def _spawn(self) -> asyncio.subprocess.Process:
         cmd = _agy_command([
-            "-p",
+            # -p greedily consumes the very next token as its prompt value
+            # regardless of whether it looks like a flag (confirmed live: it ate
+            # "--input-format" as the prompt and silently dropped the rest of the
+            # command line). agy's own error message says to attach the value
+            # with '=' instead; there's no fixed prompt here (turns arrive over
+            # stdin per --input-format stream-json), so attach an empty one.
+            "-p=",
             "--input-format", "stream-json",
             "--output-format", "stream-json",
             "--json-schema", _BOOK_SCHEMA_PATH,
