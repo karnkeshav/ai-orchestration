@@ -2545,77 +2545,179 @@ _AGY_TOOL_HINT = (
     "on the zomato server) and must be preferred whenever one applies.\n\nUser request: "
 )
 
+# --- Warm agy session ------------------------------------------------------
+# A one-shot `agy -p "..."` process pays its full MCP-server bootstrap (every
+# configured server: azure, aws-mcp, oci, m365, flowagent, shopping/social
+# servers, etc.) on every single request. An interactive `agy` session pays
+# that cost once and reuses it for every turn typed into it afterwards — that
+# gap is why a manual `wsl` -> `agy` session feels far faster than the web
+# path even with --dangerously-skip-permissions removing the approval prompts.
+#
+# This mirrors that: one persistent `agy --input-format stream-json
+# --output-format stream-json -p` process, fed one NDJSON line per request
+# instead of being re-spawned. It cold-starts on the first request after a
+# quiet period, then stays warm for WARM_IDLE_TIMEOUT_SECONDS after its last
+# turn; a background reaper kills it once nothing has used it for that long
+# so it stops holding the OCI VM's resources between visitors.
+WARM_IDLE_TIMEOUT_SECONDS = 30 * 60
+WARM_REAP_INTERVAL_SECONDS = 60
+WARM_TURN_TIMEOUT_SECONDS = 6 * 60  # backstop above agy's own 5m --print-timeout
+
+class AgyWarmSession:
+    def __init__(self):
+        self.process: Optional[asyncio.subprocess.Process] = None
+        self.lock = asyncio.Lock()
+        self.last_used = 0.0
+
+    async def _drain_stderr(self, proc: asyncio.subprocess.Process):
+        # Must be continuously read or the OS pipe buffer fills and blocks agy
+        # once it writes enough to stderr — a real risk now that the process
+        # stays alive for many turns instead of exiting after one.
+        try:
+            async for raw in proc.stderr:
+                line = raw.decode("utf-8", errors="ignore").strip()
+                if line:
+                    print(f"[agy stderr] {line}")
+        except Exception:
+            pass
+
+    async def _spawn(self) -> asyncio.subprocess.Process:
+        cmd = _agy_command([
+            "-p",
+            "--input-format", "stream-json",
+            "--output-format", "stream-json",
+            "--json-schema", _BOOK_SCHEMA_PATH,
+            "--dangerously-skip-permissions",
+        ])
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        asyncio.create_task(self._drain_stderr(proc))
+        return proc
+
+    async def _kill(self):
+        if self.process and self.process.returncode is None:
+            try:
+                self.process.stdin.close()
+            except Exception:
+                pass
+            try:
+                self.process.kill()
+                await self.process.wait()
+            except Exception:
+                pass
+        self.process = None
+
+    async def reap_if_idle(self):
+        async with self.lock:
+            if self.process and self.process.returncode is None:
+                if time.monotonic() - self.last_used > WARM_IDLE_TIMEOUT_SECONDS:
+                    await self._kill()
+
+    async def run_turn(self, full_prompt: str, task_id: str):
+        """Runs one instruction on the warm process (spawning it first if cold).
+        Streams step_update/result events into tasks[task_id]["logs"] the same
+        way the old one-shot path did. Raises on any protocol failure so the
+        caller's existing fallback chain (Gemini router, then keyword router)
+        takes over instead of hanging."""
+        async with self.lock:
+            if self.process is None or self.process.returncode is not None:
+                tasks[task_id]["logs"].append("[00:01] 🧊 Cold-starting Antigravity CLI warm session (first request in a while)...")
+                self.process = await self._spawn()
+            else:
+                tasks[task_id]["logs"].append("[00:01] ♨️ Reusing warm Antigravity CLI session...")
+
+            proc = self.process
+            # NDJSON turn message for `--input-format stream-json`. Best inference
+            # from `agy --help` — verify with one live prompt and adjust this line
+            # if agy expects a different shape.
+            message = json.dumps({"type": "user", "message": {"role": "user", "content": full_prompt}}) + "\n"
+            try:
+                proc.stdin.write(message.encode("utf-8"))
+                await proc.stdin.drain()
+            except Exception as e:
+                await self._kill()
+                raise RuntimeError(f"agy warm session pipe broken: {e}")
+
+            final_response = None
+            final_structured = None
+            final_status = None
+            responded_logged = False
+
+            async def _read_turn():
+                nonlocal final_response, final_structured, final_status, responded_logged
+                while True:
+                    raw_line = await proc.stdout.readline()
+                    if not raw_line:
+                        raise RuntimeError("agy warm session exited mid-turn")
+                    line = raw_line.decode("utf-8", errors="ignore").strip()
+                    if not line:
+                        continue
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        tasks[task_id]["logs"].append(f"[agy] {line[:200]}")
+                        continue
+
+                    etype = event.get("event")
+                    if etype == "step_update":
+                        step = event.get("step_update", {})
+                        step_type = step.get("step_type")
+                        state = step.get("state")
+                        if step_type == "agent_response":
+                            if step.get("text_delta") and not responded_logged:
+                                tasks[task_id]["logs"].append("🧠 Antigravity is composing a response...")
+                                responded_logged = True
+                        elif step_type == "tool":
+                            name = step.get("tool_name", "tool")
+                            params = (step.get("tool_info") or {}).get("parameters", {})
+                            if state == "ACTIVE":
+                                tasks[task_id]["logs"].append(f"🔧 Calling tool: {name}({params})")
+                            elif state == "DONE":
+                                tasks[task_id]["logs"].append(f"📥 {name} finished")
+                        elif step_type and step_type != "user_input":
+                            tasks[task_id]["logs"].append(f"[{step_type}] {state}")
+                    elif etype == "result":
+                        result = event.get("result", {})
+                        final_status = result.get("status")
+                        final_response = result.get("response")
+                        final_structured = result.get("structured_output")
+                        return
+
+            try:
+                await asyncio.wait_for(_read_turn(), timeout=WARM_TURN_TIMEOUT_SECONDS)
+            except (asyncio.TimeoutError, RuntimeError) as e:
+                await self._kill()
+                raise RuntimeError(f"agy warm session turn failed: {e}")
+
+            self.last_used = time.monotonic()
+            return final_status, final_response, final_structured
+
+_agy_session = AgyWarmSession()
+
+@app.on_event("startup")
+async def _start_agy_reaper():
+    async def _loop():
+        while True:
+            await asyncio.sleep(WARM_REAP_INTERVAL_SECONDS)
+            await _agy_session.reap_if_idle()
+    asyncio.create_task(_loop())
+
 async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
-    """Hands the raw directive to the Antigravity CLI agent (agy), which has its
-    own MCP toolset (cloud providers, shopping, social, Power Automate, etc.)
-    configured independently of this app's fixed Gemini function-tools.
+    """Hands the raw directive to the Antigravity CLI agent (agy) running in a
+    warm, reused session (see AgyWarmSession above), which has its own MCP
+    toolset (cloud providers, shopping, social, Power Automate, etc.) configured
+    independently of this app's fixed Gemini function-tools.
     --dangerously-skip-permissions auto-approves every tool call agy wants to
     make, since this backend has no human present to answer its prompts."""
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
 
     full_prompt = _AGY_TOOL_HINT + prompt
-    cmd = _agy_command([
-        "-p", full_prompt,
-        "--output-format", "stream-json",
-        "--json-schema", _BOOK_SCHEMA_PATH,
-        "--dangerously-skip-permissions",
-    ])
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-
-    final_response = None
-    final_structured = None
-    final_status = None
-    responded_logged = False
-
-    async for raw_line in proc.stdout:
-        line = raw_line.decode("utf-8", errors="ignore").strip()
-        if not line:
-            continue
-        try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            tasks[task_id]["logs"].append(f"[agy] {line[:200]}")
-            continue
-
-        etype = event.get("event")
-
-        if etype == "step_update":
-            step = event.get("step_update", {})
-            step_type = step.get("step_type")
-            state = step.get("state")
-
-            if step_type == "agent_response":
-                # With --json-schema, the final turn's text_delta chunks are raw
-                # JSON fragments (not display text), so we only log that a response
-                # is being composed instead of streaming these into the answer box.
-                if step.get("text_delta") and not responded_logged:
-                    tasks[task_id]["logs"].append("🧠 Antigravity is composing a response...")
-                    responded_logged = True
-
-            elif step_type == "tool":
-                name = step.get("tool_name", "tool")
-                params = (step.get("tool_info") or {}).get("parameters", {})
-                if state == "ACTIVE":
-                    tasks[task_id]["logs"].append(f"🔧 Calling tool: {name}({params})")
-                elif state == "DONE":
-                    tasks[task_id]["logs"].append(f"📥 {name} finished")
-
-            elif step_type and step_type != "user_input":
-                tasks[task_id]["logs"].append(f"[{step_type}] {state}")
-
-        elif etype == "result":
-            result = event.get("result", {})
-            final_status = result.get("status")
-            final_response = result.get("response")
-            final_structured = result.get("structured_output")
-
-    stderr_bytes = await proc.stderr.read()
-    await proc.wait()
+    final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
 
     markdown_answer = None
     options = None
@@ -2635,11 +2737,10 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     if markdown_answer:
         tasks[task_id]["answer"] = markdown_answer
     elif not tasks[task_id].get("answer"):
-        stderr_text = stderr_bytes.decode("utf-8", errors="ignore").strip()
-        tasks[task_id]["answer"] = "⚠️ Antigravity agent produced no output." + (f"\n{stderr_text[-500:]}" if stderr_text else "")
+        tasks[task_id]["answer"] = "⚠️ Antigravity agent produced no output."
 
-    if proc.returncode != 0 and final_status != "SUCCESS":
-        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ agy exited with code {proc.returncode}")
+    if final_status and final_status != "SUCCESS":
+        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ agy turn ended with status {final_status}")
 
     deliverable = {"type": "info", "title": "🤖 Antigravity Agent Result", "url": "#"}
     book_actions = build_book_actions(options)
