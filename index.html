@@ -406,56 +406,6 @@
       line-height: 1.4;
     }
 
-    /* Showcase Section */
-    .showcase {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 1.5rem;
-      margin-top: 1rem;
-    }
-
-    .showcase-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 1.5rem;
-    }
-
-    .artifact-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 12px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .artifact-media {
-      width: 100%;
-      height: 160px;
-      background: #000;
-      position: relative;
-    }
-
-    .artifact-media video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border: none;
-    }
-
-    .artifact-body {
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .artifact-title {
-      font-size: 0.9rem;
-      font-weight: 700;
-    }
-
     .btn-outline {
       display: inline-flex;
       align-items: center;
@@ -547,6 +497,10 @@
         box-shadow: 4px 0 16px rgba(0, 0, 0, 0.2);
         backface-visibility: hidden;
         -webkit-font-smoothing: antialiased;
+        /* Opaque solid background so page content behind the fixed
+           sidebar doesn't bleed through and overlap the nav text. */
+        background: var(--bg-secondary);
+        border-right: 1px solid var(--border-color);
       }
 
       .sidebar.open {
@@ -722,40 +676,6 @@
       <section>
         <div class="section-title" id="sectionTitle">⚡ Capabilities</div>
         <div class="cards-grid" id="cardsGrid"></div>
-      </section>
-
-      <!-- Showcase Section -->
-      <section class="showcase">
-        <div class="section-title">💎 Live Deliverables</div>
-        <div class="showcase-grid">
-          <div class="artifact-card">
-            <div class="artifact-media">
-              <video controls>
-                <source src="./Brother_Sister_Pixar_Animation_65s.mp4" type="video/mp4">
-              </video>
-            </div>
-            <div class="artifact-body">
-              <div class="artifact-title">🎬 3D Pixar Story (65s)</div>
-              <a href="./Brother_Sister_Pixar_Animation_65s.mp4" download class="btn-outline">
-                ⬇️ Download
-              </a>
-            </div>
-          </div>
-
-          <div class="artifact-card">
-            <div class="artifact-media">
-              <video controls>
-                <source src="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" type="video/mp4">
-              </video>
-            </div>
-            <div class="artifact-body">
-              <div class="artifact-title">🕵️ FinOps Mystery (60s)</div>
-              <a href="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" download class="btn-outline">
-                ⬇️ Download
-              </a>
-            </div>
-          </div>
-        </div>
       </section>
 
     </div>
