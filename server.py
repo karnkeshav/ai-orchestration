@@ -2661,13 +2661,17 @@ class AgyWarmSession:
             # correct will produce real step_update/result activity; the rest
             # just get logged as ignored. Remove this block once the right
             # shape is found and hardcode it like the single-message version.
+            # Round 1 (all confirmed rejected via live stderr warnings, no crash):
+            # user_input, user_message, message, prompt, input, text, user_turn.
             candidates = [
-                {"event": "user_message", "user_message": {"content": full_prompt}},
-                {"event": "message", "message": {"role": "user", "content": full_prompt}},
-                {"event": "prompt", "prompt": full_prompt},
-                {"event": "input", "input": full_prompt},
-                {"event": "text", "text": full_prompt},
-                {"event": "user_turn", "user_turn": {"content": full_prompt}},
+                {"event": "user", "user": {"content": full_prompt}},
+                {"event": "query", "query": full_prompt},
+                {"event": "chat", "chat": {"content": full_prompt}},
+                {"event": "conversation_message", "conversation_message": {"content": full_prompt}},
+                {"event": "user_prompt", "user_prompt": full_prompt},
+                {"event": "send_message", "send_message": {"content": full_prompt}},
+                {"event": "turn", "turn": {"content": full_prompt}},
+                {"event": "request", "request": {"content": full_prompt}},
             ]
             try:
                 for i, cand in enumerate(candidates):
