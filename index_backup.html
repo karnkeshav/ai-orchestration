@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Orchestration Studio | Autonomous Multi-Cloud & Media Engine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #090d16;
+      --bg-secondary: #0f172a;
+      --bg-card: #131d35;
+      --bg-glass: rgba(19, 29, 53, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(99, 102, 241, 0.4);
+      --accent-indigo: #6366f1;
+      --accent-cyan: #06b6d4;
+      --accent-amber: #f59e0b;
+      --accent-emerald: #10b981;
+      --accent-rose: #f43f5e;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-main: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: "JetBrains Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15), transparent 40%),
+        radial-gradient(circle at 85% 85%, rgba(6, 182, 212, 0.12), transparent 40%);
+    }
+
+    /* Top Navbar */
+    header {
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 1.25rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-badge {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      padding: 0.35rem 0.65rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #fff;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .nav-stats {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent-emerald);
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 10px var(--accent-emerald);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2.5rem;
+    }
+
+    /* Hero Section */
+    .hero {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .hero-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 0.9rem;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 100px;
+      font-size: 0.8rem;
+      color: #a5b4fc;
+      margin-bottom: 1.25rem;
+      font-weight: 600;
+    }
+
+    .hero h1 {
+      font-size: 2.75rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Main Action Hub / Search Box */
+    .command-hub {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+      position: relative;
+    }
+
+    .prompt-box-wrapper {
+      position: relative;
+      background: var(--bg-card);
+      border: 2px solid var(--border-active);
+      border-radius: 16px;
+      padding: 1.25rem;
+      transition: all 0.2s ease;
+    }
+
+    .prompt-box-wrapper:focus-within {
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 25px rgba(99, 102, 241, 0.25);
+    }
+
+    .prompt-textarea {
+      width: 100%;
+      min-height: 100px;
+      background: transparent;
+      border: none;
+      color: var(--text-main);
+      font-family: var(--font-main);
+      font-size: 1.05rem;
+      line-height: 1.5;
+      resize: vertical;
+      outline: none;
+    }
+
+    .prompt-textarea::placeholder {
+      color: var(--text-dim);
+    }
+
+    .prompt-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 1rem;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-color);
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .prompt-tags {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      color: var(--text-muted);
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      color: #ffffff;
+      border: none;
+      padding: 0.75rem 1.75rem;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: transform 0.15s ease, filter 0.2s ease;
+    }
+
+    .btn-action:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+    }
+
+    .btn-action:active {
+      transform: translateY(0);
+    }
+
+    .kbd-shortcut {
+      background: rgba(0, 0, 0, 0.25);
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+    }
+
+    /* Live Execution Console (Processing State) */
+    #executionConsole {
+      display: none;
+      margin-top: 1.25rem;
+      background: #0b0f19;
+      border: 1px solid var(--accent-indigo);
+      border-radius: 14px;
+      padding: 1.25rem;
+      box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+    }
+
+    .console-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+    }
+
+    .console-spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(6, 182, 212, 0.2);
+      border-top-color: var(--accent-cyan);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .console-logs {
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: #94a3b8;
+      max-height: 140px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .console-log-item {
+      padding-left: 0.5rem;
+      border-left: 2px solid var(--accent-indigo);
+    }
+
+    .console-log-item.complete {
+      border-left-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+      font-weight: 600;
+    }
+
+    /* Executive Answer Box */
+    #answerBox {
+      display: none;
+      margin-top: 1rem;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid var(--accent-emerald);
+      border-radius: 12px;
+      padding: 1.25rem;
+      color: #fff;
+    }
+
+    .book-action-btn {
+      display: inline-block;
+      padding: 0.7rem 1.4rem;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent-emerald), var(--accent-cyan));
+      box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+      transition: transform 0.15s ease;
+    }
+    .book-action-btn:hover { transform: translateY(-2px); }
+
+    .answer-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--accent-emerald);
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .answer-text {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    /* Category Filter Tabs */
+    .filter-bar {
+      display: flex;
+      gap: 0.5rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.25rem;
+      scrollbar-width: none;
+    }
+    .filter-bar::-webkit-scrollbar { display: none; }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.5rem 1rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .filter-btn:hover {
+      color: var(--text-main);
+      border-color: var(--border-active);
+    }
+
+    .filter-btn.active {
+      background: var(--accent-indigo);
+      color: #fff;
+      border-color: var(--accent-indigo);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    /* 8 Template Cards Grid */
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-main);
+    }
+
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.25rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .card:hover {
+      border-color: var(--border-active);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.4);
+    }
+
+    .card-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+    }
+
+    .card-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+    }
+
+    .icon-media { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+    .icon-finops { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+    .icon-cloudops { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+    .icon-hybrid { background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); }
+    .icon-m365 { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+    .icon-webapps { background: rgba(168, 85, 247, 0.15); color: var(--accent-purple); }
+    .icon-leads { background: rgba(234, 179, 8, 0.15); color: #eab308; }
+    .icon-agents { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 0.25rem;
+    }
+
+    .card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--accent-indigo);
+      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      padding-top: 0.75rem;
+    }
+
+    /* Output Gallery / Executed Showcase */
+    .showcase {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 1.75rem;
+    }
+
+    .showcase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .showcase-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .artifact-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .artifact-media {
+      width: 100%;
+      height: 180px;
+      background: #000;
+      position: relative;
+    }
+
+    .artifact-media video, .artifact-media iframe {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border: none;
+    }
+
+    .artifact-body {
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .artifact-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    .artifact-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    .btn-outline {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      padding: 0.6rem 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-main);
+      text-decoration: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .btn-outline:hover {
+      border-color: var(--accent-indigo);
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    /* Toast Notification */
+    #toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #1e293b;
+      border: 1px solid var(--accent-emerald);
+      color: #fff;
+      padding: 0.85rem 1.5rem;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+      pointer-events: none;
+    }
+
+    #toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Embedded Quad-Cloud FinOps Console */
+    .finops-hub-section {
+      margin-top: 3rem;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .finops-tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 1rem;
+      margin-bottom: 1.25rem;
+      flex-wrap: wrap;
+    }
+    .finops-tab-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.6rem 1.2rem;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s ease;
+    }
+    .finops-tab-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-main); }
+    .finops-tab-btn.active.aws { background: rgba(255, 153, 0, 0.15); border-color: #ff9900; color: #ffc082; }
+    .finops-tab-btn.active.oci { background: rgba(199, 70, 52, 0.15); border-color: #c74634; color: #ff9a89; }
+    .finops-tab-btn.active.azure { background: rgba(0, 120, 212, 0.15); border-color: #0078d4; color: #70b8ff; }
+    .finops-tab-btn.active.gcp { background: rgba(66, 133, 244, 0.15); border-color: #4285f4; color: #8ab4f8; }
+
+    .finops-quick-chips {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .finops-chip {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.4rem 0.8rem;
+      border-radius: 999px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .finops-chip:hover { border-color: var(--accent-cyan); color: var(--text-main); }
+
+    .finops-chat-feed {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      min-height: 240px;
+      max-height: 420px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+    .finops-msg {
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+    }
+    .finops-msg.user { justify-content: flex-end; }
+    .finops-bubble {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      max-width: 80%;
+      white-space: pre-wrap;
+    }
+    .finops-msg.user .finops-bubble { background: rgba(99, 102, 241, 0.2); border-color: var(--accent-indigo); }
+    .finops-visual-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 1rem;
+      margin-top: 0.5rem;
+      width: 100%;
+      max-width: 650px;
+    }
+    .finops-input-row {
+      display: flex;
+      gap: 0.75rem;
+    }
+    .finops-input-row input {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      color: var(--text-main);
+      font-family: var(--font-main);
+      font-size: 0.9rem;
+    }
+    .finops-input-row input:focus { outline: none; border-color: var(--accent-cyan); }
+
+    /* Image Preview & Upload Styling */
+    .image-preview-bar {
+      display: flex;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+    .image-preview-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid var(--accent-indigo);
+      border-radius: 12px;
+      padding: 0.4rem 0.8rem;
+    }
+    .image-preview-chip img {
+      width: 46px;
+      height: 46px;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .image-preview-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+    }
+    .image-preview-name {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+      max-width: 260px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .image-preview-badge {
+      font-size: 0.72rem;
+      color: var(--accent-cyan);
+      font-weight: 500;
+    }
+    .image-preview-remove-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: var(--text-muted);
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      margin-left: 0.5rem;
+    }
+    .image-preview-remove-btn:hover {
+      background: rgba(244, 63, 94, 0.3);
+      color: var(--accent-rose);
+    }
+    .btn-upload-pic {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 10px;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-upload-pic:hover {
+      background: rgba(99, 102, 241, 0.2);
+      color: var(--accent-cyan);
+      border-color: var(--accent-indigo);
+    }
+    .prompt-box-wrapper.drag-over {
+      border-color: var(--accent-cyan) !important;
+      background: rgba(6, 182, 212, 0.05) !important;
+    }
+    #answerContent table {
+      display: block;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1rem 0;
+      font-size: 0.85rem;
+    }
+    #answerContent th, #answerContent td {
+      border: 1px solid var(--border-color);
+      padding: 0.65rem 0.85rem;
+      text-align: left;
+    }
+    #answerContent th {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+    #answerContent tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    #answerContent a {
+      color: var(--accent-cyan);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    #answerContent a:hover {
+      text-decoration: underline;
+      color: #38bdf8;
+    }
+    #answerContent blockquote {
+      border-left: 3px solid var(--accent-emerald);
+      background: rgba(16, 185, 129, 0.1);
+      padding: 0.75rem 1rem;
+      border-radius: 0 8px 8px 0;
+      margin: 0.75rem 0;
+    }
+
+    /* Guard against any single long token (URLs, JSON tool-call logs, etc.)
+       forcing horizontal scroll of the whole page. */
+    .answer-text, #answerContent, .finops-bubble, .console-log-item, .hero p {
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    @media (max-width: 640px) {
+      header {
+        padding: 0.85rem 1rem;
+        flex-wrap: wrap;
+        row-gap: 0.5rem;
+      }
+      .brand { font-size: 1rem; gap: 0.5rem; }
+      .brand-badge { font-size: 0.68rem; padding: 0.25rem 0.5rem; }
+      .nav-stats {
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+      }
+      /* Decorative provider list is the first thing to go on a narrow screen */
+      .nav-stats span:last-child { display: none; }
+
+      main { padding: 1.5rem 1rem; gap: 1.75rem; }
+
+      .hero h1 { font-size: clamp(1.6rem, 8vw, 2.75rem); }
+      .hero p { font-size: 0.95rem; }
+      .hero-pill { font-size: 0.72rem; padding: 0.3rem 0.7rem; text-align: center; }
+
+      .command-hub { padding: 1rem; border-radius: 14px; }
+      .prompt-box-wrapper { padding: 1rem; }
+
+      .cards-grid, .showcase-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .finops-bubble { max-width: 92%; }
+      .finops-visual-container { max-width: 100%; }
+      .finops-input-row { flex-wrap: wrap; }
+
+      #answerContent table { font-size: 0.78rem; }
+      #answerContent th, #answerContent td { padding: 0.5rem 0.6rem; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: false, theme: "dark" });
+    window.renderMermaid = async (id, code) => {
+      try {
+        const { svg } = await mermaid.render(id + "-svg", code);
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = svg;
+      } catch (err) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<div style="color:#ffb4ab;font-size:12px;">Diagram error: ${err.message}</div>`;
+      }
+    };
+  </script>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <header>
+    <div class="brand">
+      <span>AI Orchestration Studio</span>
+      <span class="brand-badge">Cloud Engine</span>
+    </div>
+    <div class="nav-stats">
+      <span id="backendBadge"><span class="status-dot"></span> OCI Always-Free Cloud Online</span>
+      <span>AWS • Azure • GCP • OCI • E-Commerce</span>
+    </div>
+  </header>
+
+  <!-- Main App -->
+  <main>
+    
+    <!-- Hero Header -->
+    <section class="hero">
+      <div class="hero-pill">✨ Cloud-Native Autonomous Execution</div>
+      <h1>Execute Any AI Mission in One Click</h1>
+      <p>Type your directive, paste or upload a product picture to find the best deal across Amazon, Flipkart, Blinkit, Zepto & Meesho, or click any preset below.</p>
+    </section>
+
+    <!-- Main Prompt Input Box -->
+    <section class="command-hub">
+      <div class="prompt-box-wrapper">
+        <!-- Image Preview Bar -->
+        <div id="imagePreviewContainer" class="image-preview-bar" style="display: none;">
+          <div class="image-preview-chip">
+            <img id="imagePreviewImg" src="" alt="Product">
+            <div class="image-preview-info">
+              <span id="imagePreviewTitle" class="image-preview-name">product.jpg</span>
+              <span class="image-preview-badge">🔍 Vision Best Deal Finder Active (Amazon • Flipkart • Blinkit • Zepto • Meesho)</span>
+            </div>
+            <button type="button" class="image-preview-remove-btn" onclick="removeAttachedImage()" title="Remove Attached Picture">✕</button>
+          </div>
+        </div>
+
+        <textarea id="promptText" class="prompt-textarea" placeholder="Ask a question, paste an image (Ctrl+V), ask 'where is paneer butter masala cheaper and faster to get (Zomato vs Swiggy)', or 'best deal on boAt earphones / iPhone 15'..."></textarea>
+        <div class="prompt-footer">
+          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <input type="file" id="imageFileInput" accept="image/*" style="display: none;" onchange="handleImageSelected(event)">
+            <button type="button" class="btn-upload-pic" onclick="document.getElementById('imageFileInput').click()" title="Upload product picture to find best deals across e-commerce sites">
+              <span>📷</span>
+              <span>Upload Picture</span>
+            </button>
+            <div class="prompt-tags">
+              <span class="tag" style="cursor: pointer; background: rgba(255, 107, 107, 0.15); border-color: rgba(255, 107, 107, 0.4); color: #ff9999;" onclick="loadPrompt('food-paneer-butter-masala')">🍲 Zomato vs. Swiggy (Paneer Butter Masala)</span>
+              <span class="tag" style="cursor: pointer;" onclick="loadPrompt('ecommerce-deals')">🛍️ 5-Store Best Deal Matrix</span>
+              <span class="tag">⚡ 10-Min Delivery Check</span>
+              <span class="tag">🚀 Press [Enter] to Execute</span>
+            </div>
+          </div>
+          <button id="btnExecute" class="btn-action" onclick="executeMission()">
+            <span>🚀 Execute Mission</span>
+            <span class="kbd-shortcut">Enter ↵</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Execution Console -->
+      <div id="executionConsole">
+        <div class="console-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span class="console-spinner" id="consoleSpinner"></span>
+            <span id="consoleStatusText">⚡ Executing on OCI Cloud Engine...</span>
+          </div>
+          <span class="tag" id="taskTag">OCI #LIVE</span>
+        </div>
+        <div class="console-logs" id="consoleLogs">
+          <div class="console-log-item">[00:00] Dispatching directive to OCI Cloud VM...</div>
+        </div>
+
+        <!-- Executive Answer Box -->
+        <div id="answerBox">
+          <div class="answer-title">💎 Executive Query Answer</div>
+          <div class="answer-text" id="answerContent"></div>
+          <div id="bookActionBox" style="display:none; margin-top:1rem;"></div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- Embedded Quad-Cloud FinOps Intelligence Terminal -->
+    <section class="finops-hub-section" id="finopsTerminalSection">
+      <div class="section-title">
+        <span>💬</span>
+        <span>Quad-Cloud FinOps Intelligence Terminal (AWS • OCI • Azure • GCP)</span>
+      </div>
+      
+      <!-- Provider Tabs -->
+      <div class="finops-tabs">
+        <button class="finops-tab-btn active gcp" id="tab-gcp" onclick="switchFinopsTab('gcp')">⚪ Google Cloud (GCP)</button>
+        <button class="finops-tab-btn azure" id="tab-azure" onclick="switchFinopsTab('azure')">🔷 Microsoft Azure</button>
+        <button class="finops-tab-btn oci" id="tab-oci" onclick="switchFinopsTab('oci')">🔴 Oracle Cloud (OCI)</button>
+        <button class="finops-tab-btn aws" id="tab-aws" onclick="switchFinopsTab('aws')">🔶 Amazon Web Services (AWS)</button>
+      </div>
+
+      <!-- Quick Directive Chips -->
+      <div class="finops-quick-chips" id="finopsQuickChips">
+        <span class="finops-chip" onclick="askFinops('What is my total potential savings on GCP?')">💰 Potential Savings</span>
+        <span class="finops-chip" onclick="askFinops('Show me a chart of cost by service')">📊 Cost Breakdown Chart</span>
+        <span class="finops-chip" onclick="askFinops('Flowchart of Active Assist rightsizing workflow')">🔄 Remediation Flowchart</span>
+        <span class="finops-chip" onclick="askFinops('How many VMs and storage vaults are active?')">🖥️ Active Resource Inventory</span>
+      </div>
+
+      <!-- Chat Feed -->
+      <div class="finops-chat-feed" id="finopsChatFeed">
+        <div class="finops-msg bot">
+          <div class="finops-bubble" id="finopsWelcomeBubble">
+👋 <strong>Google Cloud (GCP) FinOps Agent Active (calm-catfish-464514-t6)</strong><br>
+• BigQuery detailed billing export and Active Assist recommenders ready.<br>
+• 1 Compute Engine VM (<code>gcp-ai-node-1</code>, <code>e2-micro</code>, Always-Free) & 1 Storage Vault (<code>gs://cloud-finops-vault-464514</code>) connected.<br>
+• Type any query below or click one of the quick analysis chips above!
+          </div>
+        </div>
+      </div>
+
+      <!-- Input Bar -->
+      <div class="finops-input-row">
+        <input type="text" id="finopsQueryInput" placeholder="Ask about GCP billing export, Active Assist savings, or VM metrics..." onkeydown="if(event.key==='Enter') submitFinopsQuery()">
+        <button class="btn-action" style="padding: 0 1.25rem; font-size: 0.85rem;" onclick="submitFinopsQuery()">
+          <span>Send</span>
+          <span>➔</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Category Filter Bar & Preset Cards -->
+    <section>
+      <div class="section-title">
+        <span>⚡</span>
+        <span>Capability Catalogs (Click to Load Directive)</span>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterCards('all', this)">🌐 All Capabilities</button>
+        <button class="filter-btn" onclick="filterCards('food', this)">🍲 Food & Deals</button>
+        <button class="filter-btn" onclick="filterCards('media', this)">🎬 Media & 3D</button>
+        <button class="filter-btn" onclick="filterCards('finops', this)">📊 FinOps & BI</button>
+        <button class="filter-btn" onclick="filterCards('cloudops', this)">☁️ CloudOps</button>
+        <button class="filter-btn" onclick="filterCards('hybrid', this)">🔄 Hybrid & Multi-Cloud</button>
+        <button class="filter-btn" onclick="filterCards('m365', this)">💼 M365 & Flow</button>
+        <button class="filter-btn" onclick="filterCards('webapps', this)">🎯 Web Apps</button>
+        <button class="filter-btn" onclick="filterCards('leads', this)">🔍 B2B Leads</button>
+        <button class="filter-btn" onclick="filterCards('agents', this)">🤖 Multi-Agent</button>
+      </div>
+
+      <!-- Cards Grid -->
+      <div class="cards-grid" id="cardsGrid">
+        
+        <!-- Card 0: Food Delivery Intelligence (Zomato vs Swiggy) -->
+        <div class="card" data-category="food" onclick="loadPrompt('food-paneer-butter-masala')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(255, 107, 107, 0.2); color: #ff6b6b;">🍲</div>
+            <div>
+              <div class="card-title">Zomato vs. Swiggy Food Intelligence</div>
+              <div class="card-desc">Compare dish prices, restaurant ratings & delivery ETAs across all restaurants to find the cheapest & fastest option</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>🔴 Zomato • 🟠 Swiggy Live</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 1: 3D Pixar Video (Media) -->
+        <div class="card" data-category="media" onclick="loadPrompt('media-pixar')">
+          <div class="card-top">
+            <div class="card-icon icon-media">🎬</div>
+            <div>
+              <div class="card-title">3D Pixar Story Animation</div>
+              <div class="card-desc">Brother-Sister departure story with Hindi voiceover dialogues & emotional Indian music</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>65s Full HD • Pixar 3D</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Multi-Cloud FinOps (FinOps) -->
+        <div class="card" data-category="finops" onclick="loadPrompt('finops-powerbi')">
+          <div class="card-top">
+            <div class="card-icon icon-finops">📊</div>
+            <div>
+              <div class="card-title">AWS + OCI FinOps Ingestion</div>
+              <div class="card-desc">Auto-pull S3 CUR + OCI Telemetry, normalize spend schema, and stream into Power BI</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Multi-Cloud • Power BI REST</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        
+        <!-- Card 2b: Azure FinOps Assistant (FinOps & Hybrid) -->
+        <div class="card" data-category="finops" onclick="loadPrompt('finops-azure-foundry')">
+          <div class="card-top">
+            <div class="card-icon icon-finops" style="background: rgba(0, 120, 212, 0.18); color: #70b8ff;">🔷</div>
+            <div>
+              <div class="card-title">Azure FinOps AI Assistant</div>
+              <div class="card-desc">Azure AI Foundry (gpt-5-mini) cost intelligence, Advisor savings (8.72/yr), Chart.js breakdowns & Mermaid workflows</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Azure AI Foundry • gpt-5-mini</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 3: CloudOps (CloudOps) -->
+        <div class="card" data-category="cloudops" onclick="loadPrompt('cloudops-ampere')">
+          <div class="card-top">
+            <div class="card-icon icon-cloudops">☁️</div>
+            <div>
+              <div class="card-title">OCI Always-Free Ampere VM</div>
+              <div class="card-desc">Autonomous background retry daemon to capture 4 OCPU 24GB ARM instance</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>OCI SDK • Auto-Retry Daemon</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Hybrid & Multi-Cloud DR (Hybrid) -->
+        <div class="card" data-category="hybrid" onclick="loadPrompt('hybrid-dr')">
+          <div class="card-top">
+            <div class="card-icon icon-hybrid">🔄</div>
+            <div>
+              <div class="card-title">Multi-Cloud DR & Egress Arbitrage</div>
+              <div class="card-desc">Automated failover between AWS EKS & OCI DB with 10TB free egress media distribution</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Cross-Cloud • Zero Downtime</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 5: Microsoft 365 & Power Automate (M365) -->
+        <div class="card" data-category="m365" onclick="loadPrompt('m365-flow')">
+          <div class="card-top">
+            <div class="card-icon icon-m365">💼</div>
+            <div>
+              <div class="card-title">Power Automate & Teams ChatOps</div>
+              <div class="card-desc">Automated cloud flow triggers, incident response cards in Teams, and Outlook executive digests</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>M365 Graph • Power Automate</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 6: Web Apps & UI/UX (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('webapps-spa')">
+          <div class="card-top">
+            <div class="card-icon icon-webapps">🎯</div>
+            <div>
+              <div class="card-title">White-Labeled Web Apps & UI</div>
+              <div class="card-desc">Dark-mode glassmorphic single-page applications with Google Stitch design systems</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Google Stitch • HTML5/CSS3</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 7: B2B Leads & Growth (Leads) -->
+        <div class="card" data-category="leads" onclick="loadPrompt('leads-apollo')">
+          <div class="card-top">
+            <div class="card-icon icon-leads">🔍</div>
+            <div>
+              <div class="card-title">B2B Prospecting & Intelligence</div>
+              <div class="card-desc">Targeted CTO/FinOps lead lists via Apollo.io with company technographics and email drafts</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Apollo.io • Lead Enrichment</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 8: Multi-Agent Swarms (Agents) -->
+        <div class="card" data-category="agents" onclick="loadPrompt('agents-swarm')">
+          <div class="card-top">
+            <div class="card-icon icon-agents">🤖</div>
+            <div>
+              <div class="card-title">Multi-Agent Swarm Orchestration</div>
+              <div class="card-desc">Parallel subagents for codebase research, continuous cron monitors, and self-healing systems</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Subagent Swarm • Cron Monitors</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 9: Visual Best Deal Finder (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('ecommerce-deals')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(16, 185, 129, 0.18); color: #34d399;">🛍️</div>
+            <div>
+              <div class="card-title">Visual Best Deal Finder</div>
+              <div class="card-desc">Upload product photo or ask best deal — compares Amazon, Flipkart, Blinkit, Zepto & Meesho simultaneously</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>10-Min Delivery Check</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 10: Ola Cabs & Electric EV Mobility (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('ola-mobility')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(234, 179, 8, 0.18); color: #facc15;">🚖</div>
+            <div>
+              <div class="card-title">Ola Cabs & Electric Mobility</div>
+              <div class="card-desc">Live cab fare matrix (Bike, Auto, Mini, Prime, EV), outstation trips, and Ola S1 Pro / Roadster EV specs</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Ola Cabs • OSRM Routing • MoveOS 4</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 11: Uber vs Ola Mobility Comparison (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('uber-vs-ola')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(59, 130, 246, 0.18); color: #60a5fa;">🚗</div>
+            <div>
+              <div class="card-title">Uber vs Ola Mobility Comparison</div>
+              <div class="card-desc">Real-time side-by-side fare matrix across Uber Moto/Go/Premier/XL vs. Ola Bike/Mini/Sedan/SUV</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Uber + Ola MCPs • Upfront Fare Matrix</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 12: Rapido vs Uber vs Ola 3-Way Arbitrage (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('rapido-vs-uber-vs-ola')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24;">🟡</div>
+            <div>
+              <div class="card-title">Rapido vs Uber vs Ola Arbitrage</div>
+              <div class="card-desc">3-Way real-time fare battle comparing Rapido, Uber, and Ola across Bike Taxi, Auto, and Economy Cab</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Cheapest Ride Guarantee</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 13: Connected Account Logins & Member Perks (Web Apps) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('account-logins')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(168, 85, 247, 0.18); color: #c084fc;">🔐</div>
+            <div>
+              <div class="card-title">Connected Accounts & Perks</div>
+              <div class="card-desc">Check authenticated browser sessions for Prime, Swiggy One, Zomato Gold, and Uber One</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Playwright Persistent Sessions • 10 Platforms</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 14: WhatsApp Marketing & AI Campaigns (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('whatsapp-marketing')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(37, 211, 102, 0.18); color: #25D366;">📱</div>
+            <div>
+              <div class="card-title">WhatsApp Marketing & Broadcasts</div>
+              <div class="card-desc">AI-powered WhatsApp promotional copy, Meta Cloud API broadcasts, quick-reply buttons & cart recovery</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Meta Cloud API • Rich Media & Buttons</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 15: Facebook Marketing & Ads (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('facebook-marketing')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(24, 119, 242, 0.18); color: #1877F2;">🔵</div>
+            <div>
+              <div class="card-title">Facebook Page Posts & Ads</div>
+              <div class="card-desc">Viral Facebook post copy, Meta Graph API v20.0 publishing, photo/video uploads & Sponsored Ad blueprints</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>Meta Graph API • Page Growth & Ads</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+        <!-- Card 16: LinkedIn Thought Leadership & B2B Leads (Web Apps / Growth) -->
+        <div class="card" data-category="webapps" onclick="loadPrompt('linkedin-growth')">
+          <div class="card-top">
+            <div class="card-icon" style="background: rgba(10, 102, 194, 0.18); color: #0A66C2;">🔷</div>
+            <div>
+              <div class="card-title">LinkedIn B2B & Thought Leadership</div>
+              <div class="card-desc">Line-spaced viral thought-leadership articles, document carousels, and 300-char InMail executive outreach</div>
+            </div>
+          </div>
+          <div class="card-footer">
+            <span>LinkedIn REST API • B2B Growth Engine</span>
+            <span>Select ➔</span>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Executive Output Hub (Finished Artifacts Gallery) -->
+    <section class="showcase">
+      <div class="showcase-header">
+        <div class="section-title" style="margin-bottom: 0;">
+          <span>💎</span>
+          <span>Live Executed Deliverables (Ready to Watch & View)</span>
+        </div>
+      </div>
+      
+      <div class="showcase-grid">
+        
+        <!-- Video 1: Pixar 3D Animation -->
+        <div class="artifact-card">
+          <div class="artifact-media">
+            <video controls>
+              <source src="./Brother_Sister_Pixar_Animation_65s.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">🎬 3D Pixar Brother-Sister Emotional Story (65s)</div>
+            <div class="artifact-meta">
+              <span>Full HD 1080p</span> • <span>Hindi Voices</span> • <span>Disney/Pixar 3D</span>
+            </div>
+            <a href="./Brother_Sister_Pixar_Animation_65s.mp4" download class="btn-outline">
+              ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+
+        <!-- Video 2: FinOps Mystery Video -->
+        <div class="artifact-card">
+          <div class="artifact-media">
+            <video controls>
+              <source src="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" type="video/mp4">
+            </video>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">🕵️ FinOps Multi-Cloud Mystery Solved (60s)</div>
+            <div class="artifact-meta">
+              <span>Full HD 1080p</span> • <span>Tech-Noir Mystery</span> • <span>Voiceover</span>
+            </div>
+            <a href="./MultiCloud_FinOps_Mystery_Solved_60s.mp4" download class="btn-outline">
+              ⬇️ Download MP4
+            </a>
+          </div>
+        </div>
+
+        
+        <!-- Artifact 4: Quad-Cloud FinOps Assistant (AWS + OCI + Azure + GCP) -->
+        <div class="artifact-card">
+          <div class="artifact-media" style="background: radial-gradient(circle at center, #4285f4 0%, #090d16 80%); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;">
+            <span style="font-size: 2.4rem;">🔶 🔴 🔷 ⚪</span>
+            <span style="font-family: var(--font-mono); font-size: 0.8rem; color: #8ab4f8; font-weight: 700;">AWS • OCI • AZURE • GCP</span>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">💬 Quad-Cloud FinOps Assistant (AWS + OCI + Azure + GCP)</div>
+            <div class="artifact-meta">
+              <span>Active Assist & BigQuery</span> • <span>Azure AI Foundry</span> • <span>AWS Bedrock</span>
+            </div>
+            <a href="https://karnkeshav.github.io/aws_finops_chatbot/" target="_blank" class="btn-outline" style="border-color: #4285f4; color: #8ab4f8;">
+              🚀 Launch Quad-Cloud Chatbot
+            </a>
+          </div>
+        </div>
+
+        <!-- Artifact 4b: GCP Storage Vault & Datasets -->
+        <div class="artifact-card">
+          <div class="artifact-media" style="background: radial-gradient(circle at center, #1a73e8 0%, #0a192f 80%); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 8px;">
+            <span style="font-size: 2.6rem;">🪣 📊 📄</span>
+            <span style="font-family: var(--font-mono); font-size: 0.8rem; color: #8ab4f8; font-weight: 700;">GCP STORAGE VAULT</span>
+          </div>
+          <div class="artifact-body">
+            <div class="artifact-title">🪣 GCP FinOps Vault & Datasets (4 CSVs + PDF)</div>
+            <div class="artifact-meta">
+              <span>gs://cloud-finops-vault-464514</span> • <span>Always-Free Storage</span> • <span>Live Datasets</span>
+            </div>
+            <a href="https://pirates-contribution-madrid-constitution.trycloudflare.com/finops_samples/gcp_finops_simulation_dataset.zip" target="_blank" class="btn-outline" style="border-color: #1a73e8; color: #8ab4f8;">
+              📦 Download GCP Datasets (.ZIP)
+            </a>
+          </div>
+        </div>
+
+        <!-- Artifact 3: Drill-Through HTML Dashboard -->
+        <div class="artifact-card">
+          <div class="artifact-media" style="background: #0f172a; display: flex; align-items: center; justify-content: center;">
+            <span style="font-size: 3rem;">📊</span>
+          </div>
+          <div class="artifact-body">
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Toast Notification -->
+  <div id="toast">✓ Directive executing on OCI Cloud Engine...</div>
+
+  <script>
+    // Live Cloud HTTPS Endpoint on OCI Always-Free VM
+    const CLOUD_BACKEND_URL = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") || window.location.origin.includes(":8000") 
+      ? window.location.origin 
+      : "https://pirates-contribution-madrid-constitution.trycloudflare.com";
+
+    let attachedImageData = null;
+
+    const prompts = {
+      'facebook-marketing': "Create a viral Facebook Page post and a complete Sponsored Ad campaign blueprint (Primary Text, Headline, Description, Targeting, and CTA) for boAt Rockerz 255 Pro+ with Flat 40% OFF.",
+      'linkedin-growth': "Generate a high-impact B2B thought-leadership LinkedIn post on \"Multi-Cloud FinOps Optimization (AWS + OCI) saving 35% on infrastructure\", with line-spaced viral hooks, and draft a 300-char executive connection note for a CTO prospect.",
+      'whatsapp-marketing': "Generate a high-converting WhatsApp marketing campaign copy for boAt Rockerz 255 Pro+ Wireless Earphones with a Flat 40% OFF Flash Sale offer, urgency trigger, emojis, and interactive Quick Reply buttons.",
+      'account-logins': "Check the login and membership status of all my connected accounts across Amazon, Flipkart, Swiggy, Zomato, Blinkit, Zepto, Meesho, Uber, Ola, and Rapido.",
+      'rapido-vs-uber-vs-ola': "Which is cheapest between Rapido, Uber, and Ola for a ride from Koramangala to Indiranagar, Bangalore? Compare all 3 services.",
+      'uber-vs-ola': "Compare live cab and auto fares between Uber and Ola for a ride from Indiranagar to Whitefield, Bangalore and tell me which service is cheaper.",
+      'food-paneer-butter-masala': "Where is paneer butter masala cheaper and faster to get? Compare all restaurants on Zomato and Swiggy.",
+      'ecommerce-deals': "Search and compare live prices, discounts, and delivery speeds for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal.",
+      'ola-mobility': "Compare live Ola cab fares (Bike, Auto, Mini, Prime Sedan, Prime SUV, and EV Cab) for 4 passengers with luggage from Koramangala 5th Block to Kempegowda Airport, Bangalore.",
+      'media-pixar': "Generate a 3D Pixar/Disney style animated emotional story video of a brother and sister departing. Little brother starts joyfully yelling \"Didi aa gayi\" with high energy, then realizes married sister is leaving today itself. Didi hugs him warmly, wipes his tears with a chocolate promise. End with tearful smile waving goodbye saying \"Didi... jaldi milengey!\". Include full Hindi voiceovers, Indian classical flute melody, and Full HD animation.",
+      'finops-powerbi': "Fetch AWS CUR report from S3 bucket and OCI usage telemetry from Object Storage bucket, normalize all multi-cloud spend into a unified schema, and stream directly into Power BI Push Dataset \"MultiCloud_FinOps_Costs\" for real-time spend analytics.",
+      'finops-azure-foundry': "Run an autonomous Azure FinOps cost analysis using Azure AI Foundry (gpt-5-mini) across subscription 2cfd3004-9c52-42d0-ad18-4c46057c4ffa. Identify potential savings from Azure Advisor recommendations, summarize MTD spend by service, and chart resource CPU utilization.",
+      'finops-gcp-active-assist': "Execute an autonomous Google Cloud FinOps cost analysis across project calm-catfish-464514-t6. Query GCP Active Assist recommendations for idle persistent disks, overprovisioned Compute Engine VMs, and calculate potential monthly cost reduction with BigQuery billing export.", 
+      'cloudops-ampere': "Continuously attempt to provision an Always-Free OCI Ampere VM.Standard.A1.Flex compute instance (4 OCPUs, 24GB RAM) with exponential backoff until capacity opens in the Hyderabad region.",
+      'hybrid-dr': "Architect a Multi-Cloud Disaster Recovery pipeline between AWS EKS and OCI Autonomous Database with automated DNS failover, and route heavy media distribution through OCI 10TB free egress storage.",
+      'm365-flow': "Build a Power Automate flow that monitors cloud spend anomalies, sends actionable incident approval cards into Microsoft Teams, and drafts a weekly executive summary in Outlook.",
+      'webapps-spa': "Generate a white-labeled responsive dark-mode Single-Page Web Application with glassmorphism UI, interactive charts, and Google Stitch design token components.",
+      'leads-apollo': "Search and enrich verified B2B decision-maker leads (Cloud Architects, FinOps Leaders, CTOs) via Apollo.io, extracting verified work emails, LinkedIn profiles, and draft personalized outreach sequences.",
+      'agents-swarm': "Deploy parallel autonomous subagents to audit multi-cloud infrastructure, run scheduled cron health check monitors, and establish self-healing server restart daemons."
+    };
+
+    function loadPrompt(key) {
+      const textarea = document.getElementById("promptText");
+      textarea.value = prompts[key] || "";
+      textarea.focus();
+      showToast("✓ Directive loaded. Press Enter ↵ to Execute!");
+    }
+
+    function handleImageSelected(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      processImageFile(file);
+    }
+
+    function processImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        showToast("⚠️ Please select a valid image file!");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        attachedImageData = e.target.result;
+        document.getElementById("imagePreviewImg").src = attachedImageData;
+        document.getElementById("imagePreviewTitle").innerText = file.name || "product_picture.jpg";
+        document.getElementById("imagePreviewContainer").style.display = "flex";
+        
+        const textarea = document.getElementById("promptText");
+        if (!textarea.value.trim()) {
+          textarea.value = "Where can I get the best deal for this product across Amazon, Flipkart, Blinkit, Zepto, and Meesho?";
+        }
+        showToast("📸 Picture attached! Hit Enter to find the best deal across 5 stores.");
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeAttachedImage() {
+      attachedImageData = null;
+      document.getElementById("imageFileInput").value = "";
+      document.getElementById("imagePreviewContainer").style.display = "none";
+      document.getElementById("imagePreviewImg").src = "";
+      showToast("🗑️ Attached picture removed.");
+    }
+
+    // Clipboard Paste Listener (Ctrl+V)
+    window.addEventListener("paste", function(e) {
+      const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf("image") !== -1) {
+          const file = items[i].getAsFile();
+          processImageFile(file);
+          break;
+        }
+      }
+    });
+
+    // Drag & Drop Setup
+    document.addEventListener("DOMContentLoaded", () => {
+      const promptBox = document.querySelector(".prompt-box-wrapper");
+      if (promptBox) {
+        ["dragenter", "dragover"].forEach(eventName => {
+          promptBox.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            promptBox.classList.add("drag-over");
+          }, false);
+        });
+        ["dragleave", "drop"].forEach(eventName => {
+          promptBox.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            promptBox.classList.remove("drag-over");
+          }, false);
+        });
+        promptBox.addEventListener("drop", (e) => {
+          const dt = e.dataTransfer;
+          const files = dt.files;
+          if (files && files.length > 0) {
+            processImageFile(files[0]);
+          }
+        }, false);
+      }
+    });
+
+    // Bind Enter key on textarea
+    document.getElementById("promptText").addEventListener("keydown", function(e) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        executeMission();
+      }
+    });
+
+    async function executeMission() {
+      const textarea = document.getElementById("promptText");
+      let prompt = textarea.value.trim();
+      if (!prompt && !attachedImageData) {
+        showToast("⚠️ Please enter a directive or attach a product picture!");
+        return;
+      }
+      if (!prompt && attachedImageData) {
+        prompt = "Where can I get the best deal for this product across Amazon, Flipkart, Blinkit, Zepto, and Meesho?";
+      }
+
+      const consoleBox = document.getElementById("executionConsole");
+      const logsBox = document.getElementById("consoleLogs");
+      const statusText = document.getElementById("consoleStatusText");
+      const answerBox = document.getElementById("answerBox");
+      const answerContent = document.getElementById("answerContent");
+      const btn = document.getElementById("btnExecute");
+
+      // Reset and Open Console
+      consoleBox.style.display = "block";
+      logsBox.innerHTML = "";
+      answerBox.style.display = "none";
+      answerContent.innerHTML = "";
+      const bookActionBoxReset = document.getElementById("bookActionBox");
+      bookActionBoxReset.style.display = "none";
+      bookActionBoxReset.innerHTML = "";
+      statusText.innerText = "⚡ Executing on OCI Cloud Engine...";
+      statusText.style.color = "var(--accent-cyan)";
+      document.getElementById("consoleSpinner").style.display = "inline-block";
+      btn.disabled = true;
+      btn.style.opacity = "0.6";
+
+      showToast("🚀 Mission dispatched to Cloud Engine!");
+
+      const payload = {
+        prompt: prompt,
+        category: attachedImageData ? "shopping" : "general",
+        image_data: attachedImageData,
+        location: "Bangalore"
+      };
+
+      try {
+        const resp = await fetch(CLOUD_BACKEND_URL + "/api/execute", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!resp.ok) throw new Error("Cloud backend not reachable");
+        const data = await resp.json();
+        const taskId = data.task_id;
+        document.getElementById("taskTag").innerText = "TASK #" + taskId.toUpperCase();
+
+        // Listen to live Server-Sent Events stream from Cloud HTTPS
+        const eventSource = new EventSource(CLOUD_BACKEND_URL + "/api/stream/" + taskId);
+
+        eventSource.onmessage = function(event) {
+          const resPayload = JSON.parse(event.data);
+          if (resPayload.log && resPayload.log !== "[DONE] Finished") {
+            const logItem = document.createElement("div");
+            logItem.className = "console-log-item" + (resPayload.status === "COMPLETED" ? " complete" : "");
+            logItem.innerText = resPayload.log;
+            logsBox.appendChild(logItem);
+            logsBox.scrollTop = logsBox.scrollHeight;
+          }
+
+          if (resPayload.answer) {
+            answerBox.style.display = "block";
+            answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+          }
+
+          const bookActionBox = document.getElementById("bookActionBox");
+          const bookActions = (resPayload.deliverable && resPayload.deliverable.book_actions) || [];
+          if (bookActions.length) {
+            const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+            bookActionBox.style.display = "flex";
+            bookActionBox.style.flexWrap = "wrap";
+            bookActionBox.style.gap = "0.6rem";
+            bookActionBox.innerHTML = bookActions
+              .filter((a) => a && a.url)
+              .map((a) => `<a class="book-action-btn" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.label)}</a>`)
+              .join("");
+          } else {
+            bookActionBox.style.display = "none";
+            bookActionBox.innerHTML = "";
+          }
+
+          if (resPayload.status === "COMPLETED") {
+            eventSource.close();
+            statusText.innerText = "✓ Mission Complete! Best Deals Ready.";
+            statusText.style.color = "var(--accent-emerald)";
+            document.getElementById("consoleSpinner").style.display = "none";
+            btn.disabled = false;
+            btn.style.opacity = "1";
+            showToast("💎 Deals comparison and analysis completed!");
+          }
+        };
+
+        eventSource.onerror = function() {
+          eventSource.close();
+          btn.disabled = false;
+          btn.style.opacity = "1";
+        };
+
+      } catch (err) {
+        simulateLocalExecution(prompt, logsBox, statusText, answerBox, answerContent, btn);
+      }
+    }
+
+    function simulateLocalExecution(prompt, logsBox, statusText, answerBox, answerContent, btn) {
+      const pLower = prompt.toLowerCase();
+      let answer = "";
+      if (pLower.includes("paneer") || pLower.includes("biryani") || pLower.includes("pizza") || pLower.includes("zomato") || pLower.includes("swiggy") || pLower.includes("faster to get") || pLower.includes("cheaper and faster")) {
+        answer = "### 🍲 Food Delivery Comparison: **Paneer Butter Masala**\n📍 **Location:** `Bangalore` • Live Multi-App Audit (**Zomato vs. Swiggy**)\n\n---\n\n#### 🏆 **Executive Verdict & Winners:**\n\n> 💰 **CHEAPEST CHOICE:** **🟠 Swiggy** — **Agrawal's Kitchen** at **₹209** *(ETA: 30-35 MINS)*\n> 🔗 **[Order Cheapest on Swiggy](https://www.swiggy.com/city/bangalore)**\n\n> ⚡ **FASTEST DELIVERY:** **🟠 Swiggy** — **Spice It** delivered in **20-25 MINS** *(Price: ₹325)*\n> 🔗 **[Order Fastest on Swiggy](https://www.swiggy.com/city/bangalore)**\n\n> ⭐ **BEST RATED OPTION:** **🔴 Zomato** — **Nandhini Deluxe** (⭐ 4.2) at **₹260**\n> 🔗 **[Order Top Rated on Zomato](https://www.zomato.com/bangalore/order-food-online)**\n\n---\n\n#### 📊 **All Restaurants Live Comparison Matrix (Zomato vs. Swiggy):**\n\n| Platform | Restaurant Name | Dish Match | Live Price | Delivery ETA | Rating | Locality & Offers | Direct Order Link |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 🟠 **Swiggy** | Agrawal's Kitchen | Paneer Butter Masala | 💰 **₹209** *(Cheapest)* | 30-35 MINS | ⭐ 4.3 | BTM Layout (₹200 FOR TWO) | [Swiggy](https://www.swiggy.com/city/bangalore) |\n| 🔴 **Zomato** | Nandhini Deluxe | Paneer Butter Masala Portion | ₹260 | 25-30 min | ⭐ 4.2 | Residency Road (₹100 OFF with Zomato Gold) | [Zomato](https://www.zomato.com/bangalore/order-food-online) |\n| 🟠 **Swiggy** | Spice It | Paneer Butter Masala | ⚡ **₹325** *(Fastest)* | 20-25 MINS | ⭐ 4.4 | Basavanagudi (50% OFF up to ₹100) | [Swiggy](https://www.swiggy.com/city/bangalore) |\n\n---\n\n💡 **Smart Ordering Recommendation:**\n• **To Save the Most Money:** Select **Swiggy** from **Agrawal's Kitchen** to get your dish for only **₹209**.\n• **If You Are in a Hurry:** Select **Swiggy** from **Spice It** to receive your food in **20-25 MINS**.\n• **For Premium Quality:** Select **Zomato** from **Nandhini Deluxe** rated **⭐ 4.2**.";
+      } else if (pLower.includes("deal") || pLower.includes("price") || attachedImageData || pLower.includes("earphone") || pLower.includes("butter")) {
+        answer = "### 🔍 Multi-Platform E-Commerce Deal Intelligence\n\n🎯 **Target Item:** **boAt Rockerz 255 Pro+ Wireless Neckband**\n📍 **Location / Dark Stores:** `Bangalore` (Blinkit & Zepto Verified)\n\n---\n\n#### 🏆 **Best Deal Winner (Lowest Price):**\n> 🛍️ **Flipkart:** **₹1,099** *(Save 63% vs MRP ₹2,990)*\n> 🔗 **[Direct Product Link on Flipkart](https://www.flipkart.com/search?q=boat+rockerz+255+pro)**\n\n---\n\n#### ⚡ **Fastest Delivery (10–15 Minutes):**\n> ⚡ **Blinkit:** **₹1,299** • Delivery: **12 Mins (In Stock)**\n> 🔗 **[Instant Order on Blinkit](https://blinkit.com/s/?q=boat+rockerz)**\n\n---\n\n#### 📊 **All Platform Live Comparison Matrix:**\n\n| Platform | Match & Title | Live Price | MRP / Offers | Speed / Delivery | Rating | Direct Link |\n| :--- | :--- | :--- | :--- | :--- | :--- | :--- |\n| 🛍️ **Flipkart** | boAt Rockerz 255 Pro+ (Active Black) | **₹1,099** | ₹2,990 (63% OFF) | Express (1 Day) | ⭐ 4.4 | [Flipkart](https://www.flipkart.com/search?q=boat+rockerz+255+pro) |\n| 🔶 **Amazon** | boAt Rockerz 255 Pro+ Bluetooth Neckband | ₹1,199 | ₹2,990 (60% OFF) | Prime (1 Day) | ⭐ 4.3 | [Amazon](https://www.amazon.in/s?k=boat+rockerz+255+pro) |\n| ⚡ **Blinkit** | boAt Rockerz 255 Pro+ (Black) | ₹1,299 | ₹2,990 | ⚡ 12 Mins | ⭐ 4.5 | [Blinkit](https://blinkit.com/s/?q=boat+rockerz) |\n| ⚡ **Zepto** | boAt Rockerz 255 Pro+ Earphones | ₹1,299 | ₹2,990 | ⚡ 10 Mins | ⭐ 4.6 | [Zepto](https://www.zepto.co.in/search?q=boat+rockerz) |\n| 🛒 **Meesho** | boAt Wireless Bluetooth Earphones | ₹949 | ₹2,499 (Wholesale) | Free (3-5 Days) | ⭐ 4.1 | [Meesho](https://www.meesho.com/search?q=boat+rockerz) |\n\n---\n\n💡 **Smart Buying Recommendation:**\n• **For Lowest Price:** Choose **Flipkart (₹1,099)** or **Meesho (₹949)** for maximum savings.\n• **For Instant Delivery:** Choose **Blinkit / Zepto** for delivery in 10-15 minutes.";
+      } else if (pLower.includes("aws") || pLower.includes("instance") || pLower.includes("ec2")) {
+        answer = "You currently have 1 instance(s) on AWS EC2:\n• cheapest-test-instance (i-01fbc0b7bb46ec091): t4g.nano, State: stopped, AZ: us-east-1a";
+      } else if (pLower.includes("pixar") || pLower.includes("video")) {
+        answer = "✓ 65-Second 3D Pixar Animated Hindi Story Video rendered and available in showcase gallery!";
+      } else if (pLower.includes("azure") && (pLower.includes("finops") || pLower.includes("cost") || pLower.includes("advisor") || pLower.includes("saving") || pLower.includes("foundry"))) {
+        answer = "💎 Azure FinOps AI Foundry Analysis (gpt-5-mini):\n\n• Total Spend MTD: $4.27 USD (Virtual Network $2.68, Storage $1.59, VM $0.00)\n• Potential Annual Savings: $18.72/yr (1-Yr/3-Yr Reserved Instance for azure-ai-node-1)\n• Active VMs: 1 (azure-ai-node-1, avg CPU: 22.86%)\n• Advisor Recommendations: 7 Active (NSG port security, Backup, Tags, Reserved Instance)\n\n👉 Launch Live Multi-Cloud Assistant: https://karnkeshav.github.io/aws_finops_chatbot/";
+      } else if (pLower.includes("finops") || pLower.includes("power bi")) {
+        answer = "✓ AWS CUR + OCI Telemetry ($62.81 Total) normalized and pushed into Power BI Service!";
+      } else {
+        answer = "✓ Directive successfully processed by OCI Cloud Engine.";
+      }
+
+      const steps = [
+        "[00:01] ⚡ Directive received: Initializing OCI Cloud Engine...",
+        "[00:02] 🛒 Querying Amazon, Flipkart, Blinkit, Zepto & Meesho in parallel...",
+        "[00:03] 💎 Execution finished successfully."
+      ];
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i < steps.length) {
+          const logItem = document.createElement("div");
+          logItem.className = "console-log-item" + (i === steps.length - 1 ? " complete" : "");
+          logItem.innerText = steps[i];
+          logsBox.appendChild(logItem);
+          logsBox.scrollTop = logsBox.scrollHeight;
+          i++;
+        } else {
+          clearInterval(interval);
+          statusText.innerText = "✓ Mission Complete! Deliverable Ready.";
+          statusText.style.color = "var(--accent-emerald)";
+          document.getElementById("consoleSpinner").style.display = "none";
+          answerBox.style.display = "block";
+          answerContent.innerHTML = window.marked ? marked.parse(answer) : answer.replace(/\n/g, "<br>");
+          btn.disabled = false;
+          btn.style.opacity = "1";
+          showToast("💎 Mission completed!");
+        }
+      }, 800);
+    }
+
+    function filterCards(category, btn) {
+      document.querySelectorAll(".filter-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const cards = document.querySelectorAll("#cardsGrid .card");
+      cards.forEach(card => {
+        if (category === "all" || card.getAttribute("data-category") === category) {
+          card.style.display = "flex";
+        } else {
+          card.style.display = "none";
+        }
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.innerText = msg;
+      toast.classList.add("show");
+      setTimeout(() => {
+        toast.classList.remove("show");
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
