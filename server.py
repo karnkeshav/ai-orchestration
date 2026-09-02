@@ -2649,10 +2649,13 @@ class AgyWarmSession:
                 tasks[task_id]["logs"].append("[00:01] ♨️ Reusing warm Antigravity CLI session...")
 
             proc = self.process
-            # NDJSON turn message for `--input-format stream-json`. Best inference
-            # from `agy --help` — verify with one live prompt and adjust this line
-            # if agy expects a different shape.
-            message = json.dumps({"type": "user", "message": {"role": "user", "content": full_prompt}}) + "\n"
+            # NDJSON turn message for `--input-format stream-json`. First guess
+            # ({"type":"user",...}) failed live: "stream input message is missing
+            # the \"event\" field" — agy's own output events all use "event" as
+            # the discriminator ({"event":"init",...}, {"event":"step_update",...},
+            # {"event":"result",...}), and step_update's step_type enum already
+            # includes "user_input" as a known concept, so this mirrors that.
+            message = json.dumps({"event": "user_input", "user_input": {"content": full_prompt}}) + "\n"
             try:
                 proc.stdin.write(message.encode("utf-8"))
                 await proc.stdin.drain()
