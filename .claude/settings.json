@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "stitch": {
+      "command": "curl",
+      "args": [],
+      "env": {
+        "GOOGLE_STITCH_API_KEY": "${GOOGLE_STITCH_API_KEY}"
+      },
+      "transport": "http",
+      "url": "https://stitch.googleapis.com/mcp",
+      "headers": {
+        "X-Goog-Api-Key": "${GOOGLE_STITCH_API_KEY}",
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
