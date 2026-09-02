@@ -2703,7 +2703,16 @@ class AgyWarmSession:
                         final_status = result.get("status")
                         final_response = result.get("response")
                         final_structured = result.get("structured_output")
+                        if final_status != "SUCCESS":
+                            # Temporary diagnostic: surface the full raw result so a
+                            # non-SUCCESS status (e.g. schema/parse rejection) is
+                            # visible instead of just "produced no output".
+                            tasks[task_id]["logs"].append(f"[agy raw result] {json.dumps(result)[:1500]}")
                         return
+                    else:
+                        # Temporary diagnostic: log any event type we don't already
+                        # handle (e.g. an error/system event distinct from "result").
+                        tasks[task_id]["logs"].append(f"[agy event:{etype}] {line[:500]}")
 
             try:
                 await asyncio.wait_for(_read_turn(), timeout=WARM_TURN_TIMEOUT_SECONDS)
