@@ -1569,6 +1569,26 @@ async def _gemini_exec_compare_food_delivery(loop, dish, location):
     )
     return answer_text
 
+def _ride_book_actions_markdown(pickup: Optional[str], drop: Optional[str], providers: List[str]) -> str:
+    """Appends a 'Book Now' button row (inline HTML the frontend's markdown
+    renderer passes straight through) that deep-links into each ride app with
+    the route pre-filled. The fares shown above are algorithmic estimates, not
+    live pricing pulled from the apps — there is no public API for that —
+    so this is how the rider gets to the real, live, bookable price."""
+    actions = build_book_actions([{"provider": p, "pickup": pickup, "drop": drop} for p in providers])
+    if not actions:
+        return ""
+    buttons = "&nbsp;&nbsp;".join(
+        f'<a class="book-now-btn" href="{a["url"]}" target="_blank" rel="noopener noreferrer">{a["label"]}</a>'
+        for a in actions
+    )
+    return (
+        "\n\n---\n\n#### 🎯 Ready to Book?\n"
+        "_Fares above are estimates. Tap a button to open that app with your route "
+        "pre-filled and confirm the live price there._\n\n"
+        f"{buttons}\n"
+    )
+
 async def _gemini_exec_get_ola_ride_estimate(loop, pickup, drop, passengers):
     try:
         import sys
@@ -1576,7 +1596,9 @@ async def _gemini_exec_get_ola_ride_estimate(loop, pickup, drop, passengers):
         from ola_mcp_server import compare_ola_categories
         raw = await compare_ola_categories(pickup=pickup, drop=drop, passengers=int(passengers or 1))
         data = json.loads(raw)
-        return data.get("markdown_table") or raw
+        trip = data.get("trip_summary") or {}
+        table = data.get("markdown_table") or raw
+        return table + _ride_book_actions_markdown(trip.get("pickup"), trip.get("drop"), ["ola"])
     except Exception as e:
         return f"Error calculating Ola ride estimate: {str(e)}"
 
@@ -1607,7 +1629,9 @@ async def _gemini_exec_get_uber_ride_estimate(loop, pickup, drop, passengers):
         from uber_mcp_server import compare_uber_products
         raw = await compare_uber_products(pickup=pickup, drop=drop, passengers=int(passengers or 1))
         data = json.loads(raw)
-        return data.get("markdown_table") or raw
+        trip = data.get("trip") or {}
+        table = data.get("markdown_table") or raw
+        return table + _ride_book_actions_markdown(trip.get("pickup"), trip.get("drop"), ["uber"])
     except Exception as e:
         return f"Error calculating Uber ride estimate: {str(e)}"
 
@@ -1618,7 +1642,9 @@ async def _gemini_exec_compare_uber_vs_ola(loop, pickup, drop, passengers):
         from uber_mcp_server import compare_uber_vs_ola
         raw = await compare_uber_vs_ola(pickup=pickup, drop=drop, passengers=int(passengers or 1))
         data = json.loads(raw)
-        return data.get("markdown_table") or raw
+        trip = data.get("trip") or {}
+        table = data.get("markdown_table") or raw
+        return table + _ride_book_actions_markdown(trip.get("pickup"), trip.get("drop"), ["uber", "ola"])
     except Exception as e:
         return f"Error comparing Uber vs Ola: {str(e)}"
 
@@ -1641,7 +1667,7 @@ async def _gemini_exec_get_rapido_ride_estimate(loop, pickup, drop):
         ]
         for s in services:
             lines.append(f"| {s['icon']} **{s['service_name']}** | **{s['fare_range']}** | {s['eta_mins']} mins | {s['trip_duration_mins']} mins | {s['capacity']} | {s['per_km']} |")
-        return "\n".join(lines)
+        return "\n".join(lines) + _ride_book_actions_markdown(trip.get("pickup"), trip.get("drop"), ["rapido"])
     except Exception as e:
         return f"Error calculating Rapido ride estimate: {str(e)}"
 
@@ -1652,7 +1678,9 @@ async def _gemini_exec_compare_rapido_vs_uber_vs_ola(loop, pickup, drop):
         from rapido_mcp_server import compare_rapido_vs_uber_vs_ola
         raw = await compare_rapido_vs_uber_vs_ola(pickup=pickup, drop=drop)
         data = json.loads(raw)
-        return data.get("markdown_table") or raw
+        trip = data.get("trip") or {}
+        table = data.get("markdown_table") or raw
+        return table + _ride_book_actions_markdown(trip.get("pickup"), trip.get("drop"), ["rapido", "uber", "ola"])
     except Exception as e:
         return f"Error comparing Rapido vs Uber vs Ola: {str(e)}"
 
