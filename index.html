@@ -169,6 +169,7 @@
       display: flex;
       flex-direction: column;
       gap: 2.5rem;
+      min-width: 0;
     }
 
     /* Hero Section */
@@ -322,6 +323,8 @@
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     #answerBox {
@@ -332,6 +335,23 @@
       border-radius: 12px;
       padding: 1.25rem;
       color: #fff;
+      max-width: 100%;
+      overflow-wrap: break-word;
+      word-break: break-word;
+    }
+
+    #answerBox pre,
+    #answerBox code {
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    #answerBox table {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
     }
 
     /* Cards Grid */
