@@ -280,14 +280,18 @@
     }
 
     /* Execution Console */
-    #executionConsole {
-      display: none;
-      margin-top: 1.25rem;
+    #progressPanel,
+    #technicalConsole {
       background: #0b0f19;
       border: 1px solid var(--accent-indigo);
       border-radius: 12px;
       padding: 1.25rem;
       box-shadow: 0 0 30px rgba(99, 102, 241, 0.2);
+    }
+
+    #technicalConsole {
+      border-color: var(--border-color);
+      box-shadow: none;
     }
 
     .console-header {
@@ -338,8 +342,17 @@
       font-weight: 700;
     }
 
+    .tech-log-line {
+      padding-left: 0.5rem;
+      border-left: 2px solid var(--text-dim);
+      color: #94a3b8;
+    }
+
+    #technicalConsole .console-logs {
+      max-height: 320px;
+    }
+
     #answerBox {
-      display: none;
       margin-top: 1rem;
       background: rgba(16, 185, 129, 0.08);
       border: 1px solid var(--accent-emerald);
@@ -716,27 +729,40 @@
         </div>
       </section>
 
+      <!-- Progress: always appears here once a mission runs, no click needed. User-friendly, no technical detail. -->
+      <section id="progressSection" style="display: none;">
+        <div class="section-title">📊 Progress</div>
+        <div id="progressPanel">
+          <div class="console-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="console-spinner"></span>
+              <span id="progressStatusText">📨 Directive received...</span>
+            </div>
+          </div>
+          <div class="console-logs" id="progressLogs"></div>
+        </div>
+      </section>
+
+      <!-- Result / Summary: appears alongside Progress -->
+      <section id="resultSection" style="display: none;">
+        <div class="section-title">📄 Result</div>
+        <div id="answerBox">
+          <div id="answerContent" style="font-size: 0.95rem; line-height: 1.6;"></div>
+        </div>
+      </section>
+
       <!-- Capabilities Grid -->
       <section id="capabilitiesSection">
         <div class="section-title" id="sectionTitle">⚡ Capabilities</div>
         <div class="cards-grid" id="cardsGrid"></div>
       </section>
 
-      <!-- Activity (hidden until the Activity tab is selected) -->
+      <!-- Activity: hidden until the Activity tab is clicked. Raw, technical backend
+           log (what's actually happening, e.g. which agent/tool was called) for debugging. -->
       <section id="activitySection" style="display: none;">
-        <div class="section-title">📋 Activity</div>
-        <div id="executionConsole">
-          <div class="console-header">
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-              <span class="console-spinner"></span>
-              <span id="consoleStatusText">📨 Directive received...</span>
-            </div>
-          </div>
-          <div class="console-logs" id="consoleLogs"></div>
-          <div id="answerBox">
-            <div style="font-size: 0.85rem; font-weight: 700; color: var(--accent-emerald); margin-bottom: 0.75rem; text-transform: uppercase;">💎 Result</div>
-            <div id="answerContent" style="font-size: 0.95rem; line-height: 1.6;"></div>
-          </div>
+        <div class="section-title">📋 Activity <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted); text-transform: none;">— raw backend log, for debugging</span></div>
+        <div id="technicalConsole">
+          <div class="console-logs" id="technicalLogs"></div>
         </div>
       </section>
 
@@ -969,22 +995,25 @@
         return;
       }
 
-      const consoleBox = document.getElementById("executionConsole");
-      const logsBox = document.getElementById("consoleLogs");
-      const statusText = document.getElementById("consoleStatusText");
+      const progressSection = document.getElementById("progressSection");
+      const resultSection = document.getElementById("resultSection");
+      const progressLogs = document.getElementById("progressLogs");
+      const statusText = document.getElementById("progressStatusText");
       const answerBox = document.getElementById("answerBox");
       const answerContent = document.getElementById("answerContent");
+      const technicalLogs = document.getElementById("technicalLogs");
 
-      // Send the user to the Activity tab so they can watch progress
-      showActivity();
-
-      consoleBox.style.display = "block";
-      logsBox.innerHTML = "";
-      answerBox.style.display = "none";
+      // Progress + Result show up right below the chatbox automatically —
+      // no need to click the (hidden, technical) Activity tab for this.
+      progressSection.style.display = "block";
+      progressLogs.innerHTML = "";
+      resultSection.style.display = "none";
       answerContent.innerHTML = "";
       statusText.style.color = "";
+      technicalLogs.innerHTML = "";
       activityStageIndex = 0;
-      pushFriendlyStage(logsBox, statusText);
+      pushFriendlyStage(progressLogs, statusText);
+      pushTechnicalLog(technicalLogs, `Directive received: ${prompt.slice(0, 80)}`);
 
       const payload = {
         prompt: prompt,
@@ -1008,17 +1037,19 @@
         eventSource.onmessage = function(event) {
           const resPayload = JSON.parse(event.data);
           if (resPayload.log && resPayload.log !== "[DONE] Finished") {
-            pushFriendlyStage(logsBox, statusText);
+            pushFriendlyStage(progressLogs, statusText);
+            pushTechnicalLog(technicalLogs, resPayload.log);
           }
 
           if (resPayload.answer) {
-            answerBox.style.display = "block";
+            resultSection.style.display = "block";
             answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
           }
 
           if (resPayload.status === "COMPLETED") {
             eventSource.close();
-            markMissionAccomplished(logsBox, statusText);
+            markMissionAccomplished(progressLogs, statusText);
+            pushTechnicalLog(technicalLogs, "[DONE] Task completed");
             showToast("💎 Execution completed!");
           }
         };
@@ -1027,21 +1058,24 @@
           eventSource.close();
         };
       } catch (err) {
-        simulateExecution(prompt, logsBox, statusText, answerBox, answerContent);
+        pushTechnicalLog(technicalLogs, `Cloud backend unreachable, using offline simulation: ${err.message}`);
+        simulateExecution(prompt, progressLogs, statusText, resultSection, answerContent, technicalLogs);
       }
     }
 
-    function simulateExecution(prompt, logsBox, statusText, answerBox, answerContent) {
+    function simulateExecution(prompt, logsBox, statusText, resultSection, answerContent, technicalLogs) {
       let i = 0;
       const totalSteps = friendlyStages.length;
       const interval = setInterval(() => {
         if (i < totalSteps) {
           pushFriendlyStage(logsBox, statusText);
+          pushTechnicalLog(technicalLogs, `[offline-sim] step ${i + 1}/${totalSteps}`);
           i++;
         } else {
           clearInterval(interval);
           markMissionAccomplished(logsBox, statusText);
-          answerBox.style.display = "block";
+          pushTechnicalLog(technicalLogs, "[offline-sim] [DONE] Task completed");
+          resultSection.style.display = "block";
           answerContent.innerText = "✓ Directive successfully processed.";
           showToast("💎 Done!");
         }
@@ -1065,6 +1099,16 @@
 
       if (statusText) statusText.innerText = label;
       activityStageIndex++;
+    }
+
+    // Raw backend log line, unfiltered — this is the Activity (debugging) tab's content.
+    function pushTechnicalLog(technicalLogs, text) {
+      if (!technicalLogs) return;
+      const item = document.createElement("div");
+      item.className = "tech-log-line";
+      item.innerText = text;
+      technicalLogs.appendChild(item);
+      technicalLogs.scrollTop = technicalLogs.scrollHeight;
     }
 
     function markMissionAccomplished(logsBox, statusText) {
