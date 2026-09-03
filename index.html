@@ -327,6 +327,17 @@
       word-break: break-word;
     }
 
+    .activity-step {
+      padding-left: 0.5rem;
+      border-left: 2px solid var(--accent-indigo);
+    }
+
+    .activity-step-done {
+      border-left-color: var(--accent-emerald);
+      color: var(--accent-emerald);
+      font-weight: 700;
+    }
+
     #answerBox {
       display: none;
       margin-top: 1rem;
@@ -642,6 +653,7 @@
       <button class="nav-item" onclick="filterCapabilities('finops')">📊 FinOps</button>
       <button class="nav-item" onclick="filterCapabilities('cloud')">☁️ Cloud</button>
       <button class="nav-item" onclick="filterCapabilities('m365')">💼 M365</button>
+      <button class="nav-item" id="navActivity" onclick="showActivity(event)">📋 Activity</button>
     </aside>
 
     <!-- Main Content Area -->
@@ -682,13 +694,22 @@
             </button>
           </div>
         </div>
+      </section>
 
-        <!-- Execution Console -->
+      <!-- Capabilities Grid -->
+      <section id="capabilitiesSection">
+        <div class="section-title" id="sectionTitle">⚡ Capabilities</div>
+        <div class="cards-grid" id="cardsGrid"></div>
+      </section>
+
+      <!-- Activity (hidden until the Activity tab is selected) -->
+      <section id="activitySection" style="display: none;">
+        <div class="section-title">📋 Activity</div>
         <div id="executionConsole">
           <div class="console-header">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
               <span class="console-spinner"></span>
-              <span id="consoleStatusText">⚡ Executing...</span>
+              <span id="consoleStatusText">📨 Directive received...</span>
             </div>
           </div>
           <div class="console-logs" id="consoleLogs"></div>
@@ -697,12 +718,6 @@
             <div id="answerContent" style="font-size: 0.95rem; line-height: 1.6;"></div>
           </div>
         </div>
-      </section>
-
-      <!-- Capabilities Grid -->
-      <section>
-        <div class="section-title" id="sectionTitle">⚡ Capabilities</div>
-        <div class="cards-grid" id="cardsGrid"></div>
       </section>
 
     </div>
@@ -718,6 +733,15 @@
 
     let attachedImageData = null;
     let currentCategory = "all";
+    let activityStageIndex = 0;
+
+    const friendlyStages = [
+      "📨 Directive received",
+      "🚀 Mission dispatched",
+      "🧠 Analyzing your request",
+      "🔎 Gathering the details",
+      "⚙️ Putting it all together"
+    ];
 
     const capabilities = {
       shop: [
@@ -812,6 +836,10 @@
       });
       event.target.classList.add('active');
 
+      // Show capabilities, hide the Activity tab
+      document.getElementById('capabilitiesSection').style.display = 'block';
+      document.getElementById('activitySection').style.display = 'none';
+
       // Filter cards
       const grid = document.getElementById('cardsGrid');
       grid.innerHTML = '';
@@ -838,6 +866,19 @@
         `;
         grid.appendChild(card);
       });
+    }
+
+    function showActivity(evt) {
+      // Update active nav button
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      const target = (evt && evt.target) ? evt.target : document.getElementById('navActivity');
+      target.classList.add('active');
+
+      // Show the Activity tab, hide capabilities
+      document.getElementById('capabilitiesSection').style.display = 'none';
+      document.getElementById('activitySection').style.display = 'block';
     }
 
     function loadPrompt(key) {
@@ -914,10 +955,16 @@
       const answerBox = document.getElementById("answerBox");
       const answerContent = document.getElementById("answerContent");
 
+      // Send the user to the Activity tab so they can watch progress
+      showActivity();
+
       consoleBox.style.display = "block";
       logsBox.innerHTML = "";
       answerBox.style.display = "none";
       answerContent.innerHTML = "";
+      statusText.style.color = "";
+      activityStageIndex = 0;
+      pushFriendlyStage(logsBox, statusText);
 
       const payload = {
         prompt: prompt,
@@ -941,11 +988,7 @@
         eventSource.onmessage = function(event) {
           const resPayload = JSON.parse(event.data);
           if (resPayload.log && resPayload.log !== "[DONE] Finished") {
-            const logItem = document.createElement("div");
-            logItem.style.cssText = "padding-left: 0.5rem; border-left: 2px solid var(--accent-indigo);";
-            logItem.innerText = resPayload.log;
-            logsBox.appendChild(logItem);
-            logsBox.scrollTop = logsBox.scrollHeight;
+            pushFriendlyStage(logsBox, statusText);
           }
 
           if (resPayload.answer) {
@@ -955,8 +998,7 @@
 
           if (resPayload.status === "COMPLETED") {
             eventSource.close();
-            statusText.innerText = "✓ Mission Complete!";
-            statusText.style.color = "var(--accent-emerald)";
+            markMissionAccomplished(logsBox, statusText);
             showToast("💎 Execution completed!");
           }
         };
@@ -970,25 +1012,50 @@
     }
 
     function simulateExecution(prompt, logsBox, statusText, answerBox, answerContent) {
-      const steps = ["[00:01] ⚡ Initializing...", "[00:02] 🔍 Processing query...", "[00:03] ✓ Complete!"];
       let i = 0;
+      const totalSteps = friendlyStages.length;
       const interval = setInterval(() => {
-        if (i < steps.length) {
-          const logItem = document.createElement("div");
-          logItem.style.cssText = "padding-left: 0.5rem; border-left: 2px solid var(--accent-indigo);";
-          logItem.innerText = steps[i];
-          logsBox.appendChild(logItem);
-          logsBox.scrollTop = logsBox.scrollHeight;
+        if (i < totalSteps) {
+          pushFriendlyStage(logsBox, statusText);
           i++;
         } else {
           clearInterval(interval);
-          statusText.innerText = "✓ Complete!";
-          statusText.style.color = "var(--accent-emerald)";
+          markMissionAccomplished(logsBox, statusText);
           answerBox.style.display = "block";
           answerContent.innerText = "✓ Directive successfully processed.";
           showToast("💎 Done!");
         }
       }, 800);
+    }
+
+    // Appends the next generic, non-technical progress stage (never the
+    // backend's raw internal log text) and keeps the status line in sync.
+    function pushFriendlyStage(logsBox, statusText) {
+      const idx = Math.min(activityStageIndex, friendlyStages.length - 1);
+      const label = friendlyStages[idx];
+
+      if (!(logsBox.lastElementChild && logsBox.lastElementChild.dataset.stage === String(idx))) {
+        const item = document.createElement("div");
+        item.className = "activity-step";
+        item.dataset.stage = String(idx);
+        item.innerText = label;
+        logsBox.appendChild(item);
+        logsBox.scrollTop = logsBox.scrollHeight;
+      }
+
+      if (statusText) statusText.innerText = label;
+      activityStageIndex++;
+    }
+
+    function markMissionAccomplished(logsBox, statusText) {
+      const item = document.createElement("div");
+      item.className = "activity-step activity-step-done";
+      item.innerText = "🎉 Mission accomplished";
+      logsBox.appendChild(item);
+      logsBox.scrollTop = logsBox.scrollHeight;
+
+      statusText.innerText = "🎉 Mission Accomplished!";
+      statusText.style.color = "var(--accent-emerald)";
     }
 
     function showToast(msg) {
