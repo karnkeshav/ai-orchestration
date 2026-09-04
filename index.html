@@ -1416,6 +1416,11 @@
 
         eventSource.onerror = function() {
           eventSource.close();
+          if (resultSection.style.display !== "block" || statusText.innerText !== t('missionAccomplishedStatus')) {
+            statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
+            statusText.style.color = "var(--accent-rose)";
+            showToast("⚠️ Connection lost before the task finished.");
+          }
         };
       } catch (err) {
         pushTechnicalLog(technicalLogs, `Cloud backend unreachable, using offline simulation: ${err.message}`);

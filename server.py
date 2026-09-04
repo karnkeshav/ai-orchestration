@@ -2669,6 +2669,8 @@ class AgyWarmSession:
         way the old one-shot path did. Raises on any protocol failure so the
         caller's existing fallback chain (Gemini router, then keyword router)
         takes over instead of hanging."""
+        if self.lock.locked():
+            tasks[task_id]["logs"].append("[00:01] ⏳ Antigravity CLI is busy with another task — queued, waiting my turn...")
         async with self.lock:
             if self.process is None or self.process.returncode is not None:
                 tasks[task_id]["logs"].append("[00:01] 🧊 Cold-starting Antigravity CLI warm session (first request in a while)...")
@@ -2757,7 +2759,47 @@ class AgyWarmSession:
             self.last_used = time.monotonic()
             return final_status, final_response, final_structured
 
-_agy_session = AgyWarmSession()
+# A single AgyWarmSession serializes every request through one stdin/stdout
+# pipe (necessarily — you can't interleave two turns on one NDJSON stream and
+# still know which "result" event answers which caller). That means a slow
+# or hung turn blocks every unrelated request behind it with no feedback.
+# AgyWarmPool holds AGY_POOL_SIZE independent sessions so concurrent
+# requests (e.g. "create instance" immediately followed by "delete instance")
+# run in parallel instead of queuing. Each session pays its own MCP bootstrap
+# and holds its own idle process, so this is a real memory/CPU tradeoff on
+# the host running agy — tune via AGY_POOL_SIZE.
+AGY_POOL_SIZE = int(os.environ.get("AGY_POOL_SIZE", 2))
+
+class AgyWarmPool:
+    def __init__(self, size: int):
+        self.sessions = [AgyWarmSession() for _ in range(max(1, size))]
+        self._next = 0
+
+    async def ensure_warm(self):
+        # Only the first session is warmed eagerly at startup. The rest spawn
+        # on-demand the first time traffic is actually concurrent, so a quiet
+        # deployment doesn't pay for N MCP bootstraps it never needs.
+        await self.sessions[0].ensure_warm()
+
+    async def reap_if_idle(self):
+        for session in self.sessions:
+            await session.reap_if_idle()
+
+    def _pick_session(self) -> AgyWarmSession:
+        for session in self.sessions:
+            if not session.lock.locked():
+                return session
+        # Every session is busy — round-robin so the overflow spreads evenly
+        # instead of always piling onto the same one.
+        session = self.sessions[self._next % len(self.sessions)]
+        self._next += 1
+        return session
+
+    async def run_turn(self, full_prompt: str, task_id: str):
+        session = self._pick_session()
+        return await session.run_turn(full_prompt, task_id)
+
+_agy_session = AgyWarmPool(AGY_POOL_SIZE)
 
 @app.on_event("startup")
 async def _start_agy_reaper():
