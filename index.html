@@ -105,6 +105,74 @@
       z-index: 200;
     }
 
+    /* Language Switcher */
+    .lang-switcher {
+      position: relative;
+    }
+
+    .lang-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+      padding: 0.45rem 0.85rem;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+    }
+
+    .lang-btn:hover {
+      border-color: var(--accent-indigo);
+      background: rgba(99, 102, 241, 0.12);
+    }
+
+    .lang-menu {
+      display: none;
+      position: absolute;
+      top: calc(100% + 0.5rem);
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.4rem;
+      min-width: 140px;
+      box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+      z-index: 200;
+    }
+
+    .lang-menu.open {
+      display: block;
+    }
+
+    .lang-option {
+      display: block;
+      width: 100%;
+      background: none;
+      border: none;
+      text-align: left;
+      color: var(--text-muted);
+      padding: 0.55rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .lang-option:hover {
+      background: rgba(99, 102, 241, 0.12);
+      color: var(--text-main);
+    }
+
+    .lang-option.active {
+      background: var(--accent-indigo);
+      color: #fff;
+    }
+
     @keyframes pulse {
       0%, 100% { opacity: 1; transform: scale(1); }
       50% { opacity: 0.4; transform: scale(0.85); }
@@ -614,6 +682,11 @@
         padding: 0.2rem 0.5rem;
       }
 
+      .lang-btn {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.6rem;
+      }
+
       .hero h1 {
         font-size: 1.4rem;
       }
@@ -662,11 +735,22 @@
   <header>
     <div class="brand">
       <span>AI Orchestration Studio</span>
-      <span class="brand-badge">Cloud Engine</span>
+      <span class="brand-badge" data-i18n="badgeCloudEngine">Cloud Engine</span>
     </div>
     <div class="nav-stats">
-      <span id="backendBadge"><span class="status-dot"></span> OCI Always-Free Cloud Online</span>
+      <span id="backendBadge"><span class="status-dot"></span> <span data-i18n="statusOnline">OCI Always-Free Cloud Online</span></span>
       <span>AWS • Azure • GCP • OCI</span>
+    </div>
+    <div class="lang-switcher" id="langSwitcher">
+      <button class="lang-btn" id="langBtn" onclick="toggleLangMenu()">
+        🌐 <span id="langBtnLabel">EN</span>
+      </button>
+      <div class="lang-menu" id="langMenu">
+        <button class="lang-option active" data-lang="en" onclick="setLanguage('en')">English</button>
+        <button class="lang-option" data-lang="hi" onclick="setLanguage('hi')">हिन्दी</button>
+        <button class="lang-option" data-lang="es" onclick="setLanguage('es')">Español</button>
+        <button class="lang-option" data-lang="te" onclick="setLanguage('te')">తెలుగు</button>
+      </div>
     </div>
     <button class="hamburger-btn" id="hamburgerBtn">☰</button>
   </header>
@@ -679,13 +763,15 @@
 
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
-      <button class="nav-item active" onclick="filterCapabilities('all')">🌐 All</button>
-      <button class="nav-item" onclick="filterCapabilities('shop')">🛍️ Shop</button>
-      <button class="nav-item" onclick="filterCapabilities('media')">🎬 Media</button>
-      <button class="nav-item" onclick="filterCapabilities('finops')">📊 FinOps</button>
-      <button class="nav-item" onclick="filterCapabilities('cloud')">☁️ Cloud</button>
-      <button class="nav-item" onclick="filterCapabilities('m365')">💼 M365</button>
-      <button class="nav-item" id="navActivity" onclick="showActivity(event)">📋 Activity</button>
+      <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
+      <button class="nav-item" data-i18n="navShop" onclick="filterCapabilities('shop', this)">🛍️ Shop</button>
+      <button class="nav-item" data-i18n="navFood" onclick="filterCapabilities('food', this)">🍲 Food</button>
+      <button class="nav-item" data-i18n="navTravel" onclick="filterCapabilities('travel', this)">🚖 Travel</button>
+      <button class="nav-item" data-i18n="navMedia" onclick="filterCapabilities('media', this)">🎬 Media</button>
+      <button class="nav-item" data-i18n="navFinops" onclick="filterCapabilities('finops', this)">📊 FinOps</button>
+      <button class="nav-item" data-i18n="navCloud" onclick="filterCapabilities('cloud', this)">☁️ Cloud</button>
+      <button class="nav-item" data-i18n="navM365" onclick="filterCapabilities('m365', this)">💼 M365</button>
+      <button class="nav-item" id="navActivity" data-i18n="navActivity" onclick="showActivity(this)">📋 Activity</button>
     </aside>
 
     <!-- Main Content Area -->
@@ -693,9 +779,9 @@
 
       <!-- Hero Section -->
       <section class="hero">
-        <div class="hero-pill">✨ Cloud-Native Autonomous Execution</div>
-        <h1>Execute Any Mission in One Click</h1>
-        <p>Type your directive, paste or upload a product picture to find the best deal, or click any preset below.</p>
+        <div class="hero-pill" data-i18n="heroPill">✨ Cloud-Native Autonomous Execution</div>
+        <h1 data-i18n="heroTitle">Execute Any Mission in One Click</h1>
+        <p data-i18n="heroDesc">Type your directive, paste or upload a product picture to find the best deal, or click any preset below.</p>
       </section>
 
       <!-- Command Hub -->
@@ -706,22 +792,22 @@
               <img id="imagePreviewImg" src="" alt="Product" style="width: 40px; height: 40px; border-radius: 6px; object-fit: cover;">
               <div style="flex: 1;">
                 <div id="imagePreviewTitle" style="font-size: 0.85rem; font-weight: 600;">product.jpg</div>
-                <div style="font-size: 0.75rem; color: var(--text-muted);">🔍 Vision Active</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);" data-i18n="visionActive">🔍 Vision Active</div>
               </div>
               <button onclick="removeAttachedImage()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;">✕</button>
             </div>
           </div>
 
-          <textarea id="promptText" class="prompt-textarea" placeholder="Ask a question, paste an image (Ctrl+V), or choose a capability from the left..."></textarea>
+          <textarea id="promptText" class="prompt-textarea" data-i18n-placeholder="promptPlaceholder" placeholder="Ask a question, paste an image (Ctrl+V), or choose a capability from the left..."></textarea>
 
           <div class="prompt-footer">
             <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
               <input type="file" id="imageFileInput" accept="image/*" style="display: none;" onchange="handleImageSelected(event)">
-              <button type="button" class="btn-outline" onclick="document.getElementById('imageFileInput').click()" style="border-color: var(--border-color); padding: 0.6rem 1rem;">
+              <button type="button" class="btn-outline" onclick="document.getElementById('imageFileInput').click()" style="border-color: var(--border-color); padding: 0.6rem 1rem;" data-i18n="uploadPicture">
                 📷 Upload Picture
               </button>
             </div>
-            <button id="btnExecute" class="btn-action" onclick="executeMission()">
+            <button id="btnExecute" class="btn-action" onclick="executeMission()" data-i18n="execute">
               🚀 Execute
             </button>
           </div>
@@ -730,7 +816,7 @@
 
       <!-- Progress: always appears here once a mission runs, no click needed. User-friendly, no technical detail. -->
       <section id="progressSection" style="display: none;">
-        <div class="section-title">📊 Progress</div>
+        <div class="section-title" data-i18n="progressTitle">📊 Progress</div>
         <div id="progressPanel">
           <div class="console-header">
             <div style="display: flex; align-items: center; gap: 0.5rem;">
@@ -744,7 +830,7 @@
 
       <!-- Result / Summary: appears alongside Progress -->
       <section id="resultSection" style="display: none;">
-        <div class="section-title">📄 Result</div>
+        <div class="section-title" data-i18n="resultTitle">📄 Result</div>
         <div id="answerBox">
           <div id="answerContent" style="font-size: 0.95rem; line-height: 1.6;"></div>
         </div>
@@ -752,14 +838,14 @@
 
       <!-- Capabilities Grid -->
       <section id="capabilitiesSection">
-        <div class="section-title" id="sectionTitle">⚡ Capabilities</div>
+        <div class="section-title" id="sectionTitle" data-i18n="capabilitiesTitle">⚡ Capabilities</div>
         <div class="cards-grid" id="cardsGrid"></div>
       </section>
 
       <!-- Activity: hidden until the Activity tab is clicked. Raw, technical backend
            log (what's actually happening, e.g. which agent/tool was called) for debugging. -->
       <section id="activitySection" style="display: none;">
-        <div class="section-title">📋 Activity <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted); text-transform: none;">— raw backend log, for debugging</span></div>
+        <div class="section-title"><span data-i18n="activityTitle">📋 Activity</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted); text-transform: none;" data-i18n="activitySubtitle">— raw backend log, for debugging</span></div>
         <div id="technicalConsole">
           <div class="console-logs" id="technicalLogs"></div>
         </div>
@@ -779,19 +865,22 @@
     let attachedImageData = null;
     let currentCategory = "all";
     let activityStageIndex = 0;
+    let currentLang = localStorage.getItem('aios_lang') || 'en';
 
-    const friendlyStages = [
-      "📨 Directive received",
-      "🚀 Mission dispatched",
-      "🧠 Analyzing your request",
-      "🔎 Gathering the details",
-      "⚙️ Putting it all together"
-    ];
+    const STAGE_KEYS = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
 
     const capabilities = {
       shop: [
         { icon: '🛍️', title: 'Visual Best Deal Finder', desc: 'Upload photo or ask best deal across 5 platforms', category: 'shop', key: 'ecommerce-deals' },
         { icon: '🔐', title: 'Connected Accounts', desc: 'Check Prime, Swiggy One, Zomato Gold', category: 'shop', key: 'account-logins' },
+      ],
+      food: [
+        { icon: '🍲', title: 'Zomato vs Swiggy', desc: 'Compare dish prices & delivery ETAs', category: 'food', key: 'food-paneer-butter-masala' },
+      ],
+      travel: [
+        { icon: '🚖', title: 'Ola Cabs & Mobility', desc: 'Live cab fares and EV specs', category: 'travel', key: 'ola-mobility' },
+        { icon: '🚗', title: 'Uber vs Ola', desc: 'Real-time fare comparison', category: 'travel', key: 'uber-vs-ola' },
+        { icon: '🟡', title: 'Rapido vs Uber vs Ola', desc: '3-Way cheapest ride guarantee', category: 'travel', key: 'rapido-vs-uber-vs-ola' },
       ],
       media: [
         { icon: '🎬', title: '3D Pixar Animation', desc: 'Generate emotional Hindi story videos', category: 'media', key: 'media-pixar' },
@@ -814,6 +903,10 @@
     const prompts = {
       'ecommerce-deals': "Search and compare live prices for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal.",
       'account-logins': "Check login and membership status of all my connected accounts.",
+      'food-paneer-butter-masala': "Where is paneer butter masala cheaper and faster to get? Compare Zomato and Swiggy.",
+      'ola-mobility': "Compare live Ola cab fares (Bike, Auto, Mini, Prime, EV) from Koramangala to Kempegowda Airport, Bangalore.",
+      'uber-vs-ola': "Compare live cab fares between Uber and Ola from Indiranagar to Whitefield, Bangalore.",
+      'rapido-vs-uber-vs-ola': "Which is cheapest between Rapido, Uber, and Ola from Koramangala to Indiranagar, Bangalore?",
       'media-pixar': "Generate a 3D Pixar emotional story video of a brother and sister departing with Hindi voiceovers.",
       'media-video': "Create a cinematic AI video with voiceover and background music.",
       'finops-powerbi': "Fetch AWS CUR and OCI usage telemetry, normalize spend, and stream into Power BI.",
@@ -823,6 +916,275 @@
       'hybrid-dr': "Architect Multi-Cloud DR pipeline between AWS EKS and OCI.",
       'm365-flow': "Build a Power Automate flow for cloud spend anomalies."
     };
+
+    const translations = {
+      en: {
+        badgeCloudEngine: "Cloud Engine",
+        statusOnline: "OCI Always-Free Cloud Online",
+        navAll: "🌐 All",
+        navShop: "🛍️ Shop",
+        navFood: "🍲 Food",
+        navTravel: "🚖 Travel",
+        navMedia: "🎬 Media",
+        navFinops: "📊 FinOps",
+        navCloud: "☁️ Cloud",
+        navM365: "💼 M365",
+        navActivity: "📋 Activity",
+        heroPill: "✨ Cloud-Native Autonomous Execution",
+        heroTitle: "Execute Any Mission in One Click",
+        heroDesc: "Type your directive, paste or upload a product picture to find the best deal, or click any preset below.",
+        visionActive: "🔍 Vision Active",
+        promptPlaceholder: "Ask a question, paste an image (Ctrl+V), or choose a capability from the left...",
+        uploadPicture: "📷 Upload Picture",
+        execute: "🚀 Execute",
+        progressTitle: "📊 Progress",
+        resultTitle: "📄 Result",
+        capabilitiesTitle: "⚡ Capabilities",
+        activityTitle: "📋 Activity",
+        activitySubtitle: "— raw backend log, for debugging",
+        stage1: "📨 Directive received",
+        stage2: "🚀 Mission dispatched",
+        stage3: "🧠 Analyzing your request",
+        stage4: "🔎 Gathering the details",
+        stage5: "⚙️ Putting it all together",
+        missionAccomplished: "🎉 Mission accomplished",
+        missionAccomplishedStatus: "🎉 Mission Accomplished!",
+        toastPromptLoaded: "✓ Directive loaded. Press Enter to Execute!",
+        toastImageAttached: "📸 Picture attached!",
+        toastImageRemoved: "🗑️ Picture removed.",
+        toastInvalidImage: "⚠️ Please select a valid image file!",
+        toastEmptyPrompt: "⚠️ Please enter a directive or attach a picture!",
+        toastExecutionCompleted: "💎 Execution completed!",
+        toastDone: "💎 Done!"
+      },
+      hi: {
+        badgeCloudEngine: "क्लाउड इंजन",
+        statusOnline: "OCI ऑलवेज़-फ्री क्लाउड ऑनलाइन",
+        navAll: "🌐 सभी",
+        navShop: "🛍️ शॉप",
+        navFood: "🍲 फूड",
+        navTravel: "🚖 ट्रैवल",
+        navMedia: "🎬 मीडिया",
+        navFinops: "📊 फिनऑप्स",
+        navCloud: "☁️ क्लाउड",
+        navM365: "💼 M365",
+        navActivity: "📋 गतिविधि",
+        heroPill: "✨ क्लाउड-नेटिव स्वायत्त निष्पादन",
+        heroTitle: "एक क्लिक में कोई भी मिशन पूरा करें",
+        heroDesc: "अपना निर्देश टाइप करें, सबसे अच्छी डील खोजने के लिए प्रोडक्ट की तस्वीर पेस्ट या अपलोड करें, या नीचे दिए गए किसी भी प्रीसेट पर क्लिक करें।",
+        visionActive: "🔍 विज़न सक्रिय",
+        promptPlaceholder: "एक सवाल पूछें, कोई इमेज पेस्ट करें (Ctrl+V), या बाईं ओर से कोई क्षमता चुनें...",
+        uploadPicture: "📷 तस्वीर अपलोड करें",
+        execute: "🚀 निष्पादित करें",
+        progressTitle: "📊 प्रगति",
+        resultTitle: "📄 परिणाम",
+        capabilitiesTitle: "⚡ क्षमताएं",
+        activityTitle: "📋 गतिविधि",
+        activitySubtitle: "— डिबगिंग के लिए, कच्चा बैकएंड लॉग",
+        stage1: "📨 निर्देश प्राप्त हुआ",
+        stage2: "🚀 मिशन भेजा गया",
+        stage3: "🧠 आपके अनुरोध का विश्लेषण हो रहा है",
+        stage4: "🔎 विवरण एकत्र किए जा रहे हैं",
+        stage5: "⚙️ सब कुछ जोड़ा जा रहा है",
+        missionAccomplished: "🎉 मिशन पूरा हुआ",
+        missionAccomplishedStatus: "🎉 मिशन पूरा हुआ!",
+        toastPromptLoaded: "✓ निर्देश लोड हुआ। निष्पादित करने के लिए एंटर दबाएं!",
+        toastImageAttached: "📸 तस्वीर जोड़ी गई!",
+        toastImageRemoved: "🗑️ तस्वीर हटाई गई।",
+        toastInvalidImage: "⚠️ कृपया एक मान्य इमेज फ़ाइल चुनें!",
+        toastEmptyPrompt: "⚠️ कृपया एक निर्देश दर्ज करें या तस्वीर जोड़ें!",
+        toastExecutionCompleted: "💎 निष्पादन पूरा हुआ!",
+        toastDone: "💎 हो गया!"
+      },
+      es: {
+        badgeCloudEngine: "Motor Cloud",
+        statusOnline: "OCI Always-Free Cloud En Línea",
+        navAll: "🌐 Todo",
+        navShop: "🛍️ Comprar",
+        navFood: "🍲 Comida",
+        navTravel: "🚖 Viajes",
+        navMedia: "🎬 Medios",
+        navFinops: "📊 FinOps",
+        navCloud: "☁️ Nube",
+        navM365: "💼 M365",
+        navActivity: "📋 Actividad",
+        heroPill: "✨ Ejecución Autónoma Nativa en la Nube",
+        heroTitle: "Ejecuta Cualquier Misión con Un Clic",
+        heroDesc: "Escribe tu directiva, pega o sube una foto del producto para encontrar la mejor oferta, o haz clic en cualquier opción preconfigurada abajo.",
+        visionActive: "🔍 Visión Activa",
+        promptPlaceholder: "Haz una pregunta, pega una imagen (Ctrl+V), o elige una capacidad de la izquierda...",
+        uploadPicture: "📷 Subir Foto",
+        execute: "🚀 Ejecutar",
+        progressTitle: "📊 Progreso",
+        resultTitle: "📄 Resultado",
+        capabilitiesTitle: "⚡ Capacidades",
+        activityTitle: "📋 Actividad",
+        activitySubtitle: "— registro técnico sin procesar, para depuración",
+        stage1: "📨 Directiva recibida",
+        stage2: "🚀 Misión enviada",
+        stage3: "🧠 Analizando tu solicitud",
+        stage4: "🔎 Recopilando los detalles",
+        stage5: "⚙️ Uniendo todo",
+        missionAccomplished: "🎉 Misión cumplida",
+        missionAccomplishedStatus: "🎉 ¡Misión Cumplida!",
+        toastPromptLoaded: "✓ Directiva cargada. ¡Presiona Enter para ejecutar!",
+        toastImageAttached: "📸 ¡Foto adjuntada!",
+        toastImageRemoved: "🗑️ Foto eliminada.",
+        toastInvalidImage: "⚠️ ¡Selecciona un archivo de imagen válido!",
+        toastEmptyPrompt: "⚠️ ¡Ingresa una directiva o adjunta una foto!",
+        toastExecutionCompleted: "💎 ¡Ejecución completada!",
+        toastDone: "💎 ¡Listo!"
+      },
+      te: {
+        badgeCloudEngine: "క్లౌడ్ ఇంజిన్",
+        statusOnline: "OCI ఆల్వేస్-ఫ్రీ క్లౌడ్ ఆన్‌లైన్",
+        navAll: "🌐 అన్నీ",
+        navShop: "🛍️ షాప్",
+        navFood: "🍲 ఆహారం",
+        navTravel: "🚖 ప్రయాణం",
+        navMedia: "🎬 మీడియా",
+        navFinops: "📊 ఫిన్‌ఆప్స్",
+        navCloud: "☁️ క్లౌడ్",
+        navM365: "💼 M365",
+        navActivity: "📋 కార్యకలాపం",
+        heroPill: "✨ క్లౌడ్-నేటివ్ స్వయంప్రతిపత్త అమలు",
+        heroTitle: "ఒక్క క్లిక్‌తో ఏ మిషన్‌నైనా అమలు చేయండి",
+        heroDesc: "మీ నిర్దేశాన్ని టైప్ చేయండి, ఉత్తమ డీల్ కనుగొనడానికి ఉత్పత్తి చిత్రాన్ని పేస్ట్ లేదా అప్‌లోడ్ చేయండి, లేదా క్రింద ఏదైనా ప్రీసెట్‌పై క్లిక్ చేయండి.",
+        visionActive: "🔍 విజన్ యాక్టివ్",
+        promptPlaceholder: "ఒక ప్రశ్న అడగండి, ఒక చిత్రాన్ని పేస్ట్ చేయండి (Ctrl+V), లేదా ఎడమవైపు నుండి ఒక సామర్థ్యాన్ని ఎంచుకోండి...",
+        uploadPicture: "📷 చిత్రం అప్‌లోడ్ చేయండి",
+        execute: "🚀 అమలు చేయండి",
+        progressTitle: "📊 పురోగతి",
+        resultTitle: "📄 ఫలితం",
+        capabilitiesTitle: "⚡ సామర్థ్యాలు",
+        activityTitle: "📋 కార్యకలాపం",
+        activitySubtitle: "— డీబగ్గింగ్ కోసం, రా బ్యాకెండ్ లాగ్",
+        stage1: "📨 నిర్దేశం అందింది",
+        stage2: "🚀 మిషన్ పంపబడింది",
+        stage3: "🧠 మీ అభ్యర్థనను విశ్లేషిస్తోంది",
+        stage4: "🔎 వివరాలను సేకరిస్తోంది",
+        stage5: "⚙️ అన్నింటినీ కలుపుతోంది",
+        missionAccomplished: "🎉 మిషన్ పూర్తయింది",
+        missionAccomplishedStatus: "🎉 మిషన్ పూర్తయింది!",
+        toastPromptLoaded: "✓ నిర్దేశం లోడ్ అయింది. అమలు చేయడానికి Enter నొక్కండి!",
+        toastImageAttached: "📸 చిత్రం జోడించబడింది!",
+        toastImageRemoved: "🗑️ చిత్రం తీసివేయబడింది.",
+        toastInvalidImage: "⚠️ దయచేసి చెల్లుబాటు అయ్యే చిత్ర ఫైల్‌ను ఎంచుకోండి!",
+        toastEmptyPrompt: "⚠️ దయచేసి ఒక నిర్దేశాన్ని నమోదు చేయండి లేదా చిత్రాన్ని జోడించండి!",
+        toastExecutionCompleted: "💎 అమలు పూర్తయింది!",
+        toastDone: "💎 పూర్తయింది!"
+      }
+    };
+
+    const capabilitiesTranslations = {
+      en: {
+        'ecommerce-deals': { title: 'Visual Best Deal Finder', desc: 'Upload photo or ask best deal across 5 platforms', prompt: "Search and compare live prices for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal." },
+        'account-logins': { title: 'Connected Accounts', desc: 'Check Prime, Swiggy One, Zomato Gold', prompt: "Check login and membership status of all my connected accounts." },
+        'food-paneer-butter-masala': { title: 'Zomato vs Swiggy', desc: 'Compare dish prices & delivery ETAs', prompt: "Where is paneer butter masala cheaper and faster to get? Compare Zomato and Swiggy." },
+        'ola-mobility': { title: 'Ola Cabs & Mobility', desc: 'Live cab fares and EV specs', prompt: "Compare live Ola cab fares (Bike, Auto, Mini, Prime, EV) from Koramangala to Kempegowda Airport, Bangalore." },
+        'uber-vs-ola': { title: 'Uber vs Ola', desc: 'Real-time fare comparison', prompt: "Compare live cab fares between Uber and Ola from Indiranagar to Whitefield, Bangalore." },
+        'rapido-vs-uber-vs-ola': { title: 'Rapido vs Uber vs Ola', desc: '3-Way cheapest ride guarantee', prompt: "Which is cheapest between Rapido, Uber, and Ola from Koramangala to Indiranagar, Bangalore?" },
+        'media-pixar': { title: '3D Pixar Animation', desc: 'Generate emotional Hindi story videos', prompt: "Generate a 3D Pixar emotional story video of a brother and sister departing with Hindi voiceovers." },
+        'media-video': { title: 'Video Generation', desc: 'Create cinematic AI videos with voiceovers', prompt: "Create a cinematic AI video with voiceover and background music." },
+        'finops-powerbi': { title: 'AWS + OCI FinOps', desc: 'Auto-pull S3 CUR + OCI Telemetry into Power BI', prompt: "Fetch AWS CUR and OCI usage telemetry, normalize spend, and stream into Power BI." },
+        'finops-azure-foundry': { title: 'Azure FinOps AI', desc: 'Cost intelligence with gpt-5-mini', prompt: "Run Azure FinOps cost analysis using Azure AI Foundry." },
+        'finops-gcp-active-assist': { title: 'Quad-Cloud FinOps', desc: 'AWS, OCI, Azure, GCP cost analysis', prompt: "Execute Google Cloud FinOps analysis across project." },
+        'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonomous Always-Free VM provisioning', prompt: "Continuously provision an Always-Free OCI Ampere VM." },
+        'hybrid-dr': { title: 'Multi-Cloud DR', desc: 'Automated failover & egress arbitrage', prompt: "Architect Multi-Cloud DR pipeline between AWS EKS and OCI." },
+        'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." }
+      },
+      hi: {
+        'ecommerce-deals': { title: 'विज़ुअल बेस्ट डील फाइंडर', desc: 'फोटो अपलोड करें या 5 प्लेटफॉर्म पर सबसे अच्छी डील पूछें', prompt: "सबसे अच्छी डील खोजने के लिए Amazon, Flipkart, Blinkit, Zepto और Meesho पर boAt Rockerz 255 Pro+ की लाइव कीमतों की तुलना करें।" },
+        'account-logins': { title: 'कनेक्टेड खाते', desc: 'Prime, Swiggy One, Zomato Gold की स्थिति जांचें', prompt: "मेरे सभी कनेक्टेड खातों की लॉगिन और मेंबरशिप स्थिति जांचें।" },
+        'food-paneer-butter-masala': { title: 'ज़ोमैटो बनाम स्विगी', desc: 'डिश की कीमतें और डिलीवरी ETA की तुलना करें', prompt: "पनीर बटर मसाला कहां सस्ता और तेज़ मिलता है? Zomato और Swiggy की तुलना करें।" },
+        'ola-mobility': { title: 'Ola कैब्स और मोबिलिटी', desc: 'लाइव कैब किराए और EV स्पेसिफिकेशन', prompt: "कोरमंगला से केम्पेगौड़ा एयरपोर्ट, बेंगलुरु तक लाइव Ola कैब किराए (Bike, Auto, Mini, Prime, EV) की तुलना करें।" },
+        'uber-vs-ola': { title: 'Uber बनाम Ola', desc: 'रियल-टाइम किराया तुलना', prompt: "इंदिरानगर से व्हाइटफील्ड, बेंगलुरु तक Uber और Ola के बीच लाइव कैब किराए की तुलना करें।" },
+        'rapido-vs-uber-vs-ola': { title: 'Rapido बनाम Uber बनाम Ola', desc: '3-तरफा सबसे सस्ती राइड गारंटी', prompt: "कोरमंगला से इंदिरानगर, बेंगलुरु तक Rapido, Uber और Ola में से कौन सबसे सस्ता है?" },
+        'media-pixar': { title: '3D पिक्सर एनिमेशन', desc: 'भावनात्मक हिंदी कहानी वीडियो जनरेट करें', prompt: "हिंदी वॉइसओवर के साथ भाई-बहन के विदाई की एक भावनात्मक 3D पिक्सर स्टोरी वीडियो बनाएं।" },
+        'media-video': { title: 'वीडियो जनरेशन', desc: 'वॉइसओवर के साथ सिनेमैटिक AI वीडियो बनाएं', prompt: "वॉइसओवर और बैकग्राउंड म्यूज़िक के साथ एक सिनेमैटिक AI वीडियो बनाएं।" },
+        'finops-powerbi': { title: 'AWS + OCI फिनऑप्स', desc: 'S3 CUR + OCI टेलीमेट्री को Power BI में ऑटो-पुल करें', prompt: "AWS CUR और OCI उपयोग टेलीमेट्री प्राप्त करें, खर्च को सामान्य करें, और Power BI में स्ट्रीम करें।" },
+        'finops-azure-foundry': { title: 'Azure फिनऑप्स AI', desc: 'gpt-5-mini के साथ कॉस्ट इंटेलिजेंस', prompt: "Azure AI Foundry का उपयोग करके Azure फिनऑप्स कॉस्ट विश्लेषण चलाएं।" },
+        'finops-gcp-active-assist': { title: 'क्वाड-क्लाउड फिनऑप्स', desc: 'AWS, OCI, Azure, GCP कॉस्ट विश्लेषण', prompt: "प्रोजेक्ट में Google Cloud फिनऑप्स विश्लेषण निष्पादित करें।" },
+        'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'स्वायत्त Always-Free VM प्रोविजनिंग', prompt: "लगातार एक Always-Free OCI Ampere VM प्रोविज़न करें।" },
+        'hybrid-dr': { title: 'मल्टी-क्लाउड DR', desc: 'ऑटोमेटेड फेलओवर और एग्रेस आर्बिट्राज', prompt: "AWS EKS और OCI के बीच मल्टी-क्लाउड DR पाइपलाइन डिज़ाइन करें।" },
+        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्च की असामान्यताओं के लिए एक Power Automate फ्लो बनाएं।" }
+      },
+      es: {
+        'ecommerce-deals': { title: 'Buscador Visual de Mejores Ofertas', desc: 'Sube una foto o pregunta por la mejor oferta en 5 plataformas', prompt: "Busca y compara precios en vivo del boAt Rockerz 255 Pro+ en Amazon, Flipkart, Blinkit, Zepto y Meesho para encontrar la mejor oferta absoluta." },
+        'account-logins': { title: 'Cuentas Conectadas', desc: 'Verifica Prime, Swiggy One, Zomato Gold', prompt: "Verifica el estado de inicio de sesión y membresía de todas mis cuentas conectadas." },
+        'food-paneer-butter-masala': { title: 'Zomato vs Swiggy', desc: 'Compara precios de platos y tiempos de entrega', prompt: "¿Dónde es más barato y rápido conseguir paneer butter masala? Compara Zomato y Swiggy." },
+        'ola-mobility': { title: 'Ola Cabs y Movilidad', desc: 'Tarifas de taxi en vivo y especificaciones EV', prompt: "Compara las tarifas en vivo de Ola (Bike, Auto, Mini, Prime, EV) desde Koramangala hasta el Aeropuerto Kempegowda, Bangalore." },
+        'uber-vs-ola': { title: 'Uber vs Ola', desc: 'Comparación de tarifas en tiempo real', prompt: "Compara las tarifas de taxi en vivo entre Uber y Ola desde Indiranagar hasta Whitefield, Bangalore." },
+        'rapido-vs-uber-vs-ola': { title: 'Rapido vs Uber vs Ola', desc: 'Garantía del viaje más barato entre 3 opciones', prompt: "¿Cuál es más barato entre Rapido, Uber y Ola desde Koramangala hasta Indiranagar, Bangalore?" },
+        'media-pixar': { title: 'Animación 3D Estilo Pixar', desc: 'Genera videos de historias emotivas en hindi', prompt: "Genera un video de historia emotiva en 3D estilo Pixar de un hermano y una hermana despidiéndose, con narración en hindi." },
+        'media-video': { title: 'Generación de Video', desc: 'Crea videos de IA cinematográficos con narración', prompt: "Crea un video de IA cinematográfico con narración y música de fondo." },
+        'finops-powerbi': { title: 'FinOps de AWS + OCI', desc: 'Extrae automáticamente S3 CUR + Telemetría OCI hacia Power BI', prompt: "Obtén el CUR de AWS y la telemetría de uso de OCI, normaliza el gasto, y transmítelo a Power BI." },
+        'finops-azure-foundry': { title: 'IA FinOps de Azure', desc: 'Inteligencia de costos con gpt-5-mini', prompt: "Ejecuta un análisis de costos de FinOps de Azure usando Azure AI Foundry." },
+        'finops-gcp-active-assist': { title: 'FinOps Cuádruple Nube', desc: 'Análisis de costos de AWS, OCI, Azure, GCP', prompt: "Ejecuta el análisis de FinOps de Google Cloud en todo el proyecto." },
+        'cloudops-ampere': { title: 'VM Ampere de OCI', desc: 'Aprovisionamiento autónomo de VM Always-Free', prompt: "Aprovisiona continuamente una VM Ampere Always-Free de OCI." },
+        'hybrid-dr': { title: 'DR Multi-Nube', desc: 'Conmutación por error automatizada y arbitraje de salida', prompt: "Diseña una arquitectura de canal DR multi-nube entre AWS EKS y OCI." },
+        'm365-flow': { title: 'Power Automate', desc: 'Flujos en la nube, ChatOps de Teams, resúmenes de Outlook', prompt: "Construye un flujo de Power Automate para anomalías de gasto en la nube." }
+      },
+      te: {
+        'ecommerce-deals': { title: 'విజువల్ బెస్ట్ డీల్ ఫైండర్', desc: 'ఫోటో అప్‌లోడ్ చేయండి లేదా 5 ప్లాట్‌ఫారమ్‌లలో ఉత్తమ డీల్ అడగండి', prompt: "ఉత్తమ డీల్ కనుగొనడానికి Amazon, Flipkart, Blinkit, Zepto మరియు Meesho లలో boAt Rockerz 255 Pro+ యొక్క లైవ్ ధరలను పోల్చండి." },
+        'account-logins': { title: 'కనెక్టెడ్ ఖాతాలు', desc: 'Prime, Swiggy One, Zomato Gold స్థితిని తనిఖీ చేయండి', prompt: "నా అన్ని కనెక్టెడ్ ఖాతాల లాగిన్ మరియు మెంబర్‌షిప్ స్థితిని తనిఖీ చేయండి." },
+        'food-paneer-butter-masala': { title: 'జొమాటో వర్సెస్ స్విగీ', desc: 'డిష్ ధరలు & డెలివరీ ETAలను పోల్చండి', prompt: "పన్నీర్ బటర్ మసాలా ఎక్కడ చౌకగా మరియు వేగంగా లభిస్తుంది? Zomato మరియు Swiggy లను పోల్చండి." },
+        'ola-mobility': { title: 'Ola క్యాబ్స్ & మొబిలిటీ', desc: 'లైవ్ క్యాబ్ ఛార్జీలు మరియు EV వివరాలు', prompt: "కోరమంగళ నుండి కెంపెగౌడ విమానాశ్రయం, బెంగళూరు వరకు లైవ్ Ola క్యాబ్ ఛార్జీలను (Bike, Auto, Mini, Prime, EV) పోల్చండి." },
+        'uber-vs-ola': { title: 'Uber వర్సెస్ Ola', desc: 'రియల్-టైమ్ ఛార్జీల పోలిక', prompt: "ఇందిరానగర్ నుండి వైట్‌ఫీల్డ్, బెంగళూరు వరకు Uber మరియు Ola మధ్య లైవ్ క్యాబ్ ఛార్జీలను పోల్చండి." },
+        'rapido-vs-uber-vs-ola': { title: 'Rapido వర్సెస్ Uber వర్సెస్ Ola', desc: '3-వైపుల అత్యంత చౌక రైడ్ గ్యారెంటీ', prompt: "కోరమంగళ నుండి ఇందిరానగర్, బెంగళూరు వరకు Rapido, Uber మరియు Ola లలో ఏది చౌకైనది?" },
+        'media-pixar': { title: '3D పిక్సర్ యానిమేషన్', desc: 'భావోద్వేగభరిత హిందీ కథ వీడియోలను రూపొందించండి', prompt: "హిందీ వాయిస్‌ఓవర్‌లతో సోదరుడు మరియు సోదరి వీడ్కోలు చెప్పే భావోద్వేగభరిత 3D పిక్సర్ కథ వీడియోను రూపొందించండి." },
+        'media-video': { title: 'వీడియో జనరేషన్', desc: 'వాయిస్‌ఓవర్‌లతో సినిమాటిక్ AI వీడియోలను సృష్టించండి', prompt: "వాయిస్‌ఓవర్ మరియు బ్యాక్‌గ్రౌండ్ మ్యూజిక్‌తో సినిమాటిక్ AI వీడియోను సృష్టించండి." },
+        'finops-powerbi': { title: 'AWS + OCI ఫిన్‌ఆప్స్', desc: 'S3 CUR + OCI టెలిమెట్రీని Power BI లోకి ఆటో-పుల్ చేయండి', prompt: "AWS CUR మరియు OCI వినియోగ టెలిమెట్రీని పొందండి, ఖర్చును సాధారణీకరించండి, మరియు Power BI లోకి స్ట్రీమ్ చేయండి." },
+        'finops-azure-foundry': { title: 'Azure ఫిన్‌ఆప్స్ AI', desc: 'gpt-5-mini తో కాస్ట్ ఇంటెలిజెన్స్', prompt: "Azure AI Foundry ఉపయోగించి Azure ఫిన్‌ఆప్స్ కాస్ట్ విశ్లేషణను అమలు చేయండి." },
+        'finops-gcp-active-assist': { title: 'క్వాడ్-క్లౌడ్ ఫిన్‌ఆప్స్', desc: 'AWS, OCI, Azure, GCP కాస్ట్ విశ్లేషణ', prompt: "ప్రాజెక్ట్ అంతటా Google Cloud ఫిన్‌ఆప్స్ విశ్లేషణను అమలు చేయండి." },
+        'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'స్వయంప్రతిపత్త Always-Free VM ప్రొవిజనింగ్', prompt: "నిరంతరం ఒక Always-Free OCI Ampere VM ను ప్రొవిజన్ చేయండి." },
+        'hybrid-dr': { title: 'మల్టీ-క్లౌడ్ DR', desc: 'ఆటోమేటెడ్ ఫెయిల్‌ఓవర్ & ఎగ్రెస్ ఆర్బిట్రేజ్', prompt: "AWS EKS మరియు OCI మధ్య మల్టీ-క్లౌడ్ DR పైప్‌లైన్‌ను రూపొందించండి." },
+        'm365-flow': { title: 'Power Automate', desc: 'క్లౌడ్ ఫ్లోలు, Teams ChatOps, Outlook డైజెస్ట్‌లు', prompt: "క్లౌడ్ ఖర్చు అసాధారణతల కోసం ఒక Power Automate ఫ్లోను నిర్మించండి." }
+      }
+    };
+
+    function t(key) {
+      const dict = translations[currentLang] || translations.en;
+      return dict[key] !== undefined ? dict[key] : (translations.en[key] || key);
+    }
+
+    function applyTranslations() {
+      const dict = translations[currentLang] || translations.en;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key] !== undefined) el.innerText = dict[key];
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        if (dict[key] !== undefined) el.placeholder = dict[key];
+      });
+      document.documentElement.lang = currentLang;
+    }
+
+    function toggleLangMenu() {
+      document.getElementById('langMenu').classList.toggle('open');
+    }
+
+    function closeLangMenu() {
+      document.getElementById('langMenu').classList.remove('open');
+    }
+
+    document.addEventListener('click', function (e) {
+      const switcher = document.getElementById('langSwitcher');
+      if (switcher && !switcher.contains(e.target)) closeLangMenu();
+    });
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      localStorage.setItem('aios_lang', lang);
+      applyTranslations();
+      document.querySelectorAll('.lang-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.lang === lang);
+      });
+      document.getElementById('langBtnLabel').innerText = lang.toUpperCase();
+      renderCards(currentCategory);
+      closeLangMenu();
+    }
 
     // Hamburger Menu & Overlay
     const hamburgerBtn = document.getElementById('hamburgerBtn');
@@ -862,20 +1224,7 @@
       }
     });
 
-    function filterCapabilities(category) {
-      currentCategory = category;
-
-      // Update active nav button
-      document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.classList.remove('active');
-      });
-      event.target.classList.add('active');
-
-      // Show capabilities, hide the Activity tab
-      document.getElementById('capabilitiesSection').style.display = 'block';
-      document.getElementById('activitySection').style.display = 'none';
-
-      // Filter cards
+    function renderCards(category) {
       const grid = document.getElementById('cardsGrid');
       grid.innerHTML = '';
 
@@ -886,7 +1235,10 @@
         toShow = capabilities[category] || [];
       }
 
+      const langDict = capabilitiesTranslations[currentLang] || capabilitiesTranslations.en;
+
       toShow.forEach(cap => {
+        const tr = langDict[cap.key] || capabilitiesTranslations.en[cap.key] || { title: cap.title, desc: cap.desc };
         const card = document.createElement('div');
         card.className = 'card';
         card.onclick = () => loadPrompt(cap.key);
@@ -894,8 +1246,8 @@
           <div class="card-top">
             <div class="card-icon">${cap.icon}</div>
             <div style="flex: 1;">
-              <div class="card-title">${cap.title}</div>
-              <div class="card-desc">${cap.desc}</div>
+              <div class="card-title">${tr.title}</div>
+              <div class="card-desc">${tr.desc}</div>
             </div>
           </div>
         `;
@@ -903,12 +1255,28 @@
       });
     }
 
-    function showActivity(evt) {
+    function filterCapabilities(category, btn) {
+      currentCategory = category;
+
       // Update active nav button
-      document.querySelectorAll('.nav-item').forEach(btn => {
-        btn.classList.remove('active');
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.remove('active');
       });
-      const target = (evt && evt.target) ? evt.target : document.getElementById('navActivity');
+      if (btn) btn.classList.add('active');
+
+      // Show capabilities, hide the Activity tab
+      document.getElementById('capabilitiesSection').style.display = 'block';
+      document.getElementById('activitySection').style.display = 'none';
+
+      renderCards(category);
+    }
+
+    function showActivity(btn) {
+      // Update active nav button
+      document.querySelectorAll('.nav-item').forEach(b => {
+        b.classList.remove('active');
+      });
+      const target = btn || document.getElementById('navActivity');
       target.classList.add('active');
 
       // Show the Activity tab, hide capabilities
@@ -918,9 +1286,11 @@
 
     function loadPrompt(key) {
       const textarea = document.getElementById("promptText");
-      textarea.value = prompts[key] || "";
+      const langDict = capabilitiesTranslations[currentLang] || capabilitiesTranslations.en;
+      const tr = langDict[key] || capabilitiesTranslations.en[key];
+      textarea.value = (tr && tr.prompt) || prompts[key] || "";
       textarea.focus();
-      showToast("✓ Directive loaded. Press Enter to Execute!");
+      showToast(t('toastPromptLoaded'));
     }
 
     function handleImageSelected(event) {
@@ -931,7 +1301,7 @@
 
     function processImageFile(file) {
       if (!file.type.startsWith('image/')) {
-        showToast("⚠️ Please select a valid image file!");
+        showToast(t('toastInvalidImage'));
         return;
       }
       const reader = new FileReader();
@@ -944,7 +1314,7 @@
         if (!textarea.value.trim()) {
           textarea.value = "Find the best deal for this product across Amazon, Flipkart, Blinkit, Zepto, and Meesho.";
         }
-        showToast("📸 Picture attached!");
+        showToast(t('toastImageAttached'));
       };
       reader.readAsDataURL(file);
     }
@@ -953,7 +1323,7 @@
       attachedImageData = null;
       document.getElementById("imageFileInput").value = "";
       document.getElementById("imagePreviewContainer").style.display = "none";
-      showToast("🗑️ Picture removed.");
+      showToast(t('toastImageRemoved'));
     }
 
     // Paste listener
@@ -980,7 +1350,7 @@
       const textarea = document.getElementById("promptText");
       let prompt = textarea.value.trim();
       if (!prompt && !attachedImageData) {
-        showToast("⚠️ Please enter a directive or attach a picture!");
+        showToast(t('toastEmptyPrompt'));
         return;
       }
 
@@ -1039,7 +1409,7 @@
             eventSource.close();
             markMissionAccomplished(progressLogs, statusText);
             pushTechnicalLog(technicalLogs, "[DONE] Task completed");
-            showToast("💎 Execution completed!");
+            showToast(t('toastExecutionCompleted'));
           }
         };
 
@@ -1054,7 +1424,7 @@
 
     function simulateExecution(prompt, logsBox, statusText, resultSection, answerContent, technicalLogs) {
       let i = 0;
-      const totalSteps = friendlyStages.length;
+      const totalSteps = STAGE_KEYS.length;
       const interval = setInterval(() => {
         if (i < totalSteps) {
           pushFriendlyStage(logsBox, statusText);
@@ -1066,7 +1436,7 @@
           pushTechnicalLog(technicalLogs, "[offline-sim] [DONE] Task completed");
           resultSection.style.display = "block";
           answerContent.innerText = "✓ Directive successfully processed.";
-          showToast("💎 Done!");
+          showToast(t('toastDone'));
         }
       }, 800);
     }
@@ -1074,8 +1444,8 @@
     // Appends the next generic, non-technical progress stage (never the
     // backend's raw internal log text) and keeps the status line in sync.
     function pushFriendlyStage(logsBox, statusText) {
-      const idx = Math.min(activityStageIndex, friendlyStages.length - 1);
-      const label = friendlyStages[idx];
+      const idx = Math.min(activityStageIndex, STAGE_KEYS.length - 1);
+      const label = t(STAGE_KEYS[idx]);
 
       if (!(logsBox.lastElementChild && logsBox.lastElementChild.dataset.stage === String(idx))) {
         const item = document.createElement("div");
@@ -1103,11 +1473,11 @@
     function markMissionAccomplished(logsBox, statusText) {
       const item = document.createElement("div");
       item.className = "activity-step activity-step-done";
-      item.innerText = "🎉 Mission accomplished";
+      item.innerText = t('missionAccomplished');
       logsBox.appendChild(item);
       logsBox.scrollTop = logsBox.scrollHeight;
 
-      statusText.innerText = "🎉 Mission Accomplished!";
+      statusText.innerText = t('missionAccomplishedStatus');
       statusText.style.color = "var(--accent-emerald)";
     }
 
@@ -1123,7 +1493,8 @@
     }
 
     // Initialize
-    filterCapabilities('all');
+    setLanguage(currentLang);
+    filterCapabilities('all', document.getElementById('navAllBtn'));
   </script>
 
 </body>
