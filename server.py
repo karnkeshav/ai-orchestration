@@ -2151,6 +2151,163 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
+# Verbs that mean the prompt wants an action taken, not information read back.
+# A prompt naming any of these is always escalated to agy, even if it also
+# names a resource keyword ("instance", "vm", ...) that would otherwise match
+# the instant query fast-path below -- "delete the instance" must never be
+# answered with an instance *listing* just because "instance" matched.
+_MUTATION_VERBS = (
+    "delete", "remove", "terminate", "destroy", "create", "provision",
+    "launch", "deploy", "start", "stop", "restart", "reboot", "add ",
+    "update", "modify", "resize", "scale", "attach", "detach",
+    "install", "uninstall", "configure", "set up", "setup", "build",
+    "spin up", "spin-up", "tear down", "teardown", "shut down", "shutdown",
+)
+
+async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
+    """Zero-dependency, near-instant path for unambiguous read-only cost/
+    compute/storage/service queries: pure local keyword matching straight
+    into a direct cloud SDK call -- no LLM round trip, no agy CLI/MCP
+    bootstrap. Returns True (and completes the task) only for a confident,
+    unambiguous read query; returns False for everything else so the
+    caller escalates to agy instead. Deliberately conservative: erring
+    toward agy on anything that isn't a clean, unambiguous read query is
+    far safer than a keyword guess silently mishandling a real action."""
+    prompt_lower = prompt.lower()
+    if any(v in prompt_lower for v in _MUTATION_VERBS):
+        return False
+
+    providers = []
+    if "gcp" in prompt_lower or "google cloud" in prompt_lower: providers.append("gcp")
+    if "azure" in prompt_lower: providers.append("azure")
+    if "oci" in prompt_lower or "oracle" in prompt_lower: providers.append("oci")
+    if "aws" in prompt_lower or "ec2" in prompt_lower or "s3" in prompt_lower: providers.append("aws")
+
+    wants_cost = any(k in prompt_lower for k in ("bill", "billing", "cost", "spend", "invoice", "charge", "expense"))
+    wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
+    wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
+    wants_services = ("service" in prompt_lower) and not wants_compute
+
+    if not (wants_cost or wants_storage or wants_compute or wants_services):
+        return False
+
+    loop = asyncio.get_event_loop()
+    icons = {"aws": "🔶", "oci": "🔴", "azure": "🔷", "gcp": "⚪"}
+    names = {"aws": "AWS EC2", "oci": "Oracle Cloud (OCI)", "azure": "Microsoft Azure", "gcp": "Google Cloud (GCP)"}
+    compute_fn = {"aws": query_aws_ec2, "oci": query_oci_instances, "azure": query_azure_vms, "gcp": query_gcp_instances}
+    compute_fmt = {
+        "aws": lambda i: f"**{i['name']}** (`{i['id']}`): Type `{i['type']}`, State `{i['state']}`, AZ `{i['az']}`",
+        "oci": lambda i: f"**{i['name']}**: Shape `{i['shape']}`, State `{i['state']}`, IP `{i['ip']}`",
+        "azure": lambda i: f"**{i['name']}**: Size `{i['size']}`, Region `{i['location']}`, State `{i['state']}`",
+        "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
+    }
+    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
+    cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost}
+    services_fn = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
+
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+    tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant query — answering directly, no agent needed...")
+
+    if wants_services:
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
+        rows, errors = [], []
+        for p in target:
+            result = await loop.run_in_executor(None, services_fn[p])
+            if isinstance(result, list):
+                for svc in result:
+                    rows.append((p.upper(), svc["type"], svc["name"], svc["state"]))
+            else:
+                errors.append(f"{icons[p]} **{p.upper()}:** {result}")
+        if rows:
+            table = "| Provider | Type | Name | State |\n|---|---|---|---|\n"
+            table += "\n".join(f"| {p} | {t} | {n} | {s} |" for p, t, n, s in rows)
+            answer = f"🧩 **Managed/Serverless Services ({len(rows)} found):**\n\n{table}"
+            if errors:
+                answer += "\n\n" + "\n".join(errors)
+        elif errors:
+            answer = "🧩 **Managed/Serverless Services:**\n\n" + "\n".join(errors)
+        else:
+            answer = f"No managed/serverless services found on {', '.join(p.upper() for p in target)}."
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"🧩 Services Inventory: {len(rows)} Found", "url": "#"}
+
+    elif wants_cost:
+        target = providers if providers else ["aws", "oci", "azure"]
+        tasks[task_id]["logs"].append(f"[00:01] 💰 Querying cost/billing on: {', '.join(p.upper() for p in target)}...")
+        lines, numeric = [], []
+        for p in target:
+            if p not in cost_fn:
+                lines.append(f"{icons[p]} **{p.upper()}:** Cost querying not implemented for this provider yet.")
+                continue
+            result = await loop.run_in_executor(None, cost_fn[p])
+            if isinstance(result, dict):
+                numeric.append((p, result["total"], result["unit"]))
+                lines.append(f"{icons[p]} **{p.upper()}:** {result['total']:.2f} {result['unit']} ({result['period']})")
+            else:
+                lines.append(f"{icons[p]} **{p.upper()}:** {result}")
+        header = ""
+        if len(numeric) > 1:
+            currencies = {c for _, _, c in numeric}
+            if len(currencies) == 1:
+                total = sum(a for _, a, _ in numeric)
+                header = f"💰 **Total Spend: {total:.2f} {currencies.pop()}**\n\n"
+            else:
+                header = "💰 **Cost Summary (currencies differ — shown per provider, not summed):**\n\n"
+        tasks[task_id]["answer"] = header + "\n".join(lines)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "💰 Cost & Billing Summary", "url": "#"}
+
+    elif wants_storage:
+        target = providers if providers else ["aws", "oci"]
+        tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
+        lines, total = [], 0
+        for p in target:
+            if p not in storage_fn:
+                lines.append(f"{icons[p]} **{p.upper()}:** Storage querying not implemented for this provider yet.")
+                continue
+            result = await loop.run_in_executor(None, storage_fn[p])
+            if isinstance(result, list):
+                total += len(result)
+                lines.append(f"{icons[p]} **{p.upper()} ({len(result)}):** " + (", ".join(result) if result else "None"))
+            else:
+                lines.append(f"{icons[p]} **{p.upper()}:** {result}")
+        tasks[task_id]["answer"] = f"Storage inventory ({total} bucket(s) found):\n" + "\n".join(lines)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📦 Storage Inventory", "url": "#"}
+
+    else:  # wants_compute
+        target = providers or ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🌐 Querying compute instances on: {', '.join(p.upper() for p in target)}...")
+        results = {p: await loop.run_in_executor(None, compute_fn[p]) for p in target}
+        total = sum(len(r) for r in results.values() if isinstance(r, list))
+        if len(target) == 1:
+            p = target[0]
+            r = results[p]
+            if isinstance(r, list):
+                for inst in r:
+                    tasks[task_id]["logs"].append(f"   • {compute_fmt[p](inst)}")
+                tasks[task_id]["answer"] = f"You currently have {len(r)} instance(s) on {names[p]}:\n" + "\n".join(f"• {compute_fmt[p](i)}" for i in r)
+            else:
+                tasks[task_id]["answer"] = str(r)
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"{icons[p]} {names[p]} Query: {total} Instance(s)", "url": "#"}
+        else:
+            tasks[task_id]["logs"].append(
+                f"[00:02] ✓ Multi-Cloud Inventory: " +
+                ", ".join(f"{len(results[p]) if isinstance(results[p], list) else 0} {p.upper()}" for p in target) +
+                f" ({total} Total)."
+            )
+            ans = f"🌐 **Total Instances Across {len(target)} Cloud(s): {total}**\n\n"
+            for p in target:
+                r = results[p]
+                count = len(r) if isinstance(r, list) else 0
+                ans += f"{icons[p]} **{names[p]} ({count}):**\n"
+                ans += ("\n".join(f"• {compute_fmt[p](i)}" for i in r) if isinstance(r, list) and r else "• None") + "\n\n"
+            tasks[task_id]["answer"] = ans.strip()
+            tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {total} Total", "url": "#"}
+
+    tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
+    tasks[task_id]["status"] = "COMPLETED"
+    return True
+
 async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     await asyncio.sleep(0.2)
@@ -2894,14 +3051,20 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["status"] = "COMPLETED"
 
 async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
-    """Entry point: try the fast, fixed-toolset Gemini router first — one API
-    call plus a direct SDK function, no CLI/MCP bootstrap — for anything it
-    already has a tool for (cost/compute/storage queries, image-based deal
-    finding, food/price comparisons). Escalate to the Antigravity CLI agent
-    (agy) — slower, but with its own much broader MCP toolset for everything
-    else — only when Gemini has no matching tool or is unavailable. Fall back
-    to Gemini's own direct-answer mode, then the fixed keyword router, if agy
-    itself errors out, so a missing binary or a bad run doesn't break the app."""
+    """Entry point, cheapest tier first:
+    1. try_instant_cloud_query — zero dependency, no LLM round trip at all,
+       for unambiguous read-only cost/compute/storage/service queries.
+    2. The fast, fixed-toolset Gemini router — one API call plus a direct
+       SDK function, no CLI/MCP bootstrap — for anything else it already
+       has a tool for (image-based deal finding, food/price comparisons).
+    3. The Antigravity CLI agent (agy) — slower, but with its own much
+       broader MCP toolset — for everything neither tier above can handle
+       (creates/deletes, bookings, anything needing agy's own MCP servers).
+    4. Gemini's own direct-answer mode, then the fixed keyword router, if
+       agy itself errors out, so a missing binary or a bad run doesn't
+       break the app."""
+    if not image_data and await try_instant_cloud_query(task_id, prompt):
+        return
     try:
         await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, allow_no_match=False)
     except Exception as e:
