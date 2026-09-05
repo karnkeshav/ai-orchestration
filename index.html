@@ -866,6 +866,8 @@
     let attachedImageData = null;
     let currentCategory = "all";
     let activityStageIndex = 0;
+    let activeEventSource = null;
+    let activeSimInterval = null;
     let currentLang = localStorage.getItem('aios_lang') || 'en';
 
     const STAGE_KEYS = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
@@ -1363,6 +1365,19 @@
       const answerContent = document.getElementById("answerContent");
       const technicalLogs = document.getElementById("technicalLogs");
 
+      // Firing a new command while a previous one is still streaming used to
+      // leave both EventSources writing into these same shared elements —
+      // the old stream's stage updates and the new one's interleaved, which
+      // is what made progress look stuck. Cut the old stream off first.
+      if (activeEventSource) {
+        activeEventSource.close();
+        activeEventSource = null;
+      }
+      if (activeSimInterval) {
+        clearInterval(activeSimInterval);
+        activeSimInterval = null;
+      }
+
       // Progress + Result show up right below the chatbox automatically —
       // no need to click the (hidden, technical) Activity tab for this.
       progressSection.style.display = "block";
@@ -1393,8 +1408,10 @@
         const data = await resp.json();
 
         const eventSource = new EventSource(CLOUD_BACKEND_URL + "/api/stream/" + data.task_id);
+        activeEventSource = eventSource;
 
         eventSource.onmessage = function(event) {
+          if (eventSource !== activeEventSource) return; // superseded by a newer command — ignore stale events
           const resPayload = JSON.parse(event.data);
           if (resPayload.log && resPayload.log !== "[DONE] Finished") {
             pushFriendlyStage(progressLogs, statusText);
@@ -1408,6 +1425,7 @@
 
           if (resPayload.status === "COMPLETED") {
             eventSource.close();
+            activeEventSource = null;
             markMissionAccomplished(progressLogs, statusText);
             pushTechnicalLog(technicalLogs, "[DONE] Task completed");
             showToast(t('toastExecutionCompleted'));
@@ -1416,6 +1434,8 @@
 
         eventSource.onerror = function() {
           eventSource.close();
+          if (eventSource !== activeEventSource) return; // superseded by a newer command — ignore stale events
+          activeEventSource = null;
           if (resultSection.style.display !== "block" || statusText.innerText !== t('missionAccomplishedStatus')) {
             statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
             statusText.style.color = "var(--accent-rose)";
@@ -1432,12 +1452,14 @@
       let i = 0;
       const totalSteps = STAGE_KEYS.length;
       const interval = setInterval(() => {
+        if (interval !== activeSimInterval) { clearInterval(interval); return; } // superseded by a newer command
         if (i < totalSteps) {
           pushFriendlyStage(logsBox, statusText);
           pushTechnicalLog(technicalLogs, `[offline-sim] step ${i + 1}/${totalSteps}`);
           i++;
         } else {
           clearInterval(interval);
+          activeSimInterval = null;
           markMissionAccomplished(logsBox, statusText);
           pushTechnicalLog(technicalLogs, "[offline-sim] [DONE] Task completed");
           resultSection.style.display = "block";
@@ -1445,6 +1467,7 @@
           showToast(t('toastDone'));
         }
       }, 800);
+      activeSimInterval = interval;
     }
 
     // Appends the next generic, non-technical progress stage (never the
