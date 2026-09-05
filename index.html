@@ -866,7 +866,12 @@
     let attachedImageData = null;
     let currentCategory = "all";
     let activityStageIndex = 0;
-    let activeEventSource = null;
+    // Identity token for the currently-"active" (visibly rendered) command.
+    // Not an EventSource anymore — see executeMission() for why this moved
+    // from SSE to short polling — just a unique object compared by
+    // reference so a superseded command's own poll loop can tell it's no
+    // longer the one allowed to touch the shared progress UI.
+    let activePollToken = null;
     let activeSimInterval = null;
     let currentLang = localStorage.getItem('aios_lang') || 'en';
 
@@ -1365,17 +1370,18 @@
       const answerContent = document.getElementById("answerContent");
       const technicalLogs = document.getElementById("technicalLogs");
 
-      // Firing a new command while a previous one is still streaming used to
-      // leave both EventSources writing into these same shared elements —
-      // the old stream's stage updates and the new one's interleaved, which
-      // is what made progress look stuck. Stop treating the old one as
-      // "active" so it can't touch this shared UI — but let it keep running
-      // in the background rather than closing it outright: closing it here
-      // silently threw away a real, already-in-flight task's completion
-      // (confirmed live: a delete-instance command fired right after another
-      // one actually finished and deleted the VM, but its confirmation was
-      // discarded because a newer command had already superseded it).
-      activeEventSource = null;
+      // Firing a new command while a previous one is still polling used to
+      // leave both loops writing into these same shared elements — the old
+      // one's stage updates and the new one's interleaved, which is what
+      // made progress look stuck. Retiring the old token stops it from
+      // touching this shared UI, but its poll loop keeps running in the
+      // background rather than being cancelled outright: cancelling it here
+      // would silently throw away a real, already-in-flight task's
+      // completion (confirmed live: a delete-instance command fired right
+      // after another one actually finished and deleted the VM, but its
+      // confirmation was discarded because a newer command had already
+      // superseded it).
+      activePollToken = null;
       activeSimInterval = null;
 
       // Progress + Result show up right below the chatbox automatically —
@@ -1407,18 +1413,46 @@
         if (!resp.ok) throw new Error("Cloud backend not reachable");
         const data = await resp.json();
 
-        const eventSource = new EventSource(CLOUD_BACKEND_URL + "/api/stream/" + data.task_id);
-        activeEventSource = eventSource;
+        // Short-polling instead of one long-lived SSE connection: the app is
+        // served through a Cloudflare quick tunnel (trycloudflare.com),
+        // which kills any single connection held open too long. A real agy
+        // task can easily run several minutes (confirmed live: a Cosmos DB
+        // populate script), so the old SSE stream got silently severed by
+        // the tunnel well before the backend actually finished. Polling
+        // every ~1.5s means no single request is ever open long enough for
+        // a connection-duration limit to touch it.
+        const pollToken = {};
+        activePollToken = pollToken;
+        let sinceIdx = 0;
+        let failedAttempts = 0;
 
-        eventSource.onmessage = function(event) {
-          const isActive = eventSource === activeEventSource;
-          const resPayload = JSON.parse(event.data);
+        const poll = async () => {
+          const isActive = pollToken === activePollToken;
+          let resPayload;
+          try {
+            const pollResp = await fetch(`${CLOUD_BACKEND_URL}/api/status/${data.task_id}?since=${sinceIdx}`);
+            if (!pollResp.ok) throw new Error(`status ${pollResp.status}`);
+            resPayload = await pollResp.json();
+            failedAttempts = 0;
+          } catch (err) {
+            failedAttempts++;
+            if (failedAttempts < 4) { setTimeout(poll, 1500); return; } // transient blip — retry a few times before giving up
+            if (!isActive) return; // a superseded poll loop dropping isn't worth alarming about
+            statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
+            statusText.style.color = "var(--accent-rose)";
+            showToast("⚠️ Connection lost before the task finished.");
+            return;
+          }
+
+          sinceIdx = resPayload.next_since ?? sinceIdx;
 
           if (isActive) {
-            if (resPayload.log && resPayload.log !== "[DONE] Finished") {
-              pushFriendlyStage(progressLogs, statusText);
-              pushTechnicalLog(technicalLogs, resPayload.log);
-            }
+            (resPayload.logs || []).forEach(log => {
+              if (log !== "[DONE] Finished") {
+                pushFriendlyStage(progressLogs, statusText);
+                pushTechnicalLog(technicalLogs, log);
+              }
+            });
             if (resPayload.answer) {
               resultSection.style.display = "block";
               answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
@@ -1426,9 +1460,8 @@
           }
 
           if (resPayload.status === "COMPLETED") {
-            eventSource.close();
             if (isActive) {
-              activeEventSource = null;
+              activePollToken = null;
               markMissionAccomplished(progressLogs, statusText);
               pushTechnicalLog(technicalLogs, "[DONE] Task completed");
               showToast(t('toastExecutionCompleted'));
@@ -1438,19 +1471,12 @@
               // instead of discarding it silently.
               showToast(`${t('toastExecutionCompleted')} — "${prompt.slice(0, 40)}"`);
             }
+            return; // stop polling
           }
+          if (resPayload.status === "NOT_FOUND") return; // stop polling — nothing left to check
+          setTimeout(poll, 1500);
         };
-
-        eventSource.onerror = function() {
-          eventSource.close();
-          if (eventSource !== activeEventSource) return; // a superseded stream dropping isn't worth alarming about
-          activeEventSource = null;
-          if (resultSection.style.display !== "block" || statusText.innerText !== t('missionAccomplishedStatus')) {
-            statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
-            statusText.style.color = "var(--accent-rose)";
-            showToast("⚠️ Connection lost before the task finished.");
-          }
-        };
+        poll();
       } catch (err) {
         pushTechnicalLog(technicalLogs, `Cloud backend unreachable, using offline simulation: ${err.message}`);
         simulateExecution(prompt, progressLogs, statusText, resultSection, answerContent, technicalLogs);

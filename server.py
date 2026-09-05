@@ -3129,6 +3129,31 @@ async def stream(task_id: str):
             await asyncio.sleep(0.2)
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
+@app.get("/api/status/{task_id}")
+def task_status(task_id: str, since: int = 0):
+    """One-shot status check, deliberately NOT a long-lived streaming
+    response — /api/stream above is a single HTTP connection held open
+    until the task completes, and the app is served through a Cloudflare
+    quick tunnel (trycloudflare.com), which kills any connection that
+    stays open too long. A genuinely slow agy task (confirmed live: a
+    Cosmos DB populate script still running 3+ minutes in) outlives that
+    limit, so the tunnel silently drops the SSE connection while the task
+    keeps working fine on the backend -- the frontend just never finds
+    out. Polling this endpoint every couple seconds instead means no
+    single request is ever open longer than a fraction of a second, so
+    there's nothing for a connection-duration limit to kill."""
+    if task_id not in tasks:
+        return {"error": "Task not found", "status": "NOT_FOUND"}
+    task = tasks[task_id]
+    new_logs = task["logs"][since:]
+    return {
+        "status": task["status"],
+        "logs": new_logs,
+        "next_since": len(task["logs"]),
+        "answer": task["answer"],
+        "deliverable": task["deliverable"],
+    }
+
 
 
 @app.post("/ask-gcp")
