@@ -1368,15 +1368,15 @@
       // Firing a new command while a previous one is still streaming used to
       // leave both EventSources writing into these same shared elements —
       // the old stream's stage updates and the new one's interleaved, which
-      // is what made progress look stuck. Cut the old stream off first.
-      if (activeEventSource) {
-        activeEventSource.close();
-        activeEventSource = null;
-      }
-      if (activeSimInterval) {
-        clearInterval(activeSimInterval);
-        activeSimInterval = null;
-      }
+      // is what made progress look stuck. Stop treating the old one as
+      // "active" so it can't touch this shared UI — but let it keep running
+      // in the background rather than closing it outright: closing it here
+      // silently threw away a real, already-in-flight task's completion
+      // (confirmed live: a delete-instance command fired right after another
+      // one actually finished and deleted the VM, but its confirmation was
+      // discarded because a newer command had already superseded it).
+      activeEventSource = null;
+      activeSimInterval = null;
 
       // Progress + Result show up right below the chatbox automatically —
       // no need to click the (hidden, technical) Activity tab for this.
@@ -1411,30 +1411,39 @@
         activeEventSource = eventSource;
 
         eventSource.onmessage = function(event) {
-          if (eventSource !== activeEventSource) return; // superseded by a newer command — ignore stale events
+          const isActive = eventSource === activeEventSource;
           const resPayload = JSON.parse(event.data);
-          if (resPayload.log && resPayload.log !== "[DONE] Finished") {
-            pushFriendlyStage(progressLogs, statusText);
-            pushTechnicalLog(technicalLogs, resPayload.log);
-          }
 
-          if (resPayload.answer) {
-            resultSection.style.display = "block";
-            answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+          if (isActive) {
+            if (resPayload.log && resPayload.log !== "[DONE] Finished") {
+              pushFriendlyStage(progressLogs, statusText);
+              pushTechnicalLog(technicalLogs, resPayload.log);
+            }
+            if (resPayload.answer) {
+              resultSection.style.display = "block";
+              answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+            }
           }
 
           if (resPayload.status === "COMPLETED") {
             eventSource.close();
-            activeEventSource = null;
-            markMissionAccomplished(progressLogs, statusText);
-            pushTechnicalLog(technicalLogs, "[DONE] Task completed");
-            showToast(t('toastExecutionCompleted'));
+            if (isActive) {
+              activeEventSource = null;
+              markMissionAccomplished(progressLogs, statusText);
+              pushTechnicalLog(technicalLogs, "[DONE] Task completed");
+              showToast(t('toastExecutionCompleted'));
+            } else {
+              // Superseded by a newer command, but this one still genuinely
+              // finished (and may have taken a real action) — surface that
+              // instead of discarding it silently.
+              showToast(`${t('toastExecutionCompleted')} — "${prompt.slice(0, 40)}"`);
+            }
           }
         };
 
         eventSource.onerror = function() {
           eventSource.close();
-          if (eventSource !== activeEventSource) return; // superseded by a newer command — ignore stale events
+          if (eventSource !== activeEventSource) return; // a superseded stream dropping isn't worth alarming about
           activeEventSource = null;
           if (resultSection.style.display !== "block" || statusText.innerText !== t('missionAccomplishedStatus')) {
             statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
