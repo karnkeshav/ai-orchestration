@@ -2663,6 +2663,34 @@ class AgyWarmSession:
                 if time.monotonic() - self.last_used > WARM_IDLE_TIMEOUT_SECONDS:
                     await self._kill()
 
+    async def _drain_stale_output(self, task_id: str):
+        """Discard any bytes already sitting in the process's stdout buffer
+        before starting a new turn.
+
+        _read_turn() below returns the instant it sees the *first* "result"
+        event for a turn — but agy can emit more than one result-shaped event
+        per turn (observed live: a turn came back SUCCESS with zero step_update
+        events in between, which only happens if the very first line read was
+        actually a leftover from the *previous* turn). Whatever's left unread
+        after a turn completes would otherwise sit in the pipe and get handed
+        to the next, completely unrelated caller as if it were their answer —
+        confirmed live: a "list my OCI instances" request came back reporting
+        an unrelated Cosmos DB deletion from an earlier turn. Draining here
+        guarantees every turn starts reading from a clean stream."""
+        drained = 0
+        while True:
+            try:
+                raw_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=0.05)
+            except asyncio.TimeoutError:
+                break
+            if not raw_line:
+                break
+            drained += 1
+        if drained:
+            tasks[task_id]["logs"].append(
+                f"[00:01] ⚠️ Discarded {drained} stale line(s) left over from a previous Antigravity turn"
+            )
+
     async def run_turn(self, full_prompt: str, task_id: str):
         """Runs one instruction on the warm process (spawning it first if cold).
         Streams step_update/result events into tasks[task_id]["logs"] the same
@@ -2688,6 +2716,8 @@ class AgyWarmSession:
             # request — were all rejected as unsupported), and its payload key
             # is specifically "message" (error: 'stream input "user" message is
             # missing the "message" field'), not the event name mirrored.
+            await self._drain_stale_output(task_id)
+
             message = json.dumps({"event": "user", "message": {"role": "user", "content": full_prompt}}) + "\n"
             try:
                 proc.stdin.write(message.encode("utf-8"))
