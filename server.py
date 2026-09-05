@@ -2058,7 +2058,7 @@ _GEMINI_SYSTEM_INSTRUCTION = (
     "Never fabricate cloud resource data, costs, or repository details yourself; only report what a tool actually returns."
 )
 
-async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", allow_no_match: bool = True):
     loop = asyncio.get_event_loop()
     client = _gemini_client()
     if client is None:
@@ -2102,6 +2102,12 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     text_parts = [p.text for p in parts if getattr(p, "text", None)]
 
     if not function_calls:
+        if not allow_no_match:
+            # Fast-path attempt only, called from run_pipeline before agy — this
+            # narrow fixed toolset doesn't cover the request, so escalate to the
+            # slower but far more capable Antigravity CLI agent instead of
+            # settling for Gemini's own general-knowledge guess.
+            raise RuntimeError("no matching fast-path tool for this prompt")
         answer = "\n".join(t for t in text_parts if t) or "I couldn't determine how to answer that — try rephrasing."
         tasks[task_id]["logs"].append("[00:02] 💬 No matching tool — answering directly.")
         tasks[task_id]["answer"] = answer
@@ -2888,25 +2894,36 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["status"] = "COMPLETED"
 
 async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
-    """Entry point: try the Antigravity CLI agent first (real tool access via its
-    own configured MCP servers, including Power Automate); fall back to the
-    Gemini intent router, then the fixed keyword router, if agy is unreachable
-    or errors out, so a missing binary or a bad run doesn't break the app."""
+    """Entry point: try the fast, fixed-toolset Gemini router first — one API
+    call plus a direct SDK function, no CLI/MCP bootstrap — for anything it
+    already has a tool for (cost/compute/storage queries, image-based deal
+    finding, food/price comparisons). Escalate to the Antigravity CLI agent
+    (agy) — slower, but with its own much broader MCP toolset for everything
+    else — only when Gemini has no matching tool or is unavailable. Fall back
+    to Gemini's own direct-answer mode, then the fixed keyword router, if agy
+    itself errors out, so a missing binary or a bad run doesn't break the app."""
     try:
-        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, allow_no_match=False)
     except Exception as e:
-        tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e)}), falling back to Gemini router...")
+        tasks[task_id]["logs"].append(f"[00:01] ℹ️ No fast-path match ({str(e)}), escalating to Antigravity CLI agent...")
         tasks[task_id]["status"] = "PROCESSING"
         tasks[task_id]["answer"] = None
         tasks[task_id]["deliverable"] = None
         try:
-            await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
         except Exception as e2:
-            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e2)}), falling back to keyword routing...")
+            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e2)}), falling back to Gemini direct-answer...")
             tasks[task_id]["status"] = "PROCESSING"
             tasks[task_id]["answer"] = None
             tasks[task_id]["deliverable"] = None
-            await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            try:
+                await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            except Exception as e3:
+                tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e3)}), falling back to keyword routing...")
+                tasks[task_id]["status"] = "PROCESSING"
+                tasks[task_id]["answer"] = None
+                tasks[task_id]["deliverable"] = None
+                await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
 
 @app.get("/api/health")
 def health():
