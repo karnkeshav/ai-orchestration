@@ -987,7 +987,8 @@ This project is open-source and available under the [MIT License](LICENSE).
 async def create_and_deploy_app(
     prompt: str,
     custom_title: Optional[str] = None,
-    log_callback: Optional[Callable[[str], None]] = None
+    log_callback: Optional[Callable[[str], None]] = None,
+    on_log: Optional[Callable[[str], None]] = None
 ) -> Dict[str, Any]:
     """Autonomous end-to-end pipeline:
     1. Parse user concept and determine title & slug
@@ -997,9 +998,10 @@ async def create_and_deploy_app(
     5. Enable GitHub Pages live hosting and verify live URL
     6. Return formatted deliverable with clickable links
     """
+    callback = on_log or log_callback
     def log(msg: str):
-        if log_callback:
-            log_callback(msg)
+        if callback:
+            callback(msg)
         print(f"[AppBuilder] {msg}")
 
     log(f"[00:01] ⚡ Directive received: '{prompt[:60]}...'")
@@ -1008,22 +1010,33 @@ async def create_and_deploy_app(
     p_lower = prompt.lower()
     if custom_title:
         app_title = custom_title
-    elif "crypto" in p_lower or "trading" in p_lower:
+    elif "elect" in p_lower or "gadget" in p_lower or "phone" in p_lower or "laptop" in p_lower or "hardware" in p_lower:
+        app_title = "VoltNexus - Electronics & Smart Hardware Command"
+    elif "crypto" in p_lower or "trading" in p_lower or "token" in p_lower or "wallet" in p_lower:
         app_title = "Aetherius - Autonomous Crypto & Liquidity Terminal"
-    elif "finops" in p_lower or "cloud cost" in p_lower:
+    elif "finops" in p_lower or "cloud cost" in p_lower or "finance" in p_lower:
         app_title = "CloudMatrix - Multi-Cloud FinOps & Cost Intelligence"
-    elif "ecommerce" in p_lower or "shopping" in p_lower or "deal" in p_lower:
+    elif "ecommerce" in p_lower or "shopping" in p_lower or "shop" in p_lower or "store" in p_lower or "deal" in p_lower:
         app_title = "DealSphere - Multi-Platform Best Price Arbitrage Engine"
-    elif "task" in p_lower or "todo" in p_lower or "project" in p_lower:
+    elif "task" in p_lower or "todo" in p_lower or "project" in p_lower or "sprint" in p_lower:
         app_title = "NexusFlow - AI Orchestrated Task & Sprint Studio"
     elif "portfolio" in p_lower or "resume" in p_lower:
         app_title = "Karn Keshav - Executive AI & Cloud Architecture Portfolio"
-    elif "restaurant" in p_lower or "food" in p_lower:
+    elif "restaurant" in p_lower or "food" in p_lower or "recipe" in p_lower or "swiggy" in p_lower or "zomato" in p_lower:
         app_title = "GourmetPulse - AI Food Arbitrage & Kitchen Command"
-    elif "fitness" in p_lower or "workout" in p_lower:
+    elif "fitness" in p_lower or "workout" in p_lower or "gym" in p_lower or "health" in p_lower:
         app_title = "PulseFit - Intelligent Biometric & Workout Command"
+    elif "travel" in p_lower or "flight" in p_lower or "hotel" in p_lower or "ride" in p_lower or "cab" in p_lower or "uber" in p_lower:
+        app_title = "VoyageGrid - Autonomous Multi-Modal Travel & Transit Hub"
+    elif "media" in p_lower or "video" in p_lower or "movie" in p_lower or "stream" in p_lower or "clip" in p_lower:
+        app_title = "StreamPulse - AI Video Intelligence & Media Studio"
     else:
-        app_title = "Aetherius - Autonomous Cloud & AI Command Studio"
+        m = re.search(r'(?:website|app|dashboard|portal)\s+(?:for|about)\s+([^•\n,]+)', prompt, re.IGNORECASE)
+        if m:
+            clean_sub = m.group(1).strip().title()
+            app_title = f"{clean_sub} - Autonomous Stitch Studio"
+        else:
+            app_title = "Aetherius - Autonomous Cloud & AI Command Studio"
 
     app_slug = clean_slug(app_title)
     repo_name = app_slug
@@ -1293,4 +1306,8 @@ This application is automatically built, committed to `main`, and deployed on **
         "markdown": markdown_answer,
         "deliverable": deliverable
     }
+
+# Function alias for backwards compatibility and uniform naming
+build_and_deploy_stitch_app = create_and_deploy_app
+
 

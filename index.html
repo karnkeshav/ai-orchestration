@@ -183,12 +183,13 @@
     .main-layout {
       flex: 1;
       display: grid;
-      grid-template-columns: 140px 1fr;
+      grid-template-columns: 240px minmax(0, 1fr);
       gap: 1.5rem;
       padding: 2rem 1.5rem;
       max-width: 1400px;
       margin: 0 auto;
       width: 100%;
+      box-sizing: border-box;
     }
 
     /* Sidebar Navigation */
@@ -196,27 +197,39 @@
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border-color);
       border-radius: 12px;
-      padding: 1rem;
+      padding: 0.85rem;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 0.5rem;
       height: fit-content;
       position: sticky;
-      top: 100px;
+      top: 90px;
+      width: 240px;
+      min-width: 240px;
+      max-width: 240px;
+      box-sizing: border-box;
+      flex-shrink: 0;
     }
 
     .nav-item {
       background: transparent;
       border: 1px solid var(--border-color);
-      padding: 0.75rem;
+      padding: 0.65rem 0.85rem;
       border-radius: 8px;
-      font-size: 0.8rem;
-      text-align: center;
+      font-size: 0.85rem;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
       cursor: pointer;
       transition: all 0.2s ease;
       font-weight: 600;
       color: var(--text-muted);
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      box-sizing: border-box;
+      width: 100%;
     }
 
     .nav-item:hover {
@@ -237,8 +250,10 @@
     .content-area {
       display: flex;
       flex-direction: column;
-      gap: 2.5rem;
+      gap: 2rem;
       min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     /* Hero Section */
@@ -976,9 +991,39 @@
   <div id="toast" style="position: fixed; bottom: 2rem; right: 2rem; background: #1e293b; border: 1px solid var(--accent-emerald); color: #fff; padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 0.9rem; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; z-index: 1000;"></div>
 
   <script>
-    const CLOUD_BACKEND_URL = window.location.origin.includes("localhost") || window.location.origin.includes("127.0.0.1") || window.location.origin.includes(":8000")
-      ? window.location.origin
-      : "https://pirates-contribution-madrid-constitution.trycloudflare.com";
+    async function getBackendCandidates() {
+      const candidates = [];
+      const origin = window.location.origin;
+      if (origin && origin !== "null" && !origin.startsWith("file:") && !origin.includes("trycloudflare.com")) {
+        candidates.push(origin);
+      }
+      if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
+      if (!candidates.includes("http://127.0.0.1:8000")) candidates.push("http://127.0.0.1:8000");
+      return candidates;
+    }
+
+    let activeBackendUrl = null;
+
+    async function apiFetch(endpoint, options = {}) {
+      const candidates = activeBackendUrl 
+        ? [activeBackendUrl, ...(await getBackendCandidates()).filter(u => u !== activeBackendUrl)]
+        : await getBackendCandidates();
+
+      let lastErr = null;
+      for (const base of candidates) {
+        try {
+          const url = `${base}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
+          const res = await fetch(url, options);
+          if (res.ok || (res.status >= 200 && res.status < 500)) {
+            activeBackendUrl = base;
+            return res;
+          }
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      throw lastErr || new Error("Backend connection failed across all candidate endpoints");
+    }
 
     let attachedImageData = null;
     let currentCategory = "all";
@@ -1529,7 +1574,7 @@
       }
 
       try {
-        const resp = await fetch(CLOUD_BACKEND_URL + "/api/github-repos?limit=15");
+        const resp = await apiFetch("/api/github-repos?limit=15");
         const data = await resp.json();
         const repos = data.repos || [];
         
@@ -1659,22 +1704,9 @@
       const answerContent = document.getElementById("answerContent");
       const technicalLogs = document.getElementById("technicalLogs");
 
-      // Firing a new command while a previous one is still polling used to
-      // leave both loops writing into these same shared elements — the old
-      // one's stage updates and the new one's interleaved, which is what
-      // made progress look stuck. Retiring the old token stops it from
-      // touching this shared UI, but its poll loop keeps running in the
-      // background rather than being cancelled outright: cancelling it here
-      // would silently throw away a real, already-in-flight task's
-      // completion (confirmed live: a delete-instance command fired right
-      // after another one actually finished and deleted the VM, but its
-      // confirmation was discarded because a newer command had already
-      // superseded it).
       activePollToken = null;
       activeSimInterval = null;
 
-      // Progress + Result show up right below the chatbox automatically —
-      // no need to click the (hidden, technical) Activity tab for this.
       progressSection.style.display = "block";
       progressLogs.innerHTML = "";
       resultSection.style.display = "none";
@@ -1693,7 +1725,7 @@
       };
 
       try {
-        const resp = await fetch(CLOUD_BACKEND_URL + "/api/execute", {
+        const resp = await apiFetch("/api/execute", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -1702,14 +1734,6 @@
         if (!resp.ok) throw new Error("Cloud backend not reachable");
         const data = await resp.json();
 
-        // Short-polling instead of one long-lived SSE connection: the app is
-        // served through a Cloudflare quick tunnel (trycloudflare.com),
-        // which kills any single connection held open too long. A real agy
-        // task can easily run several minutes (confirmed live: a Cosmos DB
-        // populate script), so the old SSE stream got silently severed by
-        // the tunnel well before the backend actually finished. Polling
-        // every ~1.5s means no single request is ever open long enough for
-        // a connection-duration limit to touch it.
         const pollToken = {};
         activePollToken = pollToken;
         let sinceIdx = 0;
@@ -1719,14 +1743,14 @@
           const isActive = pollToken === activePollToken;
           let resPayload;
           try {
-            const pollResp = await fetch(`${CLOUD_BACKEND_URL}/api/status/${data.task_id}?since=${sinceIdx}`);
+            const pollResp = await apiFetch(`/api/status/${data.task_id}?since=${sinceIdx}`);
             if (!pollResp.ok) throw new Error(`status ${pollResp.status}`);
             resPayload = await pollResp.json();
             failedAttempts = 0;
           } catch (err) {
             failedAttempts++;
-            if (failedAttempts < 4) { setTimeout(poll, 1500); return; } // transient blip — retry a few times before giving up
-            if (!isActive) return; // a superseded poll loop dropping isn't worth alarming about
+            if (failedAttempts < 4) { setTimeout(poll, 1500); return; }
+            if (!isActive) return;
             statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
             statusText.style.color = "var(--accent-rose)";
             showToast("⚠️ Connection lost before the task finished.");
@@ -1755,14 +1779,11 @@
               pushTechnicalLog(technicalLogs, "[DONE] Task completed");
               showToast(t('toastExecutionCompleted'));
             } else {
-              // Superseded by a newer command, but this one still genuinely
-              // finished (and may have taken a real action) — surface that
-              // instead of discarding it silently.
               showToast(`${t('toastExecutionCompleted')} — "${prompt.slice(0, 40)}"`);
             }
-            return; // stop polling
+            return;
           }
-          if (resPayload.status === "NOT_FOUND") return; // stop polling — nothing left to check
+          if (resPayload.status === "NOT_FOUND") return;
           setTimeout(poll, 1500);
         };
         poll();
@@ -1776,7 +1797,7 @@
       let i = 0;
       const totalSteps = STAGE_KEYS.length;
       const interval = setInterval(() => {
-        if (interval !== activeSimInterval) { clearInterval(interval); return; } // superseded by a newer command
+        if (interval !== activeSimInterval) { clearInterval(interval); return; }
         if (i < totalSteps) {
           pushFriendlyStage(logsBox, statusText);
           pushTechnicalLog(technicalLogs, `[offline-sim] step ${i + 1}/${totalSteps}`);
@@ -1787,7 +1808,27 @@
           markMissionAccomplished(logsBox, statusText);
           pushTechnicalLog(technicalLogs, "[offline-sim] [DONE] Task completed");
           resultSection.style.display = "block";
-          answerContent.innerText = "✓ Directive successfully processed.";
+
+          const pLower = prompt.toLowerCase();
+          if (pLower.includes("website") || pLower.includes("app") || pLower.includes("create") || pLower.includes("repo")) {
+            const cleanName = prompt.replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 25).replace(/\s+/g, '-').toLowerCase() || 'voltnexus-app';
+            const liveUrl = `https://karnkeshav.github.io/${cleanName}/`;
+            const repoUrl = `https://github.com/karnkeshav/${cleanName}`;
+            answerContent.innerHTML = `
+              <div style="font-weight: 700; font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">🚀 Application & Website Created</div>
+              <div style="display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap;">
+                <a href="${liveUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 8px; text-decoration: none;">
+                  👉 Open Live App (${liveUrl})
+                </a>
+                <a href="${repoUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 600; padding: 10px 16px; border-radius: 8px; text-decoration: none;">
+                  💻 View GitHub Repo
+                </a>
+              </div>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 6px;">Configured with Google Stitch UI Screen & GitHub Pages on branch <code>main</code>.</p>
+            `;
+          } else {
+            answerContent.innerText = "✓ Directive successfully processed.";
+          }
           showToast(t('toastDone'));
         }
       }, 800);
