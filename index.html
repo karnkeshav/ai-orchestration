@@ -560,6 +560,100 @@
       background: rgba(99, 102, 241, 0.1);
     }
 
+    /* Sidebar Sub-Panel & GitHub Repos */
+    .sidebar-sub-panel {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: 8px;
+      padding: 0.6rem;
+      margin: 0.25rem 0.25rem 0.5rem 0.25rem;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .sub-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      margin-bottom: 0.5rem;
+    }
+
+    .repo-list-container {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .repo-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.6rem;
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      font-size: 0.75rem;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .repo-item:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: var(--accent-indigo);
+      transform: translateX(2px);
+    }
+
+    .repo-name {
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 140px;
+    }
+
+    .repo-btn-modify {
+      font-size: 0.65rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(34, 211, 238, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(34, 211, 238, 0.3);
+      font-weight: 600;
+    }
+
+    .quick-chips-wrapper {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .quick-chip-btn {
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #c7d2fe;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .quick-chip-btn:hover {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: var(--accent-indigo);
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
     /* Mobile Overlay */
     .sidebar-overlay {
       display: none;
@@ -765,6 +859,20 @@
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
       <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
+      <button class="nav-item" id="navWebsitesBtn" data-i18n="navWebsites" onclick="filterCapabilities('websites', this)">🌐 Create Website</button>
+
+      <!-- GitHub Repos Sub-Panel mapped under Website / App creation -->
+      <div id="repoSubMenu" class="sidebar-sub-panel" style="display: none;">
+        <div class="sub-panel-header">
+          <span>🐙 My GitHub Repos</span>
+          <button type="button" onclick="loadUserGitHubRepos(true)" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem;" title="Refresh Repositories">🔄</button>
+        </div>
+        <div id="repoListContainer" class="repo-list-container">
+          <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;">Loading repositories...</div>
+        </div>
+      </div>
+
+      <button class="nav-item" data-i18n="navApps" onclick="filterCapabilities('apps', this)">🚀 Apps</button>
       <button class="nav-item" data-i18n="navShop" onclick="filterCapabilities('shop', this)">🛍️ Shop</button>
       <button class="nav-item" data-i18n="navFood" onclick="filterCapabilities('food', this)">🍲 Food</button>
       <button class="nav-item" data-i18n="navTravel" onclick="filterCapabilities('travel', this)">🚖 Travel</button>
@@ -797,6 +905,15 @@
               </div>
               <button onclick="removeAttachedImage()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;">✕</button>
             </div>
+          </div>
+
+          <!-- Quick Modifier Chips for Website & Repo Customization -->
+          <div id="quickChipsContainer" class="quick-chips-wrapper" style="display: none;">
+            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add a modern Dark/Light theme toggle switch with glowing accents')">✨ + Dark/Light Theme</button>
+            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add interactive Chart.js line and doughnut analytics charts with live telemetry')">📊 + Live Chart.js</button>
+            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add a searchable and filterable live data table with CSV export')">📋 + Data Table & CSV</button>
+            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Redesign hero section with Google Stitch Glassmorphism and animated badges')">🎨 + Hero Redesign</button>
+            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add interactive transaction modal form with instant submission feedback')">➕ + Action Modal</button>
           </div>
 
           <textarea id="promptText" class="prompt-textarea" data-i18n-placeholder="promptPlaceholder" placeholder="Ask a question, paste an image (Ctrl+V), or choose a capability from the left..."></textarea>
@@ -878,6 +995,16 @@
     const STAGE_KEYS = ['stage1', 'stage2', 'stage3', 'stage4', 'stage5'];
 
     const capabilities = {
+      websites: [
+        { icon: '🌐', title: 'Autonomous Website Creator', desc: 'Build & deploy any professional website with Google Stitch UI to GitHub Pages', category: 'websites', key: 'website-creator' },
+        { icon: '🎨', title: 'Modern AI SaaS Portal', desc: 'Glassmorphic dashboard with live telemetry, Chart.js & metrics', category: 'websites', key: 'website-ai-saas' },
+        { icon: '🏥', title: 'Healthcare Telemedicine App', desc: 'Patient booking portal with real-time queues & clinical metrics', category: 'websites', key: 'website-healthcare' },
+        { icon: '📈', title: 'Fintech & Wealth Command Hub', desc: 'Portfolio analytics, ledger feeds & transaction modals', category: 'websites', key: 'website-fintech' },
+      ],
+      apps: [
+        { icon: '🚀', title: 'Autonomous App Creator', desc: 'Build & deploy app with Google Stitch UI & GitHub Pages', category: 'apps', key: 'app-creator' },
+        { icon: '🎨', title: 'Google Stitch SaaS App', desc: 'Modern Glassmorphic UI Dashboard with live telemetry', category: 'apps', key: 'app-saas' },
+      ],
       shop: [
         { icon: '🛍️', title: 'Visual Best Deal Finder', desc: 'Upload photo or ask best deal across 5 platforms', category: 'shop', key: 'ecommerce-deals' },
         { icon: '🔐', title: 'Connected Accounts', desc: 'Check Prime, Swiggy One, Zomato Gold', category: 'shop', key: 'account-logins' },
@@ -909,6 +1036,12 @@
     };
 
     const prompts = {
+      'website-creator': "create a website",
+      'website-ai-saas': "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages.",
+      'website-healthcare': "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages.",
+      'website-fintech': "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages.",
+      'app-creator': "create an app",
+      'app-saas': "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages.",
       'ecommerce-deals': "Search and compare live prices for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal.",
       'account-logins': "Check login and membership status of all my connected accounts.",
       'food-paneer-butter-masala': "Where is paneer butter masala cheaper and faster to get? Compare Zomato and Swiggy.",
@@ -930,6 +1063,8 @@
         badgeCloudEngine: "Cloud Engine",
         statusOnline: "OCI Always-Free Cloud Online",
         navAll: "🌐 All",
+        navWebsites: "🌐 Create Website",
+        navApps: "🚀 Apps",
         navShop: "🛍️ Shop",
         navFood: "🍲 Food",
         navTravel: "🚖 Travel",
@@ -969,6 +1104,8 @@
         badgeCloudEngine: "क्लाउड इंजन",
         statusOnline: "OCI ऑलवेज़-फ्री क्लाउड ऑनलाइन",
         navAll: "🌐 सभी",
+        navWebsites: "🌐 वेबसाइट बनाएं",
+        navApps: "🚀 ऐप्स",
         navShop: "🛍️ शॉप",
         navFood: "🍲 फूड",
         navTravel: "🚖 ट्रैवल",
@@ -1008,6 +1145,8 @@
         badgeCloudEngine: "Motor Cloud",
         statusOnline: "OCI Always-Free Cloud En Línea",
         navAll: "🌐 Todo",
+        navWebsites: "🌐 Crear Sitio Web",
+        navApps: "🚀 Apps",
         navShop: "🛍️ Comprar",
         navFood: "🍲 Comida",
         navTravel: "🚖 Viajes",
@@ -1047,6 +1186,8 @@
         badgeCloudEngine: "క్లౌడ్ ఇంజిన్",
         statusOnline: "OCI ఆల్వేస్-ఫ్రీ క్లౌడ్ ఆన్‌లైన్",
         navAll: "🌐 అన్నీ",
+        navWebsites: "🌐 వెబ్‌సైట్ సృష్టించండి",
+        navApps: "🚀 యాప్‌లు",
         navShop: "🛍️ షాప్",
         navFood: "🍲 ఆహారం",
         navTravel: "🚖 ప్రయాణం",
@@ -1086,6 +1227,12 @@
 
     const capabilitiesTranslations = {
       en: {
+        'website-creator': { title: 'Autonomous Website Creator', desc: 'Build & deploy any professional website with Google Stitch UI to GitHub Pages', prompt: "create a website" },
+        'website-ai-saas': { title: 'Modern AI SaaS Portal', desc: 'Glassmorphic dashboard with live telemetry, Chart.js & metrics', prompt: "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages." },
+        'website-healthcare': { title: 'Healthcare Telemedicine App', desc: 'Patient booking portal with real-time queues & clinical metrics', prompt: "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages." },
+        'website-fintech': { title: 'Fintech & Wealth Command Hub', desc: 'Portfolio analytics, ledger feeds & transaction modals', prompt: "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages." },
+        'app-creator': { title: 'Autonomous App Creator', desc: 'Build & deploy app with Google Stitch UI & GitHub Pages', prompt: "create an app" },
+        'app-saas': { title: 'Google Stitch SaaS App', desc: 'Modern Glassmorphic UI Dashboard with live telemetry', prompt: "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages." },
         'ecommerce-deals': { title: 'Visual Best Deal Finder', desc: 'Upload photo or ask best deal across 5 platforms', prompt: "Search and compare live prices for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal." },
         'account-logins': { title: 'Connected Accounts', desc: 'Check Prime, Swiggy One, Zomato Gold', prompt: "Check login and membership status of all my connected accounts." },
         'food-paneer-butter-masala': { title: 'Zomato vs Swiggy', desc: 'Compare dish prices & delivery ETAs', prompt: "Where is paneer butter masala cheaper and faster to get? Compare Zomato and Swiggy." },
@@ -1102,6 +1249,12 @@
         'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." }
       },
       hi: {
+        'website-creator': { title: 'स्वायत्त वेबसाइट निर्माता', desc: 'Google Stitch UI और GitHub Pages के साथ पेशेवर वेबसाइट बनाएं और डिप्लॉय करें', prompt: "create a website" },
+        'website-ai-saas': { title: 'आधुनिक AI SaaS पोर्टल', desc: 'लाइव टेलीमेट्री, Chart.js और मेट्रिक्स के साथ ग्लासमोर्फिक डैशबोर्ड', prompt: "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages." },
+        'website-healthcare': { title: 'हेल्थकेयर टेलीमेडिसिन ऐप', desc: 'रीयल-टाइम कतारों और क्लिनिकल मेट्रिक्स के साथ रोगी बुकिंग पोर्टल', prompt: "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages." },
+        'website-fintech': { title: 'फिनटेक और वेल्थ कमांड हब', desc: 'पोर्टफोलियो एनालिटिक्स, लेज़र फीड और लेनदेन मोडल', prompt: "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages." },
+        'app-creator': { title: 'स्वायत्त ऐप निर्माता', desc: 'Google Stitch UI और GitHub Pages के साथ ऐप बनाएं और डिप्लॉय करें', prompt: "create an app" },
+        'app-saas': { title: 'Google Stitch SaaS ऐप', desc: 'लाइव टेलीमेट्री के साथ आधुनिक ग्लासमोर्फिक UI डैशबोर्ड', prompt: "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages." },
         'ecommerce-deals': { title: 'विज़ुअल बेस्ट डील फाइंडर', desc: 'फोटो अपलोड करें या 5 प्लेटफॉर्म पर सबसे अच्छी डील पूछें', prompt: "सबसे अच्छी डील खोजने के लिए Amazon, Flipkart, Blinkit, Zepto और Meesho पर boAt Rockerz 255 Pro+ की लाइव कीमतों की तुलना करें।" },
         'account-logins': { title: 'कनेक्टेड खाते', desc: 'Prime, Swiggy One, Zomato Gold की स्थिति जांचें', prompt: "मेरे सभी कनेक्टेड खातों की लॉगिन और मेंबरशिप स्थिति जांचें।" },
         'food-paneer-butter-masala': { title: 'ज़ोमैटो बनाम स्विगी', desc: 'डिश की कीमतें और डिलीवरी ETA की तुलना करें', prompt: "पनीर बटर मसाला कहां सस्ता और तेज़ मिलता है? Zomato और Swiggy की तुलना करें।" },
@@ -1118,6 +1271,12 @@
         'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्च की असामान्यताओं के लिए एक Power Automate फ्लो बनाएं।" }
       },
       es: {
+        'website-creator': { title: 'Creador Autónomo de Sitios Web', desc: 'Crea y despliega sitios profesionales con Google Stitch UI y GitHub Pages', prompt: "create a website" },
+        'website-ai-saas': { title: 'Portal SaaS con IA Moderna', desc: 'Panel Glassmorphism con telemetría en vivo, Chart.js y métricas', prompt: "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages." },
+        'website-healthcare': { title: 'App de Telemedicina y Salud', desc: 'Portal de citas médicas con colas en tiempo real y métricas clínicas', prompt: "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages." },
+        'website-fintech': { title: 'Centro de Comando Fintech y Patrimonio', desc: 'Análisis de cartera, flujos contables y modales de transacción', prompt: "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages." },
+        'app-creator': { title: 'Creador Autónomo de Apps', desc: 'Crea y despliega aplicaciones con Google Stitch UI y GitHub Pages', prompt: "create an app" },
+        'app-saas': { title: 'App SaaS Google Stitch', desc: 'Panel de control moderno con diseño Glassmorphism y telemetría en vivo', prompt: "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages." },
         'ecommerce-deals': { title: 'Buscador Visual de Mejores Ofertas', desc: 'Sube una foto o pregunta por la mejor oferta en 5 plataformas', prompt: "Busca y compara precios en vivo del boAt Rockerz 255 Pro+ en Amazon, Flipkart, Blinkit, Zepto y Meesho para encontrar la mejor oferta absoluta." },
         'account-logins': { title: 'Cuentas Conectadas', desc: 'Verifica Prime, Swiggy One, Zomato Gold', prompt: "Verifica el estado de inicio de sesión y membresía de todas mis cuentas conectadas." },
         'food-paneer-butter-masala': { title: 'Zomato vs Swiggy', desc: 'Compara precios de platos y tiempos de entrega', prompt: "¿Dónde es más barato y rápido conseguir paneer butter masala? Compara Zomato y Swiggy." },
@@ -1134,6 +1293,12 @@
         'm365-flow': { title: 'Power Automate', desc: 'Flujos en la nube, ChatOps de Teams, resúmenes de Outlook', prompt: "Construye un flujo de Power Automate para anomalías de gasto en la nube." }
       },
       te: {
+        'website-creator': { title: 'స్వయంప్రతిపత్త వెబ్‌సైట్ సృష్టికర్త', desc: 'Google Stitch UI & GitHub Pages తో ప్రొఫెషనల్ వెబ్‌సైట్‌ను రూపొందించి డిప్లాయ్ చేయండి', prompt: "create a website" },
+        'website-ai-saas': { title: 'ఆధునిక AI SaaS పోర్టల్', desc: 'లైవ్ టెలిమెట్రీ, Chart.js మరియు మెట్రిక్స్‌తో గ్లాస్‌మార్ఫిక్ డ్యాష్‌బోర్డ్', prompt: "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages." },
+        'website-healthcare': { title: 'హెల్త్‌కేర్ టెలిమెడిసిన్ యాప్', desc: 'రియల్-టైమ్ క్యూలు & క్లినికల్ మెట్రిక్స్‌తో పేషెంట్ బుకింగ్ పోర్టల్', prompt: "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages." },
+        'website-fintech': { title: 'ఫిన్‌టెక్ & వెల్త్ కమాండ్ హబ్', desc: 'పోర్ట్‌ఫోలియో అనలిటిక్స్, లెడ్జర్ ఫీడ్‌లు మరియు లావాదేవీల మోడల్స్', prompt: "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages." },
+        'app-creator': { title: 'స్వయంప్రతిపత్త యాప్ సృష్టికర్త', desc: 'Google Stitch UI & GitHub Pages తో యాప్‌ను రూపొందించి డిప్లాయ్ చేయండి', prompt: "create an app" },
+        'app-saas': { title: 'Google Stitch SaaS యాప్', desc: 'లైవ్ టెలిమెట్రీతో ఆధునిక గ్లాస్‌మార్ఫిక్ UI డ్యాష్‌బోర్డ్', prompt: "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages." },
         'ecommerce-deals': { title: 'విజువల్ బెస్ట్ డీల్ ఫైండర్', desc: 'ఫోటో అప్‌లోడ్ చేయండి లేదా 5 ప్లాట్‌ఫారమ్‌లలో ఉత్తమ డీల్ అడగండి', prompt: "ఉత్తమ డీల్ కనుగొనడానికి Amazon, Flipkart, Blinkit, Zepto మరియు Meesho లలో boAt Rockerz 255 Pro+ యొక్క లైవ్ ధరలను పోల్చండి." },
         'account-logins': { title: 'కనెక్టెడ్ ఖాతాలు', desc: 'Prime, Swiggy One, Zomato Gold స్థితిని తనిఖీ చేయండి', prompt: "నా అన్ని కనెక్టెడ్ ఖాతాల లాగిన్ మరియు మెంబర్‌షిప్ స్థితిని తనిఖీ చేయండి." },
         'food-paneer-butter-masala': { title: 'జొమాటో వర్సెస్ స్విగీ', desc: 'డిష్ ధరలు & డెలివరీ ETAలను పోల్చండి', prompt: "పన్నీర్ బటర్ మసాలా ఎక్కడ చౌకగా మరియు వేగంగా లభిస్తుంది? Zomato మరియు Swiggy లను పోల్చండి." },
@@ -1263,16 +1428,59 @@
       });
     }
 
+    /* Clears entire screen and resets ongoing tasks when switching tabs */
     function filterCapabilities(category, btn) {
       currentCategory = category;
 
-      // Update active nav button
+      // 1. Clear chatbox prompt & attached picture
+      document.getElementById('promptText').value = '';
+      if (attachedImageData) removeAttachedImage();
+
+      // 2. Clear and hide progress section
+      const progressSection = document.getElementById('progressSection');
+      if (progressSection) progressSection.style.display = 'none';
+      const progressLogs = document.getElementById('progressLogs');
+      if (progressLogs) progressLogs.innerHTML = '';
+      const progressStatusText = document.getElementById('progressStatusText');
+      if (progressStatusText) {
+        progressStatusText.innerText = '';
+        progressStatusText.style.color = '';
+      }
+
+      // 3. Clear and hide result section
+      const resultSection = document.getElementById('resultSection');
+      if (resultSection) resultSection.style.display = 'none';
+      const answerContent = document.getElementById('answerContent');
+      if (answerContent) answerContent.innerHTML = '';
+      const technicalLogs = document.getElementById('technicalLogs');
+      if (technicalLogs) technicalLogs.innerHTML = '';
+
+      // 4. Invalidate running polling and simulation loops
+      activePollToken = null;
+      if (activeSimInterval) {
+        clearInterval(activeSimInterval);
+        activeSimInterval = null;
+      }
+
+      // 5. Update active nav button
       document.querySelectorAll('.nav-item').forEach(b => {
         b.classList.remove('active');
       });
       if (btn) btn.classList.add('active');
 
-      // Show capabilities, hide the Activity tab
+      // 6. Handle GitHub repo sub-panel & quick modifier chips
+      const subMenu = document.getElementById('repoSubMenu');
+      const quickChips = document.getElementById('quickChipsContainer');
+      if (category === 'websites' || category === 'apps') {
+        if (subMenu) subMenu.style.display = 'block';
+        if (quickChips) quickChips.style.display = 'flex';
+        loadUserGitHubRepos();
+      } else {
+        if (subMenu) subMenu.style.display = 'none';
+        if (quickChips) quickChips.style.display = 'none';
+      }
+
+      // 7. Show capabilities, hide the Activity tab
       document.getElementById('capabilitiesSection').style.display = 'block';
       document.getElementById('activitySection').style.display = 'none';
 
@@ -1280,6 +1488,22 @@
     }
 
     function showActivity(btn) {
+      // Clear chatbox prompt & active task views
+      document.getElementById('promptText').value = '';
+      if (attachedImageData) removeAttachedImage();
+      
+      const subMenu = document.getElementById('repoSubMenu');
+      const quickChips = document.getElementById('quickChipsContainer');
+      if (subMenu) subMenu.style.display = 'none';
+      if (quickChips) quickChips.style.display = 'none';
+
+      // Invalidate running polling & simulation loops
+      activePollToken = null;
+      if (activeSimInterval) {
+        clearInterval(activeSimInterval);
+        activeSimInterval = null;
+      }
+
       // Update active nav button
       document.querySelectorAll('.nav-item').forEach(b => {
         b.classList.remove('active');
@@ -1290,6 +1514,71 @@
       // Show the Activity tab, hide capabilities
       document.getElementById('capabilitiesSection').style.display = 'none';
       document.getElementById('activitySection').style.display = 'block';
+    }
+
+    /* GitHub Repository Mapping & Modification Helpers */
+    async function loadUserGitHubRepos(force = false) {
+      const container = document.getElementById("repoListContainer");
+      const subMenu = document.getElementById("repoSubMenu");
+      if (subMenu) subMenu.style.display = "block";
+      
+      if (!force && container && container.dataset.loaded === "true") return;
+
+      if (container) {
+        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repositories...</div>';
+      }
+
+      try {
+        const resp = await fetch(CLOUD_BACKEND_URL + "/api/github-repos?limit=15");
+        const data = await resp.json();
+        const repos = data.repos || [];
+        
+        if (repos.length === 0) {
+          container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;">No repositories found.</div>';
+          return;
+        }
+
+        container.dataset.loaded = "true";
+        container.innerHTML = "";
+        repos.forEach(repo => {
+          const item = document.createElement("div");
+          item.className = "repo-item";
+          item.onclick = () => selectRepoForModification(repo.name);
+          item.title = `Click to modify ${repo.name}`;
+          item.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.35rem; overflow: hidden;">
+              <span style="font-size: 0.75rem;">📦</span>
+              <span class="repo-name">${repo.name}</span>
+            </div>
+            <span class="repo-btn-modify">✏️ Modify</span>
+          `;
+          container.appendChild(item);
+        });
+      } catch (err) {
+        if (container) {
+          container.innerHTML = '<div style="font-size: 0.7rem; color: var(--accent-rose); text-align: center; padding: 0.4rem 0;">Error loading repos</div>';
+        }
+      }
+    }
+
+    function selectRepoForModification(repoName) {
+      const textarea = document.getElementById("promptText");
+      textarea.value = `Modify repository karnkeshav/${repoName}: `;
+      textarea.focus();
+      const quickChips = document.getElementById("quickChipsContainer");
+      if (quickChips) quickChips.style.display = "flex";
+      showToast(`📂 Selected repository: karnkeshav/${repoName}`);
+    }
+
+    function appendInstruction(extraText) {
+      const textarea = document.getElementById("promptText");
+      if (!textarea.value.trim()) {
+        textarea.value = extraText;
+      } else {
+        textarea.value = textarea.value.trim() + " • " + extraText;
+      }
+      textarea.focus();
+      showToast("✓ Customization added to directive");
     }
 
     function loadPrompt(key) {

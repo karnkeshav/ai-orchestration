@@ -559,6 +559,14 @@ def _gemini_tool_declarations():
             }, required=["name"]),
         ),
         types.FunctionDeclaration(
+            name="create_and_deploy_app",
+            description="Autonomous full-stack app generator & deployer: Creates a new repository on your GitHub account, builds high-fidelity code with Google Stitch design system & modern CSS styles (Glassmorphism, responsive layout, Chart.js), commits to main, enables GitHub Pages live deployment, and produces a clickable live website URL. Call this whenever the user asks to create/build/deploy an app or website.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "prompt": types.Schema(type="STRING", description="App topic, directive, or concept description (e.g. 'finops dashboard', 'crypto trading app', 'developer portfolio', 'task manager')."),
+                "app_title": types.Schema(type="STRING", description="Optional custom title for the application."),
+            }, required=["prompt"]),
+        ),
+        types.FunctionDeclaration(
             name="find_best_deals",
             description="Search and compare product prices, discounts, delivery times, and stock across top e-commerce platforms (Amazon, Flipkart, Blinkit, Zepto, Meesho) to find the absolute best deal.",
             parameters=types.Schema(type="OBJECT", properties={
@@ -1555,6 +1563,16 @@ async def _gemini_exec_create_github_repo(loop, name, description, private):
         return f"✅ **Repository created:** [{result['name']}]({result['url']}) ({visibility})"
     return f"❌ {result}"
 
+async def _gemini_exec_create_and_deploy_app(loop, prompt, app_title=None, task_id=None):
+    from stitch_app_engine import create_and_deploy_app
+    def log_cb(msg: str):
+        if task_id and task_id in tasks:
+            tasks[task_id]["logs"].append(msg)
+    res = await create_and_deploy_app(prompt=prompt or "Modern AI Web App", custom_title=app_title, log_callback=log_cb)
+    if task_id and task_id in tasks:
+        tasks[task_id]["deliverable"] = res.get("deliverable")
+    return res.get("markdown", "App created successfully.")
+
 async def _gemini_exec_find_best_deals(loop, query, category, location):
     answer_text, _ = await find_best_deals_across_platforms(
         query=query or "product",
@@ -1997,6 +2015,7 @@ _GEMINI_DISPATCH = {
     "query_services": lambda loop, args: _gemini_exec_query_services(loop, args.get("provider")),
     "search_finops_guide": lambda loop, args: _gemini_exec_search_finops_guide(loop, args.get("question"), args.get("provider")),
     "create_github_repo": lambda loop, args: _gemini_exec_create_github_repo(loop, args.get("name"), args.get("description"), args.get("private")),
+    "create_and_deploy_app": lambda loop, args: _gemini_exec_create_and_deploy_app(loop, args.get("prompt"), args.get("app_title")),
     "find_best_deals": lambda loop, args: _gemini_exec_find_best_deals(loop, args.get("query"), args.get("category"), args.get("location")),
     "compare_food_delivery": lambda loop, args: _gemini_exec_compare_food_delivery(loop, args.get("dish"), args.get("location")),
     "get_ola_ride_estimate": lambda loop, args: _gemini_exec_get_ola_ride_estimate(loop, args.get("pickup"), args.get("drop"), args.get("passengers")),
@@ -2024,11 +2043,14 @@ _GEMINI_DISPATCH = {
 
 _GEMINI_SYSTEM_INSTRUCTION = (
     "You are the routing brain for an autonomous AI orchestration assistant covering Multi-Cloud (AWS, OCI, Azure, GCP), "
+    "Autonomous App & Website Generation with Google Stitch Screen UI and GitHub Pages Live Deployment, "
     "GitHub repository management, Indian E-Commerce Comparison (Amazon, Flipkart, Blinkit, Zepto, Meesho), "
     "Food Delivery Intelligence (Zomato vs. Swiggy price & speed comparisons), "
     "3-Way On-Demand Mobility Arbitrage (Rapido vs. Uber vs. Ola ride comparisons, bike taxi, auto rickshaw, cab economy & EV mobility), "
     "Persistent Account Login Management, and Omni-Channel Social Media Growth (WhatsApp Marketing, Facebook Page Campaigns & Ads, LinkedIn B2B Thought Leadership & Outreach). "
     "Given the user's free-form request, call the appropriate tool(s) to answer it. "
+    "If the user asks to create an app, build an app, generate a web app, create a website, create a dashboard, or deploy an app to github, "
+    "call 'create_and_deploy_app'. "
     "If the user asks to generate Facebook post copy, announcements, or Facebook ads, call 'facebook_generate_post_copy' or 'facebook_create_ad_campaign'. "
     "If the user asks to publish to Facebook, call 'facebook_publish_post'. "
     "If the user asks to generate LinkedIn thought leadership, executive articles, or B2B outreach/InMail notes, call 'linkedin_generate_thought_leadership_post' or 'linkedin_b2b_lead_outreach'. "
@@ -2150,6 +2172,55 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
 
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
+
+async def try_instant_app_creation(task_id: str, prompt: str) -> bool:
+    """Zero-latency autonomous app builder & modifier: if the user prompt asks to create,
+    build, make, deploy, or modify an app, website, or GitHub repository, runs the complete
+    Google Stitch UI + GitHub Pages deployment pipeline directly."""
+    prompt_lower = prompt.lower().strip()
+    
+    # 1. Check for modify / update repository intent
+    mod_match = re.search(r'(?:modify|update|edit|change|upgrade)\s+(?:repo|repository)\s+([a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)?)\s*[:\-]?\s*(.*)', prompt_lower, re.IGNORECASE)
+    if mod_match:
+        repo_target = mod_match.group(1).strip()
+        instructions = mod_match.group(2).strip() or "Improve styling, add live interactive charts, and optimize responsive layout"
+        tasks[task_id]["logs"].append(f"[00:01] 🛠️ Recognized GitHub Repo Modification for '{repo_target}'...")
+        
+        def log_cb(msg: str):
+            tasks[task_id]["logs"].append(msg)
+            
+        from stitch_app_engine import modify_and_deploy_stitch_app
+        result = await modify_and_deploy_stitch_app(repo_target, instructions, on_log=log_cb)
+        tasks[task_id]["answer"] = result["markdown"]
+        tasks[task_id]["deliverable"] = result["deliverable"]
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    # 2. Check for app / website creation
+    app_creation_patterns = [
+        r'\b(create|build|make|generate|deploy)\s+(an?\s+)?(app|website|web\s*app|dashboard|ui|application|site)\b',
+        r'\b(create|build|make|generate|deploy)\s+(an?\s+)?([a-z0-9_-]+\s+)+(app|website|web\s*app|dashboard|ui|application|site)\b',
+        r'^create\s+(app|website|site)\b',
+        r'^build\s+(app|website|site)\b',
+        r'^make\s+(app|website|site)\b',
+        r'^deploy\s+(app|website|site)\b',
+    ]
+    if not any(re.search(p, prompt_lower) for p in app_creation_patterns):
+        return False
+
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+    tasks[task_id]["logs"].append("[00:01] 🚀 Autonomous App Builder recognized — initiating Google Stitch UI + GitHub Pages deployment...")
+
+    from stitch_app_engine import build_and_deploy_stitch_app
+    
+    def log_cb(msg: str):
+        tasks[task_id]["logs"].append(msg)
+        
+    result = await build_and_deploy_stitch_app(prompt, on_log=log_cb)
+    tasks[task_id]["answer"] = result["markdown"]
+    tasks[task_id]["deliverable"] = result["deliverable"]
+    tasks[task_id]["status"] = "COMPLETED"
+    return True
 
 # Verbs that mean the prompt wants an action taken, not information read back.
 # A prompt naming any of these is always escalated to agy, even if it also
@@ -2727,10 +2798,10 @@ def build_book_actions(options: Optional[List[dict]]) -> List[dict]:
 # Ola fare question from web search hits instead of calling compare_uber_vs_ola).
 _AGY_TOOL_HINT = (
     "Before answering, check whether one of your configured MCP servers already "
-    "exposes a tool for this exact request (e.g. uber/ola/rapido ride comparisons, "
-    "amazon/flipkart/blinkit/zepto/meesho product deals, swiggy/zomato food comparisons, "
-    "whatsapp/facebook/linkedin posting, flowagent for Power Automate, aws-mcp/azure/gcp/oci "
-    "for cloud). If one does, call it directly via call_mcp_tool instead of using "
+    "exposes a tool for this exact request (e.g. stitch for Google Stitch UI screens & app design, "
+    "uber/ola/rapido ride comparisons, amazon/flipkart/blinkit/zepto/meesho product deals, "
+    "swiggy/zomato food comparisons, whatsapp/facebook/linkedin posting, flowagent for Power Automate, "
+    "aws-mcp/azure/gcp/oci for cloud). If one does, call it directly via call_mcp_tool instead of using "
     "search_web or answering from general knowledge — the MCP tools return real computed "
     "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola, compare_zomato_vs_swiggy "
     "on the zomato server) and must be preferred whenever one applies.\n\nUser request: "
@@ -3063,6 +3134,8 @@ async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Opt
     4. Gemini's own direct-answer mode, then the fixed keyword router, if
        agy itself errors out, so a missing binary or a bad run doesn't
        break the app."""
+    if not image_data and await try_instant_app_creation(task_id, prompt):
+        return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
     try:
@@ -3088,8 +3161,17 @@ async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Opt
                 tasks[task_id]["deliverable"] = None
                 await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
 
+@app.get("/api/github-repos")
+async def get_github_repos(limit: int = 25):
+    try:
+        from stitch_app_engine import list_user_repos, GITHUB_USER
+        repos = list_user_repos(limit=limit)
+        return {"user": GITHUB_USER, "repos": repos}
+    except Exception as e:
+        return {"user": "karnkeshav", "repos": [], "error": str(e)}
+
 @app.get("/api/health")
-def health():
+async def health():
     return {"status": "online", "engine": "Antigravity Autonomous Core", "active_tasks": len(tasks)}
 
 @app.post("/api/execute")
@@ -3130,7 +3212,7 @@ async def stream(task_id: str):
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.get("/api/status/{task_id}")
-def task_status(task_id: str, since: int = 0):
+async def task_status(task_id: str, since: int = 0):
     """One-shot status check, deliberately NOT a long-lived streaming
     response — /api/stream above is a single HTTP connection held open
     until the task completes, and the app is served through a Cloudflare

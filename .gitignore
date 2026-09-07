@@ -17,7 +17,7 @@ venv/
 .venv/
 
 # System
-.DS_Store
-Thumbs.db
-.idea/
-.vscode/
+# Media binaries
+*.mp4
+*.mkv
+*.avi

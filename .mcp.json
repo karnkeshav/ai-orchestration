@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "hf-video": {
+      "command": "C:\\Users\\keysh\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_video_server.py"],
+      "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
+    }
+  }
+}
