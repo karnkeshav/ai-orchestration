@@ -11,6 +11,18 @@ mcp = FastMCP("github-mcp")
 GITHUB_USER = "karnkeshav"
 
 @mcp.tool()
+def github_get_authenticated_user() -> str:
+    """Get the currently authenticated GitHub user and account metadata."""
+    try:
+        cmd = ["gh", "api", "user"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0:
+            return res.stdout.strip()
+        return json.dumps({"status": "error", "message": res.stderr.strip()})
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+@mcp.tool()
 def github_list_repositories(user: str = "karnkeshav", limit: int = 30) -> str:
     """List public and private GitHub repositories for a user with Pages and URL details."""
     try:

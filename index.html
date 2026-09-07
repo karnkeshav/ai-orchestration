@@ -577,13 +577,13 @@
 
     /* Sidebar Sub-Panel & GitHub Repos */
     .sidebar-sub-panel {
-      background: rgba(15, 23, 42, 0.7);
-      border: 1px solid rgba(99, 102, 241, 0.25);
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(99, 102, 241, 0.3);
       border-radius: 8px;
       padding: 0.6rem;
       margin: 0.25rem 0.25rem 0.5rem 0.25rem;
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .sub-panel-header {
@@ -594,6 +594,91 @@
       font-weight: 700;
       color: var(--accent-cyan);
       margin-bottom: 0.5rem;
+    }
+
+    .gh-login-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #24292e, #181717);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #fff;
+      padding: 0.5rem 0.65rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+    }
+
+    .gh-login-btn:hover {
+      background: linear-gradient(135deg, #333, #222);
+      border-color: var(--accent-indigo);
+      box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .gh-user-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      padding: 0.35rem 0.5rem;
+      margin-bottom: 0.4rem;
+    }
+
+    .gh-user-info {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      overflow: hidden;
+    }
+
+    .gh-avatar {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 1px solid var(--accent-cyan);
+    }
+
+    .gh-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .gh-modal-overlay.open {
+      display: flex;
+    }
+
+    .gh-modal-card {
+      background: #0f172a;
+      border: 1px solid var(--accent-indigo);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 480px;
+      padding: 1.5rem;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 30px rgba(99, 102, 241, 0.2);
+      position: relative;
+      animation: modalPop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @keyframes modalPop {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
     }
 
     .repo-list-container {
@@ -876,14 +961,46 @@
       <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
       <button class="nav-item" id="navWebsitesBtn" data-i18n="navWebsites" onclick="filterCapabilities('websites', this)">🌐 Create Website</button>
 
-      <!-- GitHub Repos Sub-Panel mapped under Website / App creation -->
+      <!-- GitHub Sub-Panel mapped below Website / App creation -->
       <div id="repoSubMenu" class="sidebar-sub-panel" style="display: none;">
-        <div class="sub-panel-header">
-          <span>🐙 My GitHub Repos</span>
-          <button type="button" onclick="loadUserGitHubRepos(true)" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.75rem;" title="Refresh Repositories">🔄</button>
+        <!-- 1. Logged Out State -->
+        <div id="ghLoggedOutState" style="display: none;">
+          <button type="button" class="gh-login-btn" onclick="openGitHubLoginModal()">
+            <span>🐙</span>
+            <span>Login to GitHub</span>
+          </button>
+          <div style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: 0.35rem;">Link GitHub to auto-push & deploy</div>
         </div>
-        <div id="repoListContainer" class="repo-list-container">
-          <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;">Loading repositories...</div>
+
+        <!-- 2. Logged In State -->
+        <div id="ghLoggedInState" style="display: none;">
+          <div class="gh-user-card">
+            <div class="gh-user-info">
+              <img id="ghUserAvatar" class="gh-avatar" src="https://avatars.githubusercontent.com/u/160194487?v=4" alt="GitHub">
+              <div style="overflow: hidden;">
+                <div id="ghUserName" style="font-weight: 700; font-size: 0.75rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95px;">@karnkeshav</div>
+                <div style="font-size: 0.62rem; color: var(--accent-emerald); display: flex; align-items: center; gap: 3px;">
+                  <span style="width: 5px; height: 5px; background: var(--accent-emerald); border-radius: 50%; display: inline-block;"></span> Active
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 4px;">
+              <button type="button" onclick="loadUserGitHubRepos(true)" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;" title="Refresh Repositories">🔄</button>
+              <button type="button" onclick="openGitHubLoginModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;" title="Switch Account / Token">🔑</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 0.35rem;">
+            <input id="ghRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="filterUserRepoList(this.value)" style="width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.72rem; color: #fff; outline: none;">
+          </div>
+
+          <div id="repoListContainer" class="repo-list-container">
+            <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repos...</div>
+          </div>
+
+          <div style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
+            <button type="button" onclick="presetNewAppCreation()" style="background: none; border: 1px dashed rgba(99, 102, 241, 0.4); border-radius: 6px; color: var(--accent-cyan); font-size: 0.68rem; font-weight: 600; padding: 0.3rem 0.6rem; cursor: pointer; width: 100%;" title="Create a new web app repository">➕ New App Repo</button>
+          </div>
         </div>
       </div>
 
@@ -984,6 +1101,54 @@
         </div>
       </section>
 
+    </div>
+  </div>
+
+  <!-- GitHub Login & Connect Modal -->
+  <div id="githubLoginModal" class="gh-modal-overlay">
+    <div class="gh-modal-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; font-weight: 800; color: #fff;">
+          <span>🐙</span> Connect GitHub Account
+        </div>
+        <button type="button" onclick="closeGitHubLoginModal()" style="background: none; border: none; color: var(--text-muted); font-size: 1.2rem; cursor: pointer;">✖</button>
+      </div>
+      <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 1.2rem; line-height: 1.5;">
+        Connect your GitHub account so newly generated apps are pushed to your repositories and deployed live to GitHub Pages in 1 click.
+      </p>
+
+      <!-- Option 1: Quick CLI Connect -->
+      <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid var(--accent-indigo); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <div style="font-weight: 700; font-size: 0.9rem; color: #fff;">⚡ Connect Local System Account</div>
+          <span style="font-size: 0.7rem; background: rgba(16, 185, 129, 0.2); color: var(--accent-emerald); padding: 0.15rem 0.4rem; border-radius: 4px; font-weight: 600;">Recommended</span>
+        </div>
+        <p style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+          Instantly connects with your authenticated CLI session (<code>@karnkeshav</code>).
+        </p>
+        <button type="button" onclick="connectLocalGitHub()" style="width: 100%; background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan)); color: #fff; border: none; padding: 0.65rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+          <span>⚡</span> Connect @karnkeshav
+        </button>
+      </div>
+
+      <!-- Option 2: Custom Token or User -->
+      <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border-color); border-radius: 10px; padding: 1rem;">
+        <div style="font-weight: 700; font-size: 0.85rem; color: #fff; margin-bottom: 0.75rem;">🔑 Or Connect via Personal Access Token (PAT)</div>
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">GitHub Username (optional)</label>
+            <input id="ghModalUsername" type="text" placeholder="e.g. karnkeshav" style="width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.85rem; color: #fff;">
+          </div>
+          <div>
+            <label style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-bottom: 0.25rem;">Personal Access Token (with repo & pages scope)</label>
+            <input id="ghModalToken" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.85rem; color: #fff;">
+          </div>
+          <div id="ghModalError" style="display: none; font-size: 0.75rem; color: var(--accent-rose);"></div>
+          <button type="button" onclick="connectCustomGitHub()" style="background: #1e293b; border: 1px solid var(--accent-indigo); color: #fff; padding: 0.6rem 1rem; border-radius: 8px; font-size: 0.85rem; font-weight: 700; cursor: pointer;">
+            Verify & Connect Token
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1561,44 +1726,162 @@
       document.getElementById('activitySection').style.display = 'block';
     }
 
+    let currentGitHubUser = localStorage.getItem('aios_github_user') || 'karnkeshav';
+    let currentGitHubToken = localStorage.getItem('aios_github_token') || '';
+    let cachedUserRepos = [];
+
+    async function initGitHubSession() {
+      try {
+        const headers = {};
+        if (currentGitHubToken) headers['x-github-token'] = currentGitHubToken;
+        if (currentGitHubUser) headers['x-github-user'] = currentGitHubUser;
+        
+        const resp = await apiFetch('/api/github/user', { headers });
+        const user = await resp.json();
+        if (user && user.login && user.authenticated !== false) {
+          currentGitHubUser = user.login;
+          localStorage.setItem('aios_github_user', user.login);
+          renderGitHubUserState(user);
+          await loadUserGitHubRepos(false);
+        } else {
+          renderGitHubLoggedOutState();
+        }
+      } catch (e) {
+        renderGitHubUserState({ login: currentGitHubUser || 'karnkeshav', avatar_url: `https://avatars.githubusercontent.com/${currentGitHubUser || 'karnkeshav'}` });
+        await loadUserGitHubRepos(false);
+      }
+    }
+
+    function renderGitHubUserState(user) {
+      const loggedOut = document.getElementById('ghLoggedOutState');
+      const loggedIn = document.getElementById('ghLoggedInState');
+      if (loggedOut) loggedOut.style.display = 'none';
+      if (loggedIn) loggedIn.style.display = 'block';
+      const nameElem = document.getElementById('ghUserName');
+      if (nameElem) nameElem.innerText = `@${user.login || currentGitHubUser || 'karnkeshav'}`;
+      const avatarElem = document.getElementById('ghUserAvatar');
+      if (avatarElem) avatarElem.src = user.avatar_url || `https://avatars.githubusercontent.com/${user.login || 'karnkeshav'}`;
+    }
+
+    function renderGitHubLoggedOutState() {
+      const loggedIn = document.getElementById('ghLoggedInState');
+      const loggedOut = document.getElementById('ghLoggedOutState');
+      if (loggedIn) loggedIn.style.display = 'none';
+      if (loggedOut) loggedOut.style.display = 'block';
+    }
+
+    function openGitHubLoginModal() {
+      document.getElementById('githubLoginModal').classList.add('open');
+      document.getElementById('ghModalError').style.display = 'none';
+      const userInp = document.getElementById('ghModalUsername');
+      if (userInp) userInp.value = currentGitHubUser || 'karnkeshav';
+      const tokenInp = document.getElementById('ghModalToken');
+      if (tokenInp) tokenInp.value = currentGitHubToken || '';
+    }
+
+    function closeGitHubLoginModal() {
+      document.getElementById('githubLoginModal').classList.remove('open');
+    }
+
+    async function connectLocalGitHub() {
+      try {
+        currentGitHubToken = '';
+        currentGitHubUser = 'karnkeshav';
+        localStorage.removeItem('aios_github_token');
+        localStorage.setItem('aios_github_user', 'karnkeshav');
+        closeGitHubLoginModal();
+        await initGitHubSession();
+        await loadUserGitHubRepos(true);
+        showToast('✓ Connected to GitHub CLI account: @karnkeshav');
+      } catch (err) {
+        showToast('Error connecting to GitHub');
+      }
+    }
+
+    async function connectCustomGitHub() {
+      const username = document.getElementById('ghModalUsername').value.trim();
+      const token = document.getElementById('ghModalToken').value.trim();
+      const errBox = document.getElementById('ghModalError');
+
+      if (!token && !username) {
+        errBox.innerText = 'Please enter a GitHub username or Personal Access Token.';
+        errBox.style.display = 'block';
+        return;
+      }
+
+      errBox.style.display = 'none';
+      try {
+        const resp = await apiFetch('/api/github/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, token })
+        });
+        const data = await resp.json();
+        if (data.status === 'success' && data.user) {
+          currentGitHubUser = data.user.login;
+          currentGitHubToken = token;
+          localStorage.setItem('aios_github_user', currentGitHubUser);
+          if (token) {
+            localStorage.setItem('aios_github_token', token);
+          } else {
+            localStorage.removeItem('aios_github_token');
+          }
+          closeGitHubLoginModal();
+          renderGitHubUserState(data.user);
+          renderReposList(data.repos || []);
+          showToast(`✓ Connected to GitHub as @${data.user.login}`);
+        } else {
+          errBox.innerText = data.message || 'Failed to authenticate GitHub account.';
+          errBox.style.display = 'block';
+        }
+      } catch (e) {
+        errBox.innerText = `Error: ${e.message}`;
+        errBox.style.display = 'block';
+      }
+    }
+
+    function logoutGitHub() {
+      localStorage.removeItem('aios_github_token');
+      localStorage.removeItem('aios_github_user');
+      currentGitHubToken = '';
+      currentGitHubUser = '';
+      renderGitHubLoggedOutState();
+      showToast('Logged out of GitHub');
+    }
+
+    function filterUserRepoList(query) {
+      const q = (query || '').toLowerCase().trim();
+      if (!cachedUserRepos) return;
+      if (!q) {
+        renderReposList(cachedUserRepos);
+        return;
+      }
+      const filtered = cachedUserRepos.filter(r => (r.name && r.name.toLowerCase().includes(q)) || (r.description && r.description.toLowerCase().includes(q)));
+      renderReposList(filtered);
+    }
+
     /* GitHub Repository Mapping & Modification Helpers */
     async function loadUserGitHubRepos(force = false) {
       const container = document.getElementById("repoListContainer");
       const subMenu = document.getElementById("repoSubMenu");
       if (subMenu) subMenu.style.display = "block";
       
-      if (!force && container && container.dataset.loaded === "true") return;
+      if (!force && container && container.dataset.loaded === "true" && cachedUserRepos.length > 0) return;
 
       if (container) {
-        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repositories...</div>';
+        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repositories...</div>';
       }
 
       try {
-        const resp = await apiFetch("/api/github-repos?limit=15");
+        const headers = {};
+        if (currentGitHubToken) headers['x-github-token'] = currentGitHubToken;
+        if (currentGitHubUser) headers['x-github-user'] = currentGitHubUser;
+
+        const targetUser = currentGitHubUser || 'karnkeshav';
+        const resp = await apiFetch(`/api/github-repos?user=${encodeURIComponent(targetUser)}&limit=30`, { headers });
         const data = await resp.json();
         const repos = data.repos || [];
-        
-        if (repos.length === 0) {
-          container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;">No repositories found.</div>';
-          return;
-        }
-
-        container.dataset.loaded = "true";
-        container.innerHTML = "";
-        repos.forEach(repo => {
-          const item = document.createElement("div");
-          item.className = "repo-item";
-          item.onclick = () => selectRepoForModification(repo.name);
-          item.title = `Click to modify ${repo.name}`;
-          item.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 0.35rem; overflow: hidden;">
-              <span style="font-size: 0.75rem;">📦</span>
-              <span class="repo-name">${repo.name}</span>
-            </div>
-            <span class="repo-btn-modify">✏️ Modify</span>
-          `;
-          container.appendChild(item);
-        });
+        renderReposList(repos);
       } catch (err) {
         if (container) {
           container.innerHTML = '<div style="font-size: 0.7rem; color: var(--accent-rose); text-align: center; padding: 0.4rem 0;">Error loading repos</div>';
@@ -1606,13 +1889,56 @@
       }
     }
 
+    function renderReposList(repos) {
+      const container = document.getElementById("repoListContainer");
+      if (!container) return;
+      cachedUserRepos = repos;
+      container.dataset.loaded = "true";
+      container.innerHTML = "";
+
+      if (repos.length === 0) {
+        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;">No repositories found.</div>';
+        return;
+      }
+
+      repos.forEach(repo => {
+        const item = document.createElement("div");
+        item.className = "repo-item";
+        item.onclick = () => selectRepoForModification(repo.name);
+        item.title = `Click to modify ${repo.name} with natural language`;
+        
+        const isPrivate = repo.is_private ? '<span style="font-size: 0.6rem; color: var(--accent-amber); margin-left: 2px;" title="Private repository">🔒</span>' : '';
+        item.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 0.35rem; overflow: hidden;">
+            <span style="font-size: 0.75rem;">📦</span>
+            <span class="repo-name">${repo.name}</span>
+            ${isPrivate}
+          </div>
+          <div style="display: flex; align-items: center; gap: 4px;">
+            <span class="repo-btn-modify">✏️ Modify</span>
+          </div>
+        `;
+        container.appendChild(item);
+      });
+    }
+
     function selectRepoForModification(repoName) {
       const textarea = document.getElementById("promptText");
-      textarea.value = `Modify repository karnkeshav/${repoName}: `;
+      const targetUser = currentGitHubUser || 'karnkeshav';
+      textarea.value = `Modify repository ${targetUser}/${repoName}: `;
       textarea.focus();
       const quickChips = document.getElementById("quickChipsContainer");
       if (quickChips) quickChips.style.display = "flex";
-      showToast(`📂 Selected repository: karnkeshav/${repoName}`);
+      showToast(`📂 Selected repository: ${targetUser}/${repoName}`);
+    }
+
+    function presetNewAppCreation() {
+      const textarea = document.getElementById("promptText");
+      textarea.value = "Create a website • Add a modern Dark/Light theme toggle switch with glowing accents • Redesign hero section with Google Stitch Glassmorphism and animated badges";
+      textarea.focus();
+      const quickChips = document.getElementById("quickChipsContainer");
+      if (quickChips) quickChips.style.display = "flex";
+      showToast("✨ Ready to create new app for GitHub");
     }
 
     function appendInstruction(extraText) {
@@ -1721,7 +2047,9 @@
         prompt: prompt,
         category: attachedImageData ? "shopping" : "general",
         image_data: attachedImageData,
-        location: "Bangalore"
+        location: "Bangalore",
+        github_user: currentGitHubUser || "karnkeshav",
+        github_token: currentGitHubToken || undefined
       };
 
       try {
@@ -1888,6 +2216,7 @@
 
     // Initialize
     setLanguage(currentLang);
+    initGitHubSession();
     filterCapabilities('all', document.getElementById('navAllBtn'));
   </script>
 

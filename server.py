@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -30,6 +30,13 @@ class ExecuteRequest(BaseModel):
     category: str = "general"
     image_data: Optional[str] = None
     location: Optional[str] = "Bangalore"
+    github_user: Optional[str] = None
+    github_token: Optional[str] = None
+
+class GitHubLoginRequest(BaseModel):
+    token: Optional[str] = None
+    username: Optional[str] = None
+    mode: Optional[str] = "token"
 
 def query_aws_ec2():
     try:
@@ -2173,7 +2180,7 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
-async def try_instant_app_creation(task_id: str, prompt: str) -> bool:
+async def try_instant_app_creation(task_id: str, prompt: str, github_user: Optional[str] = None, github_token: Optional[str] = None) -> bool:
     """Zero-latency autonomous app builder & modifier: if the user prompt asks to create,
     build, make, deploy, or modify an app, website, or GitHub repository, runs the complete
     Google Stitch UI + GitHub Pages deployment pipeline directly."""
@@ -2190,7 +2197,7 @@ async def try_instant_app_creation(task_id: str, prompt: str) -> bool:
             tasks[task_id]["logs"].append(msg)
             
         from stitch_app_engine import modify_and_deploy_stitch_app
-        result = await modify_and_deploy_stitch_app(repo_target, instructions, on_log=log_cb)
+        result = await modify_and_deploy_stitch_app(repo_target, instructions, on_log=log_cb, user=github_user, token=github_token)
         tasks[task_id]["answer"] = result["markdown"]
         tasks[task_id]["deliverable"] = result["deliverable"]
         tasks[task_id]["status"] = "COMPLETED"
@@ -2216,7 +2223,7 @@ async def try_instant_app_creation(task_id: str, prompt: str) -> bool:
     def log_cb(msg: str):
         tasks[task_id]["logs"].append(msg)
         
-    result = await build_and_deploy_stitch_app(prompt, on_log=log_cb)
+    result = await build_and_deploy_stitch_app(prompt, on_log=log_cb, user=github_user, token=github_token)
     tasks[task_id]["answer"] = result["markdown"]
     tasks[task_id]["deliverable"] = result["deliverable"]
     tasks[task_id]["status"] = "COMPLETED"
@@ -3121,20 +3128,22 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["deliverable"] = deliverable
     tasks[task_id]["status"] = "COMPLETED"
 
-async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+async def run_pipeline(
+    task_id: str,
+    prompt: str,
+    category: str,
+    image_data: Optional[str] = None,
+    location: Optional[str] = "Bangalore",
+    github_user: Optional[str] = None,
+    github_token: Optional[str] = None
+):
     """Entry point, cheapest tier first:
-    1. try_instant_cloud_query — zero dependency, no LLM round trip at all,
-       for unambiguous read-only cost/compute/storage/service queries.
-    2. The fast, fixed-toolset Gemini router — one API call plus a direct
-       SDK function, no CLI/MCP bootstrap — for anything else it already
-       has a tool for (image-based deal finding, food/price comparisons).
-    3. The Antigravity CLI agent (agy) — slower, but with its own much
-       broader MCP toolset — for everything neither tier above can handle
-       (creates/deletes, bookings, anything needing agy's own MCP servers).
-    4. Gemini's own direct-answer mode, then the fixed keyword router, if
-       agy itself errors out, so a missing binary or a bad run doesn't
-       break the app."""
-    if not image_data and await try_instant_app_creation(task_id, prompt):
+    1. try_instant_app_creation — zero latency, builds and deploys to user GitHub account with Google Stitch UI.
+    2. try_instant_cloud_query — zero dependency, no LLM round trip at all.
+    3. The fast, fixed-toolset Gemini router.
+    4. The Antigravity CLI agent (agy) for complex MCP toolsets.
+    5. Fallback keyword router."""
+    if not image_data and await try_instant_app_creation(task_id, prompt, github_user=github_user, github_token=github_token):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
@@ -3161,14 +3170,49 @@ async def run_pipeline(task_id: str, prompt: str, category: str, image_data: Opt
                 tasks[task_id]["deliverable"] = None
                 await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
 
+@app.get("/api/github/user")
+async def get_github_user_endpoint(
+    user: Optional[str] = None,
+    x_github_token: Optional[str] = Header(None, alias="x-github-token"),
+    x_github_user: Optional[str] = Header(None, alias="x-github-user")
+):
+    try:
+        from stitch_app_engine import get_github_user_profile
+        target_user = user or x_github_user
+        profile = get_github_user_profile(user=target_user, token=x_github_token)
+        return profile
+    except Exception as e:
+        return {"authenticated": False, "login": user or "karnkeshav", "error": str(e)}
+
+@app.post("/api/github/login")
+async def login_github_endpoint(req: GitHubLoginRequest):
+    try:
+        from stitch_app_engine import get_github_user_profile, list_user_repos
+        profile = get_github_user_profile(user=req.username, token=req.token)
+        repos = list_user_repos(user=profile.get("login"), token=req.token, limit=30)
+        return {
+            "status": "success",
+            "authenticated": True,
+            "user": profile,
+            "repos": repos
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @app.get("/api/github-repos")
-async def get_github_repos(limit: int = 25):
+async def get_github_repos(
+    user: Optional[str] = None,
+    limit: int = 30,
+    x_github_token: Optional[str] = Header(None, alias="x-github-token"),
+    x_github_user: Optional[str] = Header(None, alias="x-github-user")
+):
     try:
         from stitch_app_engine import list_user_repos, GITHUB_USER
-        repos = list_user_repos(limit=limit)
-        return {"user": GITHUB_USER, "repos": repos}
+        target_user = user or x_github_user or GITHUB_USER
+        repos = list_user_repos(user=target_user, token=x_github_token, limit=limit)
+        return {"user": target_user, "repos": repos}
     except Exception as e:
-        return {"user": "karnkeshav", "repos": [], "error": str(e)}
+        return {"user": user or "karnkeshav", "repos": [], "error": str(e)}
 
 @app.get("/api/health")
 async def health():
@@ -3186,9 +3230,19 @@ async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):
         "logs": ["[00:00] 🚀 Mission dispatched to OCI Cloud Backend Engine..."],
         "answer": None,
         "deliverable": None,
-        "created_at": time.time()
+        "created_at": time.time(),
+        "github_user": req.github_user
     }
-    background_tasks.add_task(run_pipeline, task_id, req.prompt, req.category, req.image_data, req.location)
+    background_tasks.add_task(
+        run_pipeline,
+        task_id,
+        req.prompt,
+        req.category,
+        req.image_data,
+        req.location,
+        req.github_user,
+        req.github_token
+    )
     return {"task_id": task_id, "status": "PROCESSING"}
 
 @app.get("/api/stream/{task_id}")

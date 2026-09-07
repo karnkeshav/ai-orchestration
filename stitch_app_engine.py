@@ -988,7 +988,9 @@ async def create_and_deploy_app(
     prompt: str,
     custom_title: Optional[str] = None,
     log_callback: Optional[Callable[[str], None]] = None,
-    on_log: Optional[Callable[[str], None]] = None
+    on_log: Optional[Callable[[str], None]] = None,
+    user: Optional[str] = None,
+    token: Optional[str] = None
 ) -> Dict[str, Any]:
     """Autonomous end-to-end pipeline:
     1. Parse user concept and determine title & slug
@@ -998,6 +1000,7 @@ async def create_and_deploy_app(
     5. Enable GitHub Pages live hosting and verify live URL
     6. Return formatted deliverable with clickable links
     """
+    active_user = user.strip() if (user and user.strip()) else GITHUB_USER
     callback = on_log or log_callback
     def log(msg: str):
         if callback:
@@ -1021,7 +1024,7 @@ async def create_and_deploy_app(
     elif "task" in p_lower or "todo" in p_lower or "project" in p_lower or "sprint" in p_lower:
         app_title = "NexusFlow - AI Orchestrated Task & Sprint Studio"
     elif "portfolio" in p_lower or "resume" in p_lower:
-        app_title = "Karn Keshav - Executive AI & Cloud Architecture Portfolio"
+        app_title = f"{active_user.title()} - Executive AI & Cloud Architecture Portfolio"
     elif "restaurant" in p_lower or "food" in p_lower or "recipe" in p_lower or "swiggy" in p_lower or "zomato" in p_lower:
         app_title = "GourmetPulse - AI Food Arbitrage & Kitchen Command"
     elif "fitness" in p_lower or "workout" in p_lower or "gym" in p_lower or "health" in p_lower:
@@ -1054,8 +1057,8 @@ async def create_and_deploy_app(
 
     # 3. Generate HTML Code and Readme
     log("[00:05] ⚡ Building application code with modern CSS3 variables, Glassmorphism, and Chart.js...")
-    live_url = f"https://{GITHUB_USER}.github.io/{repo_name}/"
-    repo_url = f"https://github.com/{GITHUB_USER}/{repo_name}"
+    live_url = f"https://{active_user}.github.io/{repo_name}/"
+    repo_url = f"https://github.com/{active_user}/{repo_name}"
 
     html_content = build_app_html(app_title, app_desc, prompt, theme, live_url, repo_url)
     readme_content = build_app_readme(app_title, app_desc, repo_name, live_url, repo_url, theme, stitch_info)
@@ -1075,42 +1078,54 @@ async def create_and_deploy_app(
         f.write("")
 
     # 5. Git Init, Commit & Push to GitHub Main
-    log(f"[00:07] 🐙 Initializing Git repository and connecting to GitHub (karnkeshav/{repo_name})...")
+    log(f"[00:07] 🐙 Initializing Git repository and connecting to GitHub ({active_user}/{repo_name})...")
     
     loop = asyncio.get_event_loop()
     
-    def run_cmd(cmd_list, cwd):
-        res = subprocess.run(cmd_list, cwd=cwd, capture_output=True, text=True)
+    def run_cmd(cmd_list, cwd, env_vars=None):
+        env = os.environ.copy()
+        if env_vars:
+            env.update(env_vars)
+        if token:
+            env["GH_TOKEN"] = token
+            env["GITHUB_TOKEN"] = token
+        res = subprocess.run(cmd_list, cwd=cwd, capture_output=True, text=True, env=env)
         return res.returncode, res.stdout, res.stderr
 
     await loop.run_in_executor(None, lambda: run_cmd(["git", "init", "-b", "main"], target_dir))
-    await loop.run_in_executor(None, lambda: run_cmd(["git", "config", "user.name", "karnkeshav"], target_dir))
-    await loop.run_in_executor(None, lambda: run_cmd(["git", "config", "user.email", "keshav.karn@gmail.com"], target_dir))
+    await loop.run_in_executor(None, lambda: run_cmd(["git", "config", "user.name", active_user], target_dir))
+    await loop.run_in_executor(None, lambda: run_cmd(["git", "config", "user.email", f"{active_user}@users.noreply.github.com"], target_dir))
     await loop.run_in_executor(None, lambda: run_cmd(["git", "add", "."], target_dir))
     await loop.run_in_executor(None, lambda: run_cmd(["git", "commit", "-m", "feat: initial release with Google Stitch UI & modern CSS"], target_dir))
 
-    log("[00:09] 📦 Pushing source code to GitHub remote on branch 'main'...")
+    log(f"[00:09] 📦 Pushing source code to GitHub remote ({active_user}/{repo_name}) on branch 'main'...")
+    
+    # Remote URL with token support if available
+    remote_target = f"https://{token + '@' if token else ''}github.com/{active_user}/{repo_name}.git"
+
     # Try creating remote repo if doesn't exist
     code, stdout, stderr = await loop.run_in_executor(
         None, 
-        lambda: run_cmd(["gh", "repo", "create", f"{GITHUB_USER}/{repo_name}", "--public", "--source=.", "--remote=origin", "--push"], target_dir)
+        lambda: run_cmd(["gh", "repo", "create", f"{active_user}/{repo_name}", "--public", "--source=.", "--remote=origin", "--push"], target_dir)
     )
     
     if code != 0:
-        # Repo might already exist, try force push
+        # If repo exists or gh create returned non-zero, configure origin and push
+        await loop.run_in_executor(None, lambda: run_cmd(["git", "remote", "remove", "origin"], target_dir))
+        await loop.run_in_executor(None, lambda: run_cmd(["git", "remote", "add", "origin", remote_target], target_dir))
         await loop.run_in_executor(None, lambda: run_cmd(["git", "push", "-u", "origin", "main", "--force"], target_dir))
 
     # 6. Enable GitHub Pages
     log("[00:11] 🚀 Configuring GitHub Pages live hosting deployment...")
     pages_code, _, _ = await loop.run_in_executor(
         None,
-        lambda: run_cmd(["gh", "api", f"repos/{GITHUB_USER}/{repo_name}/pages", "-X", "POST", "-f", 'source={"branch":"main","path":"/"}'], target_dir)
+        lambda: run_cmd(["gh", "api", f"repos/{active_user}/{repo_name}/pages", "-X", "POST", "-f", 'source={"branch":"main","path":"/"}'], target_dir)
     )
 
     log(f"[00:12] 💎 Deployment live and active at {live_url} !")
 
     # 7. Construct Formatted Markdown Response
-    markdown_answer = f"""### 🚀 **{app_title}** Built & Deployed Successfully!
+    markdown_answer = f"""### 🚀 **{app_title}** Built & Deployed to GitHub Successfully!
 
 ---
 
@@ -1121,7 +1136,7 @@ async def create_and_deploy_app(
     👉 Open Live App ({live_url})
   </a>
   <a href="{repo_url}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 600; padding: 12px 20px; border-radius: 8px; text-decoration: none;">
-    💻 View GitHub Repo (karnkeshav/{repo_name})
+    💻 View GitHub Repo ({active_user}/{repo_name})
   </a>
 </div>
 
@@ -1129,6 +1144,7 @@ async def create_and_deploy_app(
 * 💻 **GitHub Repository:** [{repo_url}]({repo_url})
 * 🌿 **Git Branch:** `main` *(Auto-deployed via GitHub Pages)*
 * 🎨 **Design System:** Google Stitch Screen Design System (`{design_system_name}`)
+* 👤 **Target Account:** `@{active_user}`
 
 ---
 
@@ -1153,7 +1169,7 @@ async def create_and_deploy_app(
         "title": f"🚀 {app_title} - Live Deployment",
         "url": live_url,
         "repo_url": repo_url,
-        "repo_name": f"{GITHUB_USER}/{repo_name}",
+        "repo_name": f"{active_user}/{repo_name}",
         "design_system": design_system_name,
     }
 
@@ -1168,42 +1184,180 @@ async def create_and_deploy_app(
         "deliverable": deliverable
     }
 
-def list_user_repos(limit: int = 30) -> list:
-    """List public repositories for the configured GitHub user."""
+def get_github_user_profile(user: Optional[str] = None, token: Optional[str] = None) -> Dict[str, Any]:
+    """Retrieve authenticated GitHub user profile metadata."""
+    if token:
+        try:
+            req = urllib.request.Request(
+                "https://api.github.com/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "AI-Orchestration"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return {
+                    "authenticated": True,
+                    "login": data.get("login", GITHUB_USER),
+                    "name": data.get("name") or data.get("login", GITHUB_USER),
+                    "avatar_url": data.get("avatar_url", f"https://avatars.githubusercontent.com/{data.get('login', GITHUB_USER)}"),
+                    "html_url": data.get("html_url", f"https://github.com/{data.get('login', GITHUB_USER)}"),
+                    "public_repos": data.get("public_repos", 0),
+                    "total_private_repos": data.get("total_private_repos", 0),
+                    "source": "token"
+                }
+        except Exception as e:
+            print(f"Error fetching profile via token: {e}")
+
     try:
-        cmd = ["gh", "repo", "list", GITHUB_USER, "--json", "name,description,url,updatedAt,homepageUrl", "--limit", str(limit)]
+        cmd = ["gh", "api", "user"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if res.returncode == 0 and res.stdout.strip():
+            data = json.loads(res.stdout)
+            return {
+                "authenticated": True,
+                "login": data.get("login", GITHUB_USER),
+                "name": data.get("name") or data.get("login", GITHUB_USER),
+                "avatar_url": data.get("avatar_url", f"https://avatars.githubusercontent.com/{data.get('login', GITHUB_USER)}"),
+                "html_url": data.get("html_url", f"https://github.com/{data.get('login', GITHUB_USER)}"),
+                "public_repos": data.get("public_repos", 0),
+                "source": "cli"
+            }
+    except Exception as e:
+        print(f"Error fetching profile via CLI: {e}")
+
+    target_user = user or GITHUB_USER
+    return {
+        "authenticated": bool(target_user),
+        "login": target_user,
+        "name": target_user,
+        "avatar_url": f"https://avatars.githubusercontent.com/{target_user}",
+        "html_url": f"https://github.com/{target_user}",
+        "public_repos": 0,
+        "source": "default"
+    }
+
+def list_user_repos(user: Optional[str] = None, token: Optional[str] = None, limit: int = 50) -> list:
+    """List public & private repositories for the GitHub user with Pages and URL details."""
+    target_user = user or GITHUB_USER
+
+    # 1. Try with token if provided
+    if token:
+        try:
+            req = urllib.request.Request(
+                f"https://api.github.com/user/repos?sort=updated&per_page={limit}&affiliation=owner,collaborator",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "AI-Orchestration"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                repos = json.loads(resp.read().decode("utf-8"))
+                formatted = []
+                for r in repos:
+                    r_owner = r.get("owner", {}).get("login", target_user)
+                    formatted.append({
+                        "name": r.get("name"),
+                        "full_name": r.get("full_name", f"{r_owner}/{r.get('name')}"),
+                        "description": r.get("description") or "",
+                        "url": r.get("html_url", f"https://github.com/{r_owner}/{r.get('name')}"),
+                        "homepageUrl": r.get("homepage") or "",
+                        "pages_url": f"https://{r_owner}.github.io/{r.get('name')}/",
+                        "is_private": r.get("private", False),
+                        "updatedAt": r.get("updated_at")
+                    })
+                return formatted
+        except Exception as e:
+            print(f"Error listing repos with token: {e}")
+
+    # 2. Try with gh CLI
+    try:
+        cmd = ["gh", "repo", "list", target_user, "--json", "name,description,url,updatedAt,homepageUrl,isPrivate", "--limit", str(limit)]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if res.returncode == 0 and res.stdout.strip():
-            return json.loads(res.stdout)
+            raw_repos = json.loads(res.stdout)
+            formatted = []
+            for r in raw_repos:
+                formatted.append({
+                    "name": r.get("name"),
+                    "full_name": f"{target_user}/{r.get('name')}",
+                    "description": r.get("description") or "",
+                    "url": r.get("url", f"https://github.com/{target_user}/{r.get('name')}"),
+                    "homepageUrl": r.get("homepageUrl") or "",
+                    "pages_url": f"https://{target_user}.github.io/{r.get('name')}/",
+                    "is_private": r.get("isPrivate", False),
+                    "updatedAt": r.get("updatedAt")
+                })
+            return formatted
     except Exception as e:
-        print(f"Error listing repos: {e}")
+        print(f"Error listing repos via CLI: {e}")
+
+    # 3. Fallback to public API
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/users/{target_user}/repos?sort=updated&per_page={limit}",
+            headers={"Accept": "application/vnd.github.v3+json", "User-Agent": "AI-Orchestration"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            raw_repos = json.loads(resp.read().decode("utf-8"))
+            formatted = []
+            for r in raw_repos:
+                formatted.append({
+                    "name": r.get("name"),
+                    "full_name": f"{target_user}/{r.get('name')}",
+                    "description": r.get("description") or "",
+                    "url": r.get("html_url", f"https://github.com/{target_user}/{r.get('name')}"),
+                    "homepageUrl": r.get("homepage") or "",
+                    "pages_url": f"https://{target_user}.github.io/{r.get('name')}/",
+                    "is_private": r.get("private", False),
+                    "updatedAt": r.get("updated_at")
+                })
+            return formatted
+    except Exception as e:
+        print(f"Fallback public repo list failed: {e}")
+
     return []
 
-async def modify_and_deploy_stitch_app(repo_identifier: str, instructions: str, on_log: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
+async def modify_and_deploy_stitch_app(
+    repo_identifier: str,
+    instructions: str,
+    on_log: Optional[Callable[[str], None]] = None,
+    user: Optional[str] = None,
+    token: Optional[str] = None
+) -> Dict[str, Any]:
     """Clones an existing repository, modifies/enhances its web app code using Google Stitch UI design tokens, commits, and pushes to main."""
     def log(msg: str):
         if on_log:
             on_log(msg)
         print(f"[AppModifier] {msg}")
 
-    # Clean repo name
-    clean_repo = repo_identifier.strip()
-    if "/" in clean_repo:
-        clean_repo = clean_repo.split("/")[-1]
-    clean_repo = clean_repo.replace(".git", "")
+    # Clean repo name and owner
+    raw_ident = repo_identifier.strip()
+    if "/" in raw_ident:
+        owner_part, clean_repo = raw_ident.split("/", 1)
+        owner_part = owner_part.strip()
+        clean_repo = clean_repo.replace(".git", "").strip()
+    else:
+        owner_part = user or GITHUB_USER
+        clean_repo = raw_ident.replace(".git", "").strip()
 
-    repo_url = f"https://github.com/{GITHUB_USER}/{clean_repo}"
-    live_url = f"https://{GITHUB_USER}.github.io/{clean_repo}/"
+    active_user = user or owner_part or GITHUB_USER
+    repo_url = f"https://github.com/{active_user}/{clean_repo}"
+    live_url = f"https://{active_user}.github.io/{clean_repo}/"
+    clone_url = f"https://{token + '@' if token else ''}github.com/{active_user}/{clean_repo}.git"
     
-    log(f"🐙 Connecting to GitHub repository '{GITHUB_USER}/{clean_repo}'...")
+    log(f"🐙 Connecting to GitHub repository '{active_user}/{clean_repo}'...")
     build_dir = f"/tmp/app_mod_{clean_repo}_{int(time.time())}"
     
     # Clone repo
-    clone_res = subprocess.run(["git", "clone", f"https://github.com/{GITHUB_USER}/{clean_repo}.git", build_dir], capture_output=True, text=True, timeout=30)
+    clone_res = subprocess.run(["git", "clone", clone_url, build_dir], capture_output=True, text=True, timeout=30)
     
     if clone_res.returncode != 0:
         log(f"⚠️ Repository '{clean_repo}' not found remotely — generating new Google Stitch web app for '{clean_repo}'...")
-        return await build_and_deploy_stitch_app(f"{clean_repo}: {instructions}", on_log=on_log)
+        return await create_and_deploy_app(f"{clean_repo}: {instructions}", on_log=on_log, user=active_user, token=token)
 
     log(f"🎨 Analyzing existing codebase & synthesizing Google Stitch UI improvements for: '{instructions[:60]}...'")
     
@@ -1245,16 +1399,21 @@ This application is automatically built, committed to `main`, and deployed on **
         f.write(readme_content)
 
     log(f"📦 Staging modified files & committing to branch 'main'...")
-    subprocess.run(["git", "config", "user.name", "karnkeshav"], cwd=build_dir, check=True)
-    subprocess.run(["git", "config", "user.email", "keshavkarn2005@gmail.com"], cwd=build_dir, check=True)
+    subprocess.run(["git", "config", "user.name", active_user], cwd=build_dir, check=True)
+    subprocess.run(["git", "config", "user.email", f"{active_user}@users.noreply.github.com"], cwd=build_dir, check=True)
     subprocess.run(["git", "add", "."], cwd=build_dir, check=True)
     subprocess.run(["git", "commit", "-m", f"feat(ui): {instructions[:50]} with Google Stitch tokens"], cwd=build_dir, check=True)
     
-    log(f"🚀 Pushing live changes to GitHub ({GITHUB_USER}/{clean_repo})...")
+    log(f"🚀 Pushing live changes to GitHub ({active_user}/{clean_repo})...")
+    if token:
+        subprocess.run(["git", "remote", "set-url", "origin", clone_url], cwd=build_dir, check=True)
     subprocess.run(["git", "push", "origin", "main"], cwd=build_dir, check=True)
 
     # Ensure GitHub Pages is active
-    subprocess.run(["gh", "api", f"repos/{GITHUB_USER}/{clean_repo}/pages", "-X", "POST", "-f", "source={\"branch\":\"main\",\"path\":\"/\"}"], cwd=build_dir, capture_output=True, text=True)
+    env = os.environ.copy()
+    if token:
+        env["GH_TOKEN"] = token
+    subprocess.run(["gh", "api", f"repos/{active_user}/{clean_repo}/pages", "-X", "POST", "-f", "source={\"branch\":\"main\",\"path\":\"/\"}"], cwd=build_dir, capture_output=True, text=True, env=env)
 
     log(f"💎 Updated application live at {live_url} !")
 
@@ -1269,7 +1428,7 @@ This application is automatically built, committed to `main`, and deployed on **
     👉 Open Live App ({live_url})
   </a>
   <a href="{repo_url}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 8px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 600; padding: 12px 20px; border-radius: 8px; text-decoration: none;">
-    💻 View GitHub Repo (karnkeshav/{clean_repo})
+    💻 View GitHub Repo ({active_user}/{clean_repo})
   </a>
 </div>
 
@@ -1292,7 +1451,7 @@ This application is automatically built, committed to `main`, and deployed on **
         "title": f"🛠️ {app_title} - Updated Live Deployment",
         "url": live_url,
         "repo_url": repo_url,
-        "repo_name": f"{GITHUB_USER}/{clean_repo}",
+        "repo_name": f"{active_user}/{clean_repo}",
         "design_system": design_system_name,
     }
 
@@ -1309,5 +1468,6 @@ This application is automatically built, committed to `main`, and deployed on **
 
 # Function alias for backwards compatibility and uniform naming
 build_and_deploy_stitch_app = create_and_deploy_app
+
 
 
