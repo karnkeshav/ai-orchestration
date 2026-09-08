@@ -1094,7 +1094,7 @@
 
       <!-- Apps Interface Container (Direct Ready4Launch Cloud App Engine on Render) -->
       <section id="appsContainer" class="apps-container" style="display: none; padding: 0; margin-top: 0.5rem; margin-bottom: 2rem;">
-        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border-color); border-radius: 12px 12px 0 0; padding: 0.75rem 1.25rem; backdrop-filter: blur(12px);">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border-color); border-radius: 12px 12px 0 0; padding: 0.75rem 1.25rem; backdrop-filter: blur(12px); flex-wrap: wrap; gap: 0.75rem;">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <span style="font-size: 1.25rem;">⚡</span>
             <div>
@@ -1104,11 +1104,17 @@
               </div>
             </div>
           </div>
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <button type="button" onclick="const f=document.getElementById('ready4launchFrame'); if(f) f.src='https://ready4launch.onrender.com/app';" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem;">
-              🔄 Reload Engine
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <button type="button" onclick="openReady4LaunchAuth('https://ready4launch.onrender.com/auth/google')" class="btn-action" style="padding: 0.45rem 0.85rem; font-size: 0.78rem; background: rgba(66, 133, 244, 0.2); border-color: rgba(66, 133, 244, 0.4); color: #93c5fd; display: inline-flex; align-items: center; gap: 4px;">
+              🔑 Google Sign-In
             </button>
-            <a href="https://ready4launch.onrender.com/" target="_blank" class="btn-action" style="text-decoration: none; padding: 0.45rem 0.95rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+            <button type="button" onclick="openReady4LaunchAuth('https://ready4launch.onrender.com/auth/github')" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+              🐙 Connect GitHub
+            </button>
+            <button type="button" onclick="reloadReady4LaunchFrame()" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem;">
+              🔄 Reload App
+            </button>
+            <a href="https://ready4launch.onrender.com/" target="_blank" class="btn-secondary" style="text-decoration: none; padding: 0.45rem 0.95rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
               ⤢ Open Fullscreen
             </a>
           </div>
@@ -1777,6 +1783,34 @@
         }
       }
     }
+
+    function openReady4LaunchAuth(url) {
+      const w = 540;
+      const h = 680;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(url, 'OAuthPopup', `width=${w},height=${h},left=${left},top=${top},status=no,menubar=no,toolbar=no`);
+      
+      const checkClosed = setInterval(() => {
+        if (!popup || popup.closed) {
+          clearInterval(checkClosed);
+          reloadReady4LaunchFrame();
+        }
+      }, 1000);
+    }
+
+    function reloadReady4LaunchFrame() {
+      const f = document.getElementById('ready4launchFrame');
+      if (f) {
+        f.src = 'https://ready4launch.onrender.com/app';
+      }
+    }
+
+    window.addEventListener('message', (event) => {
+      if (event.data && (event.data.type === 'AUTH_COMPLETE' || event.data === 'AUTH_COMPLETE')) {
+        reloadReady4LaunchFrame();
+      }
+    });
 
     function showActivity(btn) {
       // Clear chatbox prompt & active task views
