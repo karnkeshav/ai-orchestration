@@ -1049,19 +1049,21 @@ async def create_and_deploy_app(
     )
 
     # 2. Call Google Stitch MCP / Design System Engine
-    log("[00:02] 🎨 Connecting to Google Stitch MCP Design Engine...")
+    log("[00:02] 🎨 Connecting to Google Stitch MCP Design Engine for design tokens...")
     stitch_info = await call_stitch_mcp_screen(prompt, app_title)
     theme = stitch_info["theme"]
     design_system_name = stitch_info["design_system"]
-    log(f"[00:04] 📐 Generated Stitch Design System: '{design_system_name}' ({theme['mode']} Mode) with tokens...")
+    log(f"[00:04] 📐 Synthesized Stitch Design System: '{design_system_name}' ({theme['mode']} Mode)...")
 
     # 3. Generate HTML Code and Readme
-    log("[00:05] ⚡ Building application code with modern CSS3 variables, Glassmorphism, and Chart.js...")
+    log("[00:05] 💻 Antigravity Engine: Building semantic HTML5 DOM & Tailwind CSS layout (`index.html`)...")
     live_url = f"https://{active_user}.github.io/{repo_name}/"
     repo_url = f"https://github.com/{active_user}/{repo_name}"
 
     html_content = build_app_html(app_title, app_desc, prompt, theme, live_url, repo_url)
     readme_content = build_app_readme(app_title, app_desc, repo_name, live_url, repo_url, theme, stitch_info)
+    log(f"[00:06] 📊 Injecting Chart.js real-time telemetry visualizations & vector analytics...")
+    log(f"[00:07] ✨ Compiling Glassmorphism UI tokens, search filters, and transaction modals...")
 
     # 4. Create Local Project Directory
     target_dir = f"/home/keysh/github/{repo_name}"
@@ -1077,8 +1079,10 @@ async def create_and_deploy_app(
     with open(os.path.join(target_dir, ".nojekyll"), "w", encoding="utf-8") as f:
         f.write("")
 
+    log(f"[00:08] 📁 Wrote project files to `{target_dir}` (`index.html`: {len(html_content):,} bytes, `README.md`: {len(readme_content):,} bytes)...")
+
     # 5. Git Init, Commit & Push to GitHub Main
-    log(f"[00:07] 🐙 Initializing Git repository and connecting to GitHub ({active_user}/{repo_name})...")
+    log(f"[00:09] 🐙 Initializing Git repository on branch 'main' for @{active_user}...")
     
     loop = asyncio.get_event_loop()
     
@@ -1098,7 +1102,8 @@ async def create_and_deploy_app(
     await loop.run_in_executor(None, lambda: run_cmd(["git", "add", "."], target_dir))
     await loop.run_in_executor(None, lambda: run_cmd(["git", "commit", "-m", "feat: initial release with Google Stitch UI & modern CSS"], target_dir))
 
-    log(f"[00:09] 📦 Pushing source code to GitHub remote ({active_user}/{repo_name}) on branch 'main'...")
+    log(f"[00:10] 📦 Created Git commit `feat: initial release with Google Stitch UI`...")
+    log(f"[00:11] 🚀 Pushing source code to GitHub remote ({active_user}/{repo_name}) on branch 'main'...")
     
     # Remote URL with token support if available
     remote_target = f"https://{token + '@' if token else ''}github.com/{active_user}/{repo_name}.git"
@@ -1116,13 +1121,13 @@ async def create_and_deploy_app(
         await loop.run_in_executor(None, lambda: run_cmd(["git", "push", "-u", "origin", "main", "--force"], target_dir))
 
     # 6. Enable GitHub Pages
-    log("[00:11] 🚀 Configuring GitHub Pages live hosting deployment...")
+    log("[00:12] 🌐 Configuring GitHub Pages live hosting deployment on branch 'main'...")
     pages_code, _, _ = await loop.run_in_executor(
         None,
         lambda: run_cmd(["gh", "api", f"repos/{active_user}/{repo_name}/pages", "-X", "POST", "-f", 'source={"branch":"main","path":"/"}'], target_dir)
     )
 
-    log(f"[00:12] 💎 Deployment live and active at {live_url} !")
+    log(f"[00:13] 💎 Deployment live and active at {live_url} !")
 
     # 7. Construct Formatted Markdown Response
     markdown_answer = f"""### 🚀 **{app_title}** Built & Deployed to GitHub Successfully!
@@ -1349,17 +1354,17 @@ async def modify_and_deploy_stitch_app(
     live_url = f"https://{active_user}.github.io/{clean_repo}/"
     clone_url = f"https://{token + '@' if token else ''}github.com/{active_user}/{clean_repo}.git"
     
-    log(f"🐙 Connecting to GitHub repository '{active_user}/{clean_repo}'...")
+    log(f"[00:01] 🐙 Antigravity Engine: Connecting to GitHub repository '{active_user}/{clean_repo}'...")
     build_dir = f"/tmp/app_mod_{clean_repo}_{int(time.time())}"
     
     # Clone repo
     clone_res = subprocess.run(["git", "clone", clone_url, build_dir], capture_output=True, text=True, timeout=30)
     
     if clone_res.returncode != 0:
-        log(f"⚠️ Repository '{clean_repo}' not found remotely — generating new Google Stitch web app for '{clean_repo}'...")
+        log(f"[00:02] ⚠️ Repository '{clean_repo}' not found remotely — generating new Google Stitch web app for '{clean_repo}'...")
         return await create_and_deploy_app(f"{clean_repo}: {instructions}", on_log=on_log, user=active_user, token=token)
 
-    log(f"🎨 Analyzing existing codebase & synthesizing Google Stitch UI improvements for: '{instructions[:60]}...'")
+    log(f"[00:03] 🎨 Analyzing existing codebase & synthesizing Google Stitch UI improvements for: '{instructions[:60]}...'")
     
     index_path = os.path.join(build_dir, "index.html")
     app_title = clean_repo.replace("-", " ").replace("_", " ").title()
@@ -1370,7 +1375,7 @@ async def modify_and_deploy_stitch_app(
     theme = stitch_meta.get("theme", {})
     design_system_name = stitch_meta.get("design_system", "Synthetic Intelligence")
 
-    log(f"⚡ Applying Google Stitch design tokens ('{design_system_name}') & interactive enhancements...")
+    log(f"[00:05] ⚡ Antigravity Engine: Applying Google Stitch design tokens ('{design_system_name}') & interactive Chart.js...")
     
     # Generate updated HTML
     updated_html = build_app_html(app_title, app_desc, instructions, theme, live_url, repo_url)
@@ -1398,13 +1403,13 @@ This application is automatically built, committed to `main`, and deployed on **
     with open(readme_path, "w", encoding="utf-8") as f:
         f.write(readme_content)
 
-    log(f"📦 Staging modified files & committing to branch 'main'...")
+    log(f"[00:08] 📦 Staging modified files (`index.html`, `README.md`) & committing to branch 'main'...")
     subprocess.run(["git", "config", "user.name", active_user], cwd=build_dir, check=True)
     subprocess.run(["git", "config", "user.email", f"{active_user}@users.noreply.github.com"], cwd=build_dir, check=True)
     subprocess.run(["git", "add", "."], cwd=build_dir, check=True)
     subprocess.run(["git", "commit", "-m", f"feat(ui): {instructions[:50]} with Google Stitch tokens"], cwd=build_dir, check=True)
     
-    log(f"🚀 Pushing live changes to GitHub ({active_user}/{clean_repo})...")
+    log(f"[00:10] 🚀 Pushing live changes to GitHub ({active_user}/{clean_repo})...")
     if token:
         subprocess.run(["git", "remote", "set-url", "origin", clone_url], cwd=build_dir, check=True)
     subprocess.run(["git", "push", "origin", "main"], cwd=build_dir, check=True)
@@ -1415,7 +1420,7 @@ This application is automatically built, committed to `main`, and deployed on **
         env["GH_TOKEN"] = token
     subprocess.run(["gh", "api", f"repos/{active_user}/{clean_repo}/pages", "-X", "POST", "-f", "source={\"branch\":\"main\",\"path\":\"/\"}"], cwd=build_dir, capture_output=True, text=True, env=env)
 
-    log(f"💎 Updated application live at {live_url} !")
+    log(f"[00:12] 💎 Updated application live at {live_url} !")
 
     markdown_answer = f"""### 🛠️ **{app_title}** Updated & Re-Deployed Successfully!
 

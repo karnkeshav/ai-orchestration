@@ -16,7 +16,6 @@ class AppsInterface {
   init() {
     this.setupEventListeners();
     this.updateAuthStatus();
-    this.displayThemeSelector();
     this.loadRepos();
   }
 
@@ -25,30 +24,6 @@ class AppsInterface {
     const githubLoginBtn = document.getElementById('githubLoginBtn');
     if (githubLoginBtn) {
       githubLoginBtn.onclick = () => this.initiateGitHubAuth();
-    }
-
-    // Theme selector
-    document.querySelectorAll('[data-theme]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        this.selectTheme(e.currentTarget.dataset.theme);
-      });
-    });
-
-    // Generate button
-    const generateBtn = document.getElementById('generateAppBtn');
-    if (generateBtn) {
-      generateBtn.onclick = () => this.generateApp();
-    }
-
-    // Chat input
-    const chatInput = document.getElementById('appChatInput');
-    if (chatInput) {
-      chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          this.generateApp();
-        }
-      });
     }
   }
 
@@ -119,7 +94,6 @@ class AppsInterface {
 
   updateAuthStatus() {
     const authStatus = document.getElementById('authStatus');
-    const chatArea = document.getElementById('appChatArea');
     const repoSection = document.getElementById('appsRepoSection');
     
     // Check if user is connected
@@ -151,13 +125,11 @@ class AppsInterface {
           </div>
         `;
       }
-      if (chatArea) chatArea.classList.remove('hidden');
-      if (repoSection) repoSection.style.display = 'flex';
+      if (repoSection) repoSection.style.display = 'block';
     } else {
       if (authStatus) {
         authStatus.innerHTML = `<button id="githubLoginBtn" class="btn-primary" onclick="if(window.appsInterface) window.appsInterface.initiateGitHubAuth()">🔗 Connect GitHub Account</button>`;
       }
-      if (chatArea) chatArea.classList.add('hidden');
       if (repoSection) repoSection.style.display = 'none';
       this.setupEventListeners();
     }
@@ -308,16 +280,14 @@ class AppsInterface {
     const targetUser = this.githubUser || 'karnkeshav';
     const directive = `Modify repository ${targetUser}/${repoName}: `;
 
-    const appChatInput = document.getElementById('appChatInput');
     const promptText = document.getElementById('promptText');
-
-    if (appChatInput) {
-      appChatInput.value = directive;
-      appChatInput.focus();
-    }
     if (promptText) {
       promptText.value = directive;
+      promptText.focus();
     }
+
+    const quickChips = document.getElementById('quickChipsContainer');
+    if (quickChips) quickChips.style.display = 'flex';
 
     // Highlight card
     document.querySelectorAll('.apps-repo-card').forEach(card => {

@@ -1092,6 +1092,36 @@
         <div class="cards-grid" id="cardsGrid"></div>
       </section>
 
+      <!-- Apps Interface Container -->
+      <section id="appsContainer" class="apps-container" style="display: none;">
+        <div class="apps-header">
+          <h2>🚀 Build & Deploy Apps</h2>
+          <p>Create production-ready apps with AI, deploy to GitHub Pages instantly</p>
+        </div>
+
+        <div class="auth-status" id="authStatus">
+          <button id="githubLoginBtn" class="btn-secondary" onclick="if(window.appsInterface) window.appsInterface.initiateGitHubAuth(); else if(typeof openGitHubLoginModal === 'function') openGitHubLoginModal();">🔗 Connect GitHub to Deploy</button>
+        </div>
+
+        <!-- Connected Repositories Section inside Apps -->
+        <div id="appsRepoSection" class="apps-repo-section" style="display: none;">
+          <div class="apps-repo-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.95rem; color: #fff;">
+              <span>📦</span> Your Connected Repositories
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <input id="appsRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="if(window.appsInterface) window.appsInterface.filterRepos(this.value)" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; color: #fff; outline: none; width: 170px;">
+              <button type="button" onclick="if(window.appsInterface) window.appsInterface.loadRepos(true); if(typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; cursor: pointer;" title="Refresh Repositories">🔄 Refresh</button>
+            </div>
+          </div>
+          <div id="appsRepoList" class="apps-repo-grid">
+            <div style="grid-column: 1/-1; text-align: center; padding: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+              <span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Loading your repositories...
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- Activity: hidden until the Activity tab is clicked. Raw, technical backend
            log (what's actually happening, e.g. which agent/tool was called) for debugging. -->
       <section id="activitySection" style="display: none;">
@@ -1154,62 +1184,6 @@
 
   <!-- Toast Notification -->
   <div id="toast" style="position: fixed; bottom: 2rem; right: 2rem; background: #1e293b; border: 1px solid var(--accent-emerald); color: #fff; padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 0.9rem; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; z-index: 1000;"></div>
-
-  <!-- Apps Interface Container -->
-  <div id="appsContainer" class="apps-container">
-    <div class="apps-header">
-      <h2>🚀 Build & Deploy Apps</h2>
-      <p>Create production-ready apps with AI, deploy to GitHub Pages instantly</p>
-    </div>
-
-    <div class="auth-status" id="authStatus">
-      <button id="githubLoginBtn" class="btn-secondary">🔗 Connect GitHub to Deploy</button>
-    </div>
-
-    <!-- Connected Repositories Section inside Apps -->
-    <div id="appsRepoSection" class="apps-repo-section" style="display: none;">
-      <div class="apps-repo-header">
-        <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.95rem; color: #fff;">
-          <span>📦</span> Your Connected Repositories
-        </div>
-        <div style="display: flex; gap: 6px; align-items: center;">
-          <input id="appsRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="if(window.appsInterface) window.appsInterface.filterRepos(this.value)" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; color: #fff; outline: none; width: 170px;">
-          <button type="button" onclick="if(window.appsInterface) window.appsInterface.loadRepos(true); if(typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; cursor: pointer;" title="Refresh Repositories">🔄 Refresh</button>
-        </div>
-      </div>
-      <div id="appsRepoList" class="apps-repo-grid">
-        <div style="grid-column: 1/-1; text-align: center; padding: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
-          <span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Loading your repositories...
-        </div>
-      </div>
-    </div>
-
-    <div class="mode-selector">
-      <label class="mode-option">
-        <input type="radio" name="mode" value="prototype" id="appMode" checked>
-        <div class="mode-option-title">🎨 Prototype</div>
-        <div class="mode-option-desc">Quick & polished (5+ sections)</div>
-      </label>
-      <label class="mode-option">
-        <input type="radio" name="mode" value="complete">
-        <div class="mode-option-title">📦 Complete</div>
-        <div class="mode-option-desc">Production-ready with all features</div>
-      </label>
-    </div>
-
-    <div class="theme-selector">
-      <h4>Select Theme</h4>
-      <div id="themeSelector"></div>
-    </div>
-
-    <div id="appChatArea" class="app-chat-area">
-      <label class="chat-label">Describe Your App</label>
-      <textarea id="appChatInput" placeholder="E.g., Build an electronics shop website for Hyderabad with contact form, maps, product catalog, and modern design..."></textarea>
-      <button id="generateAppBtn" class="btn-primary">🚀 Generate & Deploy</button>
-    </div>
-
-    <div id="appResponse"></div>
-  </div>
 
   <script src="public/apps.js"></script>
   <script>
@@ -1754,7 +1728,7 @@
 
       if (category === 'apps') {
         // Show apps interface
-        if (appsContainer) appsContainer.classList.add('active');
+        if (appsContainer) appsContainer.style.display = 'block';
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
         if (window.appsInterface) {
@@ -1763,7 +1737,7 @@
         }
       } else {
         // Hide apps interface
-        if (appsContainer) appsContainer.classList.remove('active');
+        if (appsContainer) appsContainer.style.display = 'none';
         if (category === 'all' || category === 'websites' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
           if (capabilitiesSection) capabilitiesSection.style.display = 'block';
           if (activitySection) activitySection.style.display = 'none';
@@ -1779,8 +1753,10 @@
       
       const subMenu = document.getElementById('repoSubMenu');
       const quickChips = document.getElementById('quickChipsContainer');
+      const appsContainer = document.getElementById('appsContainer');
       if (subMenu) subMenu.style.display = 'none';
       if (quickChips) quickChips.style.display = 'none';
+      if (appsContainer) appsContainer.style.display = 'none';
 
       // Invalidate running polling & simulation loops
       activePollToken = null;
@@ -2066,15 +2042,8 @@
       const directive = `Modify repository ${targetUser}/${repoName}: `;
       
       const textarea = document.getElementById("promptText");
-      const appChatInput = document.getElementById("appChatInput");
-      
-      if (textarea) textarea.value = directive;
-      if (appChatInput) appChatInput.value = directive;
-      
-      const appsContainer = document.getElementById("appsContainer");
-      if (appsContainer && appsContainer.classList.contains("active") && appChatInput) {
-        appChatInput.focus();
-      } else if (textarea) {
+      if (textarea) {
+        textarea.value = directive;
         textarea.focus();
       }
       
@@ -2191,12 +2160,13 @@
       statusText.style.color = "";
       technicalLogs.innerHTML = "";
       activityStageIndex = 0;
-      pushFriendlyStage(progressLogs, statusText);
-      pushTechnicalLog(technicalLogs, `Directive received: ${prompt.slice(0, 80)}`);
+      pushLiveProgressLog(progressLogs, statusText, `[00:00] ⚡ Antigravity Engine: Directive received: "${prompt.slice(0, 70)}..."`);
+      pushTechnicalLog(technicalLogs, `Directive received: ${prompt}`);
 
+      const execCategory = currentCategory === 'apps' ? 'apps' : (attachedImageData ? 'shopping' : (currentCategory || 'general'));
       const payload = {
         prompt: prompt,
-        category: attachedImageData ? "shopping" : "general",
+        category: execCategory,
         image_data: attachedImageData,
         location: "Bangalore",
         github_user: currentGitHubUser || "karnkeshav",
@@ -2228,7 +2198,7 @@
             failedAttempts = 0;
           } catch (err) {
             failedAttempts++;
-            if (failedAttempts < 4) { setTimeout(poll, 1500); return; }
+            if (failedAttempts < 4) { setTimeout(poll, 1200); return; }
             if (!isActive) return;
             statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
             statusText.style.color = "var(--accent-rose)";
@@ -2241,7 +2211,7 @@
           if (isActive) {
             (resPayload.logs || []).forEach(log => {
               if (log !== "[DONE] Finished") {
-                pushFriendlyStage(progressLogs, statusText);
+                pushLiveProgressLog(progressLogs, statusText, log);
                 pushTechnicalLog(technicalLogs, log);
               }
             });
@@ -2257,13 +2227,19 @@
               markMissionAccomplished(progressLogs, statusText);
               pushTechnicalLog(technicalLogs, "[DONE] Task completed");
               showToast(t('toastExecutionCompleted'));
+
+              // Refresh repositories in both sidebar and apps view
+              if (typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);
+              if (window.appsInterface && typeof window.appsInterface.loadRepos === 'function') {
+                window.appsInterface.loadRepos(true);
+              }
             } else {
               showToast(`${t('toastExecutionCompleted')} — "${prompt.slice(0, 40)}"`);
             }
             return;
           }
           if (resPayload.status === "NOT_FOUND") return;
-          setTimeout(poll, 1500);
+          setTimeout(poll, 1200);
         };
         poll();
       } catch (err) {
@@ -2274,12 +2250,22 @@
 
     function simulateExecution(prompt, logsBox, statusText, resultSection, answerContent, technicalLogs) {
       let i = 0;
-      const totalSteps = STAGE_KEYS.length;
+      const simSteps = [
+        "[00:01] ⚡ Antigravity Engine initializing execution context...",
+        "[00:03] 🎨 Connecting to Google Stitch MCP Design Engine for design tokens...",
+        "[00:05] 💻 Antigravity Engine: Building semantic HTML5 DOM & Tailwind CSS layout (index.html)...",
+        "[00:07] 📊 Injecting Chart.js real-time telemetry visualizations & vector analytics...",
+        "[00:09] 📁 Compiling Glassmorphism UI tokens, search filters, and writing project files...",
+        "[00:10] 🐙 Initializing Git repository & creating commit on branch 'main'...",
+        "[00:12] 🚀 Pushing source code to GitHub remote on branch 'main'...",
+        "[00:13] 🌐 Configuring GitHub Pages live hosting deployment..."
+      ];
+      const totalSteps = simSteps.length;
       const interval = setInterval(() => {
         if (interval !== activeSimInterval) { clearInterval(interval); return; }
         if (i < totalSteps) {
-          pushFriendlyStage(logsBox, statusText);
-          pushTechnicalLog(technicalLogs, `[offline-sim] step ${i + 1}/${totalSteps}`);
+          pushLiveProgressLog(logsBox, statusText, simSteps[i]);
+          pushTechnicalLog(technicalLogs, simSteps[i]);
           i++;
         } else {
           clearInterval(interval);
@@ -2289,33 +2275,41 @@
           resultSection.style.display = "block";
 
           const pLower = prompt.toLowerCase();
-          if (pLower.includes("website") || pLower.includes("app") || pLower.includes("create") || pLower.includes("repo")) {
-            const cleanName = prompt.replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 25).replace(/\s+/g, '-').toLowerCase() || 'voltnexus-app';
-            const liveUrl = `https://karnkeshav.github.io/${cleanName}/`;
-            const repoUrl = `https://github.com/karnkeshav/${cleanName}`;
-            answerContent.innerHTML = `
-              <div style="font-weight: 700; font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">🚀 Application & Website Created</div>
-              <div style="display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap;">
-                <a href="${liveUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 8px; text-decoration: none;">
-                  👉 Open Live App (${liveUrl})
-                </a>
-                <a href="${repoUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 600; padding: 10px 16px; border-radius: 8px; text-decoration: none;">
-                  💻 View GitHub Repo
-                </a>
-              </div>
-              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 6px;">Configured with Google Stitch UI Screen & GitHub Pages on branch <code>main</code>.</p>
-            `;
-          } else {
-            answerContent.innerText = "✓ Directive successfully processed.";
-          }
+          const cleanName = prompt.replace(/[^a-zA-Z0-9\s]/g, '').trim().slice(0, 25).replace(/\s+/g, '-').toLowerCase() || 'voltnexus-app';
+          const liveUser = currentGitHubUser || 'karnkeshav';
+          const liveUrl = `https://${liveUser}.github.io/${cleanName}/`;
+          const repoUrl = `https://github.com/${liveUser}/${cleanName}`;
+          answerContent.innerHTML = `
+            <div style="font-weight: 700; font-size: 1.1rem; color: #fff; margin-bottom: 0.5rem;">🚀 Application & Website Created</div>
+            <div style="display: flex; gap: 10px; margin: 12px 0; flex-wrap: wrap;">
+              <a href="${liveUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, #06b6d4, #3b82f6); color: #fff; font-weight: 700; padding: 10px 18px; border-radius: 8px; text-decoration: none;">
+                👉 Open Live App (${liveUrl})
+              </a>
+              <a href="${repoUrl}" target="_blank" rel="noopener noreferrer" style="display: inline-flex; align-items: center; gap: 6px; background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; font-weight: 600; padding: 10px 16px; border-radius: 8px; text-decoration: none;">
+                💻 View GitHub Repo
+              </a>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 6px;">Configured with Google Stitch UI Screen & GitHub Pages on branch <code>main</code>.</p>
+          `;
           showToast(t('toastDone'));
         }
-      }, 800);
+      }, 700);
       activeSimInterval = interval;
     }
 
-    // Appends the next generic, non-technical progress stage (never the
-    // backend's raw internal log text) and keeps the status line in sync.
+    function pushLiveProgressLog(logsBox, statusText, logText) {
+      if (!logsBox || !logText) return;
+      const item = document.createElement("div");
+      item.className = "activity-step";
+      item.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      item.style.fontSize = "0.82rem";
+      item.innerText = logText;
+      logsBox.appendChild(item);
+      logsBox.scrollTop = logsBox.scrollHeight;
+      if (statusText) statusText.innerText = logText;
+    }
+
+    // Appends the next generic, non-technical progress stage (fallback)
     function pushFriendlyStage(logsBox, statusText) {
       const idx = Math.min(activityStageIndex, STAGE_KEYS.length - 1);
       const label = t(STAGE_KEYS[idx]);

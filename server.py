@@ -2180,10 +2180,10 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
-async def try_instant_app_creation(task_id: str, prompt: str, github_user: Optional[str] = None, github_token: Optional[str] = None) -> bool:
-    """Zero-latency autonomous app builder & modifier: if the user prompt asks to create,
-    build, make, deploy, or modify an app, website, or GitHub repository, runs the complete
-    Google Stitch UI + GitHub Pages deployment pipeline directly."""
+async def try_instant_app_creation(task_id: str, prompt: str, category: str = "general", github_user: Optional[str] = None, github_token: Optional[str] = None) -> bool:
+    """Zero-latency autonomous app builder & modifier: if the category is apps/websites or
+    the prompt asks to create, build, make, deploy, or modify an app/website/GitHub repo,
+    runs the complete Google Stitch UI + GitHub Pages deployment pipeline directly."""
     prompt_lower = prompt.lower().strip()
     
     # 1. Check for modify / update repository intent
@@ -2191,7 +2191,7 @@ async def try_instant_app_creation(task_id: str, prompt: str, github_user: Optio
     if mod_match:
         repo_target = mod_match.group(1).strip()
         instructions = mod_match.group(2).strip() or "Improve styling, add live interactive charts, and optimize responsive layout"
-        tasks[task_id]["logs"].append(f"[00:01] 🛠️ Recognized GitHub Repo Modification for '{repo_target}'...")
+        tasks[task_id]["logs"].append(f"[00:01] 🛠️ Antigravity Engine: Recognized GitHub Repo Modification for '{repo_target}'...")
         
         def log_cb(msg: str):
             tasks[task_id]["logs"].append(msg)
@@ -2203,7 +2203,7 @@ async def try_instant_app_creation(task_id: str, prompt: str, github_user: Optio
         tasks[task_id]["status"] = "COMPLETED"
         return True
 
-    # 2. Check for app / website creation
+    # 2. Check for app / website category OR creation keywords
     app_creation_patterns = [
         r'\b(create|build|make|generate|deploy)\s+(an?\s+)?(app|website|web\s*app|dashboard|ui|application|site)\b',
         r'\b(create|build|make|generate|deploy)\s+(an?\s+)?([a-z0-9_-]+\s+)+(app|website|web\s*app|dashboard|ui|application|site)\b',
@@ -2211,12 +2211,16 @@ async def try_instant_app_creation(task_id: str, prompt: str, github_user: Optio
         r'^build\s+(app|website|site)\b',
         r'^make\s+(app|website|site)\b',
         r'^deploy\s+(app|website|site)\b',
+        r'\b(portfolio|dashboard|landing page|storefront|e-?commerce|shop)\b',
     ]
-    if not any(re.search(p, prompt_lower) for p in app_creation_patterns):
+    is_app_category = category in ("apps", "websites")
+    matches_pattern = any(re.search(p, prompt_lower) for p in app_creation_patterns)
+
+    if not (is_app_category or matches_pattern):
         return False
 
-    tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
-    tasks[task_id]["logs"].append("[00:01] 🚀 Autonomous App Builder recognized — initiating Google Stitch UI + GitHub Pages deployment...")
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Antigravity Engine: Directive received: {prompt[:60]}...")
+    tasks[task_id]["logs"].append("[00:01] 🚀 Autonomous App Builder initialized — synthesizing design system & deploying to GitHub Pages...")
 
     from stitch_app_engine import build_and_deploy_stitch_app
     
@@ -3143,7 +3147,7 @@ async def run_pipeline(
     3. The fast, fixed-toolset Gemini router.
     4. The Antigravity CLI agent (agy) for complex MCP toolsets.
     5. Fallback keyword router."""
-    if not image_data and await try_instant_app_creation(task_id, prompt, github_user=github_user, github_token=github_token):
+    if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
