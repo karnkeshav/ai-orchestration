@@ -88,7 +88,7 @@ class AppsInterface {
   }
 
   initiateGitHubAuth() {
-    const clientId = 'Ov231iGAmFJfcciWSmGH';
+    const clientId = 'Ov231iAX99uZcGAYvzk9';
     const redirectUri = `${window.location.origin}/ai-orchestration/`;
     const scope = 'repo,user:email';
 
