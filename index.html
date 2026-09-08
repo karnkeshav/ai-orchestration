@@ -1092,33 +1092,29 @@
         <div class="cards-grid" id="cardsGrid"></div>
       </section>
 
-      <!-- Apps Interface Container -->
-      <section id="appsContainer" class="apps-container" style="display: none;">
-        <div class="apps-header">
-          <h2>🚀 Build & Deploy Apps</h2>
-          <p>Create production-ready apps with AI, deploy to GitHub Pages instantly</p>
-        </div>
-
-        <div class="auth-status" id="authStatus">
-          <button id="githubLoginBtn" class="btn-secondary" onclick="if(window.appsInterface) window.appsInterface.initiateGitHubAuth(); else if(typeof openGitHubLoginModal === 'function') openGitHubLoginModal();">🔗 Connect GitHub to Deploy</button>
-        </div>
-
-        <!-- Connected Repositories Section inside Apps -->
-        <div id="appsRepoSection" class="apps-repo-section" style="display: none;">
-          <div class="apps-repo-header">
-            <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.95rem; color: #fff;">
-              <span>📦</span> Your Connected Repositories
-            </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <input id="appsRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="if(window.appsInterface) window.appsInterface.filterRepos(this.value)" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; color: #fff; outline: none; width: 170px;">
-              <button type="button" onclick="if(window.appsInterface) window.appsInterface.loadRepos(true); if(typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; cursor: pointer;" title="Refresh Repositories">🔄 Refresh</button>
+      <!-- Apps Interface Container (Direct Ready4Launch Cloud App Engine on Render) -->
+      <section id="appsContainer" class="apps-container" style="display: none; padding: 0; margin-top: 0.5rem; margin-bottom: 2rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.85); border: 1px solid var(--border-color); border-radius: 12px 12px 0 0; padding: 0.75rem 1.25rem; backdrop-filter: blur(12px);">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span style="font-size: 1.25rem;">⚡</span>
+            <div>
+              <div style="font-weight: 700; color: #fff; font-size: 0.95rem;">Ready4Launch — Autonomous Text-to-App Engine</div>
+              <div style="font-size: 0.75rem; color: var(--accent-cyan); display: flex; align-items: center; gap: 4px;">
+                <span class="apps-auth-status-dot"></span> Live on ready4launch.onrender.com
+              </div>
             </div>
           </div>
-          <div id="appsRepoList" class="apps-repo-grid">
-            <div style="grid-column: 1/-1; text-align: center; padding: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
-              <span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Loading your repositories...
-            </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button type="button" onclick="const f=document.getElementById('ready4launchFrame'); if(f) f.src='https://ready4launch.onrender.com/app';" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem;">
+              🔄 Reload Engine
+            </button>
+            <a href="https://ready4launch.onrender.com/" target="_blank" class="btn-action" style="text-decoration: none; padding: 0.45rem 0.95rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+              ⤢ Open Fullscreen
+            </a>
           </div>
+        </div>
+        <div style="border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 12px 12px; overflow: hidden; background: #0b0f19; height: 82vh; position: relative;">
+          <iframe id="ready4launchFrame" src="https://ready4launch.onrender.com/" style="width: 100%; height: 100%; border: none; background: #0b0f19;" allow="clipboard-write; clipboard-read; camera; microphone;"></iframe>
         </div>
       </section>
 
@@ -1750,27 +1746,33 @@
         if (quickChips) quickChips.style.display = 'none';
       }
 
-      // 7. Handle Apps section
+      // 7. Handle Apps section vs standard sections
+      const heroSection = document.querySelector('.hero');
+      const commandHub = document.querySelector('.command-hub');
       const appsContainer = document.getElementById('appsContainer');
       const capabilitiesSection = document.getElementById('capabilitiesSection');
       const activitySection = document.getElementById('activitySection');
 
       if (category === 'apps') {
-        // Show apps interface
-        if (appsContainer) appsContainer.style.display = 'block';
+        // Show ready4launch.onrender.com directly
+        if (heroSection) heroSection.style.display = 'none';
+        if (commandHub) commandHub.style.display = 'none';
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
-        if (typeof warmupCloudBackend === 'function') warmupCloudBackend();
-        if (window.appsInterface) {
-          window.appsInterface.updateAuthStatus();
-          window.appsInterface.loadRepos();
+        if (appsContainer) appsContainer.style.display = 'block';
+
+        const frame = document.getElementById('ready4launchFrame');
+        if (frame && (!frame.src || frame.src === 'about:blank' || frame.src === '')) {
+          frame.src = 'https://ready4launch.onrender.com/';
         }
       } else {
-        // Hide apps interface
+        // Restore standard command hub & capabilities for other tabs
+        if (heroSection) heroSection.style.display = 'block';
+        if (commandHub) commandHub.style.display = 'block';
         if (appsContainer) appsContainer.style.display = 'none';
+        if (activitySection) activitySection.style.display = 'none';
         if (category === 'all' || category === 'websites' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
           if (capabilitiesSection) capabilitiesSection.style.display = 'block';
-          if (activitySection) activitySection.style.display = 'none';
           renderCards(category);
         }
       }
@@ -1784,9 +1786,18 @@
       const subMenu = document.getElementById('repoSubMenu');
       const quickChips = document.getElementById('quickChipsContainer');
       const appsContainer = document.getElementById('appsContainer');
+      const heroSection = document.querySelector('.hero');
+      const commandHub = document.querySelector('.command-hub');
+      const capabilitiesSection = document.getElementById('capabilitiesSection');
+      const activitySection = document.getElementById('activitySection');
+
       if (subMenu) subMenu.style.display = 'none';
       if (quickChips) quickChips.style.display = 'none';
       if (appsContainer) appsContainer.style.display = 'none';
+      if (capabilitiesSection) capabilitiesSection.style.display = 'none';
+      if (activitySection) activitySection.style.display = 'block';
+      if (heroSection) heroSection.style.display = 'none';
+      if (commandHub) commandHub.style.display = 'none';
 
       // Invalidate running polling & simulation loops
       activePollToken = null;
@@ -2124,6 +2135,11 @@
     }
 
     function loadPrompt(key) {
+      if (key === 'app-creator' || key === 'app-saas') {
+        const appsNavBtn = document.querySelector('[data-i18n="navApps"]');
+        filterCapabilities('apps', appsNavBtn);
+        return;
+      }
       const textarea = document.getElementById("promptText");
       const langDict = capabilitiesTranslations[currentLang] || capabilitiesTranslations.en;
       const tr = langDict[key] || capabilitiesTranslations.en[key];
