@@ -1067,6 +1067,9 @@
             <button type="button" onclick="openReady4LaunchAuth('https://ready4launch.onrender.com/auth/github')" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
               🐙 Connect GitHub
             </button>
+            <button type="button" onclick="disconnectReady4LaunchGitHub()" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem; color: #f87171; border-color: rgba(239, 68, 68, 0.3); display: inline-flex; align-items: center; gap: 4px;">
+              🔌 Disconnect GitHub
+            </button>
             <button type="button" onclick="reloadReady4LaunchFrame()" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem;">
               🔄 Reload App
             </button>
@@ -1758,8 +1761,27 @@
       }
     }
 
+    async function disconnectReady4LaunchGitHub() {
+      try {
+        await fetch('https://ready4launch.onrender.com/auth/github/logout', {
+          method: 'POST',
+          credentials: 'include',
+        }).catch(() => {});
+      } catch (e) {}
+
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('r4l_auth_channel');
+          bc.postMessage({ type: 'AUTH_LOGOUT_GITHUB' });
+          bc.close();
+        }
+      } catch (e) {}
+
+      reloadReady4LaunchFrame();
+    }
+
     window.addEventListener('message', (event) => {
-      if (event.data && (event.data.type === 'AUTH_COMPLETE' || event.data === 'AUTH_COMPLETE')) {
+      if (event.data && (event.data.type === 'AUTH_COMPLETE' || event.data === 'AUTH_COMPLETE' || event.data.type === 'AUTH_LOGOUT_GITHUB')) {
         reloadReady4LaunchFrame();
       }
     });
