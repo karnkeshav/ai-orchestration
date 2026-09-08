@@ -1187,18 +1187,47 @@
 
   <script src="public/apps.js"></script>
   <script>
+    const CLOUD_BACKEND_ORIGIN = "https://ready4launch.onrender.com";
+
     async function getBackendCandidates() {
       const candidates = [];
       const origin = window.location.origin;
-      if (origin && origin !== "null" && !origin.startsWith("file:") && !origin.includes("trycloudflare.com")) {
-        candidates.push(origin);
+      
+      if (origin && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+        if (!candidates.includes(origin)) candidates.push(origin);
+        if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
+        if (!candidates.includes("http://127.0.0.1:8000")) candidates.push("http://127.0.0.1:8000");
+        if (!candidates.includes(CLOUD_BACKEND_ORIGIN)) candidates.push(CLOUD_BACKEND_ORIGIN);
+      } else {
+        if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
+        if (!candidates.includes(CLOUD_BACKEND_ORIGIN)) candidates.push(CLOUD_BACKEND_ORIGIN);
       }
-      if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
-      if (!candidates.includes("http://127.0.0.1:8000")) candidates.push("http://127.0.0.1:8000");
       return candidates;
     }
 
     let activeBackendUrl = null;
+    let isCloudWarming = false;
+    let isCloudWarmed = false;
+
+    async function warmupCloudBackend() {
+      if (isCloudWarmed || isCloudWarming) return;
+      isCloudWarming = true;
+      try {
+        const res = await fetch(`${CLOUD_BACKEND_ORIGIN}/api/health`, { mode: 'cors' });
+        if (res.ok) {
+          isCloudWarmed = true;
+          const badge = document.getElementById("backendBadge");
+          if (badge && (!activeBackendUrl || activeBackendUrl.includes("render.com"))) {
+            badge.innerHTML = '<span class="status-dot" style="background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan);"></span> <span style="color: var(--accent-cyan);">Ready4Launch Cloud Active</span>';
+            badge.style.color = "var(--accent-cyan)";
+          }
+        }
+      } catch (e) {
+        console.log("Warming up cloud backend on Render...", e);
+      } finally {
+        isCloudWarming = false;
+      }
+    }
 
     async function apiFetch(endpoint, options = {}) {
       const candidates = activeBackendUrl 
@@ -1731,6 +1760,7 @@
         if (appsContainer) appsContainer.style.display = 'block';
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
+        if (typeof warmupCloudBackend === 'function') warmupCloudBackend();
         if (window.appsInterface) {
           window.appsInterface.updateAuthStatus();
           window.appsInterface.loadRepos();
@@ -2243,34 +2273,35 @@
         };
         poll();
       } catch (err) {
-        pushTechnicalLog(technicalLogs, `Cloud backend unreachable: ${err.message}`);
-        statusText.innerText = "⚠️ Backend server unreachable on port 8000";
-        statusText.style.color = "var(--accent-rose)";
+        pushTechnicalLog(technicalLogs, `Backend execution notice: ${err.message}`);
+        statusText.innerText = `⚠️ Backend execution error: ${err.message}`;
+        statusText.style.color = "var(--accent-amber)";
         
         const errStep = document.createElement("div");
         errStep.className = "activity-step";
-        errStep.style.color = "var(--accent-rose)";
-        errStep.style.background = "rgba(244, 63, 94, 0.1)";
-        errStep.style.border = "1px solid rgba(244, 63, 94, 0.3)";
+        errStep.style.color = "var(--accent-amber)";
+        errStep.style.background = "rgba(245, 158, 11, 0.1)";
+        errStep.style.border = "1px solid rgba(245, 158, 11, 0.3)";
         errStep.style.padding = "0.75rem 1rem";
         errStep.style.borderRadius = "8px";
         errStep.innerHTML = `
-          <strong>⚠️ Antigravity Backend Engine is not running on port 8000</strong><br>
+          <strong>⚡ Execution Engine Notice</strong><br>
           <span style="font-size: 0.78rem; color: #cbd5e1; margin-top: 4px; display: block;">
-            To build code and deploy live repositories to GitHub, start the backend server in terminal:<br>
-            <code style="color: var(--accent-cyan); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">./start_server.sh</code> or <code style="color: var(--accent-cyan); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">python3 -m uvicorn server:app --port 8000</code>
+            The engine encountered: <code>${err.message}</code>. If running locally, you can also launch the local server with <code style="color: var(--accent-cyan); background: rgba(0,0,0,0.4); padding: 2px 6px; border-radius: 4px;">./start_server.sh</code>.
           </span>
         `;
         progressLogs.appendChild(errStep);
-        showToast("⚠️ Backend server not reachable on port 8000");
+        showToast("⚠️ Execution notice — check progress panel");
       }
     }
 
     async function checkBackendHealth() {
       const badge = document.getElementById("backendBadge");
       try {
-        const res = await apiFetch("/api/github/user");
+        // 1. Check local server first
+        const res = await fetch("http://localhost:8000/api/health", { signal: AbortSignal.timeout(1200) });
         if (res.ok) {
+          activeBackendUrl = "http://localhost:8000";
           if (badge) {
             badge.innerHTML = '<span class="status-dot"></span> <span>Antigravity Engine Online (Port 8000)</span>';
             badge.style.color = "var(--accent-emerald)";
@@ -2278,9 +2309,24 @@
           return true;
         }
       } catch (e) {
+        // Local offline
+      }
+
+      try {
+        // 2. Check Ready4Launch Cloud Backend
+        const cloudRes = await fetch(`${CLOUD_BACKEND_ORIGIN}/api/health`, { mode: 'cors', signal: AbortSignal.timeout(3500) });
+        if (cloudRes.ok) {
+          activeBackendUrl = CLOUD_BACKEND_ORIGIN;
+          if (badge) {
+            badge.innerHTML = '<span class="status-dot" style="background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan);"></span> <span style="color: var(--accent-cyan);">Ready4Launch Cloud Active</span>';
+            badge.style.color = "var(--accent-cyan)";
+          }
+          return true;
+        }
+      } catch (e) {
         if (badge) {
-          badge.innerHTML = '<span class="status-dot" style="background: var(--accent-rose); box-shadow: 0 0 6px var(--accent-rose);"></span> <span style="color: var(--accent-rose);">Backend Offline (Run ./start_server.sh)</span>';
-          badge.style.color = "var(--accent-rose)";
+          badge.innerHTML = '<span class="status-dot" style="background: var(--accent-amber); box-shadow: 0 0 6px var(--accent-amber);"></span> <span style="color: var(--accent-amber);">Connecting Cloud Engine...</span>';
+          badge.style.color = "var(--accent-amber)";
         }
       }
       return false;
