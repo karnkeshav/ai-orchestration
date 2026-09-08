@@ -1588,6 +1588,21 @@
       document.getElementById('langBtnLabel').innerText = lang.toUpperCase();
       renderCards(currentCategory);
       closeLangMenu();
+
+      // Sync language to Ready4Launch iframe
+      const frame = document.getElementById('ready4launchFrame');
+      if (frame && frame.contentWindow) {
+        try {
+          frame.contentWindow.postMessage({ type: 'SET_LANGUAGE', lang: lang }, '*');
+        } catch (e) {}
+      }
+      try {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('r4l_lang_channel');
+          bc.postMessage({ type: 'SET_LANGUAGE', lang: lang });
+          bc.close();
+        }
+      } catch (e) {}
     }
 
     // Hamburger Menu & Overlay
@@ -1724,7 +1739,7 @@
 
         const frame = document.getElementById('ready4launchFrame');
         if (frame && (!frame.src || frame.src === 'about:blank' || frame.src === '')) {
-          frame.src = 'https://ready4launch.onrender.com/';
+          frame.src = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(currentLang)}`;
         }
       } else {
         // Restore standard command hub & capabilities for other tabs
@@ -1757,7 +1772,7 @@
     function reloadReady4LaunchFrame() {
       const f = document.getElementById('ready4launchFrame');
       if (f) {
-        f.src = 'https://ready4launch.onrender.com/app';
+        f.src = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(currentLang)}`;
       }
     }
 
@@ -1783,6 +1798,18 @@
     window.addEventListener('message', (event) => {
       if (event.data && (event.data.type === 'AUTH_COMPLETE' || event.data === 'AUTH_COMPLETE' || event.data.type === 'AUTH_LOGOUT_GITHUB')) {
         reloadReady4LaunchFrame();
+      }
+    });
+
+    // Send active language to Ready4Launch iframe whenever it loads
+    window.addEventListener('DOMContentLoaded', () => {
+      const frame = document.getElementById('ready4launchFrame');
+      if (frame) {
+        frame.addEventListener('load', () => {
+          try {
+            frame.contentWindow.postMessage({ type: 'SET_LANGUAGE', lang: currentLang }, '*');
+          } catch (e) {}
+        });
       }
     });
 
