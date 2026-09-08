@@ -89,7 +89,7 @@ class AppsInterface {
 
   initiateGitHubAuth() {
     const clientId = 'Ov231iGAmFJfcciWSmGH';
-    const redirectUri = `${window.location.origin}/`;
+    const redirectUri = `${window.location.origin}/ai-orchestration/`;
     const scope = 'repo,user:email';
 
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
@@ -245,7 +245,7 @@ class AppsInterface {
           this.githubToken = data.access_token;
           this.updateAuthStatus();
           // Clean up URL
-          window.history.replaceState({}, document.title, '/');
+          window.history.replaceState({}, document.title, '/ai-orchestration/');
         }
       })
       .catch(err => console.error('Auth error:', err));
