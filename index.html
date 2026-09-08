@@ -1073,7 +1073,7 @@
             <button type="button" onclick="reloadReady4LaunchFrame()" class="btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.78rem;">
               🔄 Reload App
             </button>
-            <a href="https://ready4launch.onrender.com/app" target="_blank" class="btn-secondary" style="text-decoration: none; padding: 0.45rem 0.95rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+            <a id="fullscreenLink" href="https://ready4launch.onrender.com/app" target="_blank" class="btn-secondary" style="text-decoration: none; padding: 0.45rem 0.95rem; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
               ⤢ Open Fullscreen
             </a>
           </div>
@@ -1589,12 +1589,22 @@
       renderCards(currentCategory);
       closeLangMenu();
 
+      // Update fullscreen link
+      const fsLink = document.getElementById('fullscreenLink');
+      if (fsLink) {
+        fsLink.href = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(lang)}`;
+      }
+
       // Sync language to Ready4Launch iframe
       const frame = document.getElementById('ready4launchFrame');
-      if (frame && frame.contentWindow) {
-        try {
-          frame.contentWindow.postMessage({ type: 'SET_LANGUAGE', lang: lang }, '*');
-        } catch (e) {}
+      if (frame) {
+        if (!frame.src || frame.src === 'about:blank' || frame.src === '') {
+          frame.src = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(lang)}`;
+        } else if (frame.contentWindow) {
+          try {
+            frame.contentWindow.postMessage({ type: 'SET_LANGUAGE', lang: lang }, '*');
+          } catch (e) {}
+        }
       }
       try {
         if ('BroadcastChannel' in window) {
@@ -1738,8 +1748,14 @@
         if (appsContainer) appsContainer.style.display = 'block';
 
         const frame = document.getElementById('ready4launchFrame');
-        if (frame && (!frame.src || frame.src === 'about:blank' || frame.src === '')) {
-          frame.src = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(currentLang)}`;
+        if (frame) {
+          if (!frame.src || frame.src === 'about:blank' || frame.src === '') {
+            frame.src = `https://ready4launch.onrender.com/app?lang=${encodeURIComponent(currentLang)}`;
+          } else if (frame.contentWindow) {
+            try {
+              frame.contentWindow.postMessage({ type: 'SET_LANGUAGE', lang: currentLang }, '*');
+            } catch (e) {}
+          }
         }
       } else {
         // Restore standard command hub & capabilities for other tabs
