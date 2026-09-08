@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="apps.css">
   <style>
     :root {
       --bg-primary: #090d16;
@@ -1155,6 +1156,45 @@
   <!-- Toast Notification -->
   <div id="toast" style="position: fixed; bottom: 2rem; right: 2rem; background: #1e293b; border: 1px solid var(--accent-emerald); color: #fff; padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 0.9rem; opacity: 0; transform: translateY(20px); transition: all 0.3s; pointer-events: none; z-index: 1000;"></div>
 
+  <!-- Apps Interface Container -->
+  <div id="appsContainer" class="apps-container">
+    <div class="apps-header">
+      <h2>🚀 Build & Deploy Apps</h2>
+      <p>Create production-ready apps with AI, deploy to GitHub Pages instantly</p>
+    </div>
+
+    <div class="auth-status" id="authStatus">
+      <button id="githubLoginBtn" class="btn-secondary">🔗 Connect GitHub to Deploy</button>
+    </div>
+
+    <div class="mode-selector">
+      <label class="mode-option">
+        <input type="radio" name="mode" value="prototype" id="appMode" checked>
+        <div class="mode-option-title">🎨 Prototype</div>
+        <div class="mode-option-desc">Quick & polished (5+ sections)</div>
+      </label>
+      <label class="mode-option">
+        <input type="radio" name="mode" value="complete">
+        <div class="mode-option-title">📦 Complete</div>
+        <div class="mode-option-desc">Production-ready with all features</div>
+      </label>
+    </div>
+
+    <div class="theme-selector">
+      <h4>Select Theme</h4>
+      <div id="themeSelector"></div>
+    </div>
+
+    <div id="appChatArea" class="app-chat-area">
+      <label class="chat-label">Describe Your App</label>
+      <textarea id="appChatInput" placeholder="E.g., Build an electronics shop website for Hyderabad with contact form, maps, product catalog, and modern design..."></textarea>
+      <button id="generateAppBtn" class="btn-primary">🚀 Generate & Deploy</button>
+    </div>
+
+    <div id="appResponse"></div>
+  </div>
+
+  <script src="apps.js"></script>
   <script>
     async function getBackendCandidates() {
       const candidates = [];
@@ -1681,7 +1721,7 @@
       // 6. Handle GitHub repo sub-panel & quick modifier chips
       const subMenu = document.getElementById('repoSubMenu');
       const quickChips = document.getElementById('quickChipsContainer');
-      if (category === 'websites' || category === 'apps') {
+      if (category === 'websites') {
         if (subMenu) subMenu.style.display = 'block';
         if (quickChips) quickChips.style.display = 'flex';
         loadUserGitHubRepos();
@@ -1690,11 +1730,25 @@
         if (quickChips) quickChips.style.display = 'none';
       }
 
-      // 7. Show capabilities, hide the Activity tab
-      document.getElementById('capabilitiesSection').style.display = 'block';
-      document.getElementById('activitySection').style.display = 'none';
+      // 7. Handle Apps section
+      const appsContainer = document.getElementById('appsContainer');
+      const capabilitiesSection = document.getElementById('capabilitiesSection');
+      const activitySection = document.getElementById('activitySection');
 
-      renderCards(category);
+      if (category === 'apps') {
+        // Show apps interface
+        if (appsContainer) appsContainer.classList.add('active');
+        if (capabilitiesSection) capabilitiesSection.style.display = 'none';
+        if (activitySection) activitySection.style.display = 'none';
+      } else {
+        // Hide apps interface
+        if (appsContainer) appsContainer.classList.remove('active');
+        if (category === 'all' || category === 'websites' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
+          if (capabilitiesSection) capabilitiesSection.style.display = 'block';
+          if (activitySection) activitySection.style.display = 'none';
+          renderCards(category);
+        }
+      }
     }
 
     function showActivity(btn) {
