@@ -960,50 +960,6 @@
     <!-- Sidebar Navigation -->
     <aside class="sidebar" id="sidebar">
       <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
-
-      <!-- GitHub Sub-Panel mapped below Website / App creation -->
-      <div id="repoSubMenu" class="sidebar-sub-panel" style="display: none;">
-        <!-- 1. Logged Out State -->
-        <div id="ghLoggedOutState" style="display: none;">
-          <button type="button" class="gh-login-btn" onclick="openGitHubLoginModal()">
-            <span>🐙</span>
-            <span>Login to GitHub</span>
-          </button>
-          <div style="font-size: 0.65rem; color: var(--text-muted); text-align: center; margin-top: 0.35rem;">Link GitHub to auto-push & deploy</div>
-        </div>
-
-        <!-- 2. Logged In State -->
-        <div id="ghLoggedInState" style="display: none;">
-          <div class="gh-user-card">
-            <div class="gh-user-info">
-              <img id="ghUserAvatar" class="gh-avatar" src="https://avatars.githubusercontent.com/u/160194487?v=4" alt="GitHub">
-              <div style="overflow: hidden;">
-                <div id="ghUserName" style="font-weight: 700; font-size: 0.75rem; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95px;">@karnkeshav</div>
-                <div style="font-size: 0.62rem; color: var(--accent-emerald); display: flex; align-items: center; gap: 3px;">
-                  <span style="width: 5px; height: 5px; background: var(--accent-emerald); border-radius: 50%; display: inline-block;"></span> Active
-                </div>
-              </div>
-            </div>
-            <div style="display: flex; gap: 4px;">
-              <button type="button" onclick="loadUserGitHubRepos(true)" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;" title="Refresh Repositories">🔄</button>
-              <button type="button" onclick="openGitHubLoginModal()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 0.75rem;" title="Switch Account / Token">🔑</button>
-            </div>
-          </div>
-
-          <div style="margin-bottom: 0.35rem;">
-            <input id="ghRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="filterUserRepoList(this.value)" style="width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 0.72rem; color: #fff; outline: none;">
-          </div>
-
-          <div id="repoListContainer" class="repo-list-container">
-            <div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repos...</div>
-          </div>
-
-          <div style="margin-top: 0.4rem; padding-top: 0.35rem; border-top: 1px solid rgba(255, 255, 255, 0.06); text-align: center;">
-            <button type="button" onclick="presetNewAppCreation()" style="background: none; border: 1px dashed rgba(99, 102, 241, 0.4); border-radius: 6px; color: var(--accent-cyan); font-size: 0.68rem; font-weight: 600; padding: 0.3rem 0.6rem; cursor: pointer; width: 100%;" title="Create a new web app repository">➕ New App Repo</button>
-          </div>
-        </div>
-      </div>
-
       <button class="nav-item" data-i18n="navApps" onclick="filterCapabilities('apps', this)">🚀 Apps</button>
       <button class="nav-item" data-i18n="navShop" onclick="filterCapabilities('shop', this)">🛍️ Shop</button>
       <button class="nav-item" data-i18n="navFood" onclick="filterCapabilities('food', this)">🍲 Food</button>
@@ -1740,15 +1696,11 @@
       });
       if (btn) btn.classList.add('active');
 
-      // 6. Handle GitHub repo sub-panel & quick modifier chips
-      const subMenu = document.getElementById('repoSubMenu');
+      // 6. Handle quick modifier chips
       const quickChips = document.getElementById('quickChipsContainer');
-      if (category === 'websites' || category === 'apps') {
-        if (subMenu) subMenu.style.display = 'block';
+      if (category === 'websites') {
         if (quickChips) quickChips.style.display = 'flex';
-        loadUserGitHubRepos();
       } else {
-        if (subMenu) subMenu.style.display = 'none';
         if (quickChips) quickChips.style.display = 'none';
       }
 
@@ -1817,7 +1769,6 @@
       document.getElementById('promptText').value = '';
       if (attachedImageData) removeAttachedImage();
       
-      const subMenu = document.getElementById('repoSubMenu');
       const quickChips = document.getElementById('quickChipsContainer');
       const appsContainer = document.getElementById('appsContainer');
       const heroSection = document.querySelector('.hero');
@@ -1825,7 +1776,6 @@
       const capabilitiesSection = document.getElementById('capabilitiesSection');
       const activitySection = document.getElementById('activitySection');
 
-      if (subMenu) subMenu.style.display = 'none';
       if (quickChips) quickChips.style.display = 'none';
       if (appsContainer) appsContainer.style.display = 'none';
       if (capabilitiesSection) capabilitiesSection.style.display = 'none';
@@ -2033,8 +1983,6 @@
     /* GitHub Repository Mapping & Modification Helpers */
     async function loadUserGitHubRepos(force = false) {
       const container = document.getElementById("repoListContainer");
-      const subMenu = document.getElementById("repoSubMenu");
-      if (subMenu) subMenu.style.display = "block";
       
       if (!force && container && container.dataset.loaded === "true" && cachedUserRepos.length > 0) return;
 
