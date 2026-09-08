@@ -1166,6 +1166,24 @@
       <button id="githubLoginBtn" class="btn-secondary">🔗 Connect GitHub to Deploy</button>
     </div>
 
+    <!-- Connected Repositories Section inside Apps -->
+    <div id="appsRepoSection" class="apps-repo-section" style="display: none;">
+      <div class="apps-repo-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 0.95rem; color: #fff;">
+          <span>📦</span> Your Connected Repositories
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input id="appsRepoSearchInput" type="text" placeholder="🔍 Search repos..." oninput="if(window.appsInterface) window.appsInterface.filterRepos(this.value)" style="background: rgba(0,0,0,0.35); border: 1px solid var(--border-color); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; color: #fff; outline: none; width: 170px;">
+          <button type="button" onclick="if(window.appsInterface) window.appsInterface.loadRepos(true); if(typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);" style="background: rgba(255,255,255,0.06); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 0.35rem 0.65rem; font-size: 0.75rem; cursor: pointer;" title="Refresh Repositories">🔄 Refresh</button>
+        </div>
+      </div>
+      <div id="appsRepoList" class="apps-repo-grid">
+        <div style="grid-column: 1/-1; text-align: center; padding: 1.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          <span class="console-spinner" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 6px;"></span> Loading your repositories...
+        </div>
+      </div>
+    </div>
+
     <div class="mode-selector">
       <label class="mode-option">
         <input type="radio" name="mode" value="prototype" id="appMode" checked>
@@ -1720,7 +1738,7 @@
       // 6. Handle GitHub repo sub-panel & quick modifier chips
       const subMenu = document.getElementById('repoSubMenu');
       const quickChips = document.getElementById('quickChipsContainer');
-      if (category === 'websites') {
+      if (category === 'websites' || category === 'apps') {
         if (subMenu) subMenu.style.display = 'block';
         if (quickChips) quickChips.style.display = 'flex';
         loadUserGitHubRepos();
@@ -1739,6 +1757,10 @@
         if (appsContainer) appsContainer.classList.add('active');
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
+        if (window.appsInterface) {
+          window.appsInterface.updateAuthStatus();
+          window.appsInterface.loadRepos();
+        }
       } else {
         // Hide apps interface
         if (appsContainer) appsContainer.classList.remove('active');
@@ -1779,8 +1801,8 @@
       document.getElementById('activitySection').style.display = 'block';
     }
 
-    let currentGitHubUser = localStorage.getItem('aios_github_user') || 'karnkeshav';
-    let currentGitHubToken = localStorage.getItem('aios_github_token') || '';
+    let currentGitHubUser = localStorage.getItem('aios_github_user') || localStorage.getItem('aiorch_github_user') || 'karnkeshav';
+    let currentGitHubToken = localStorage.getItem('aios_github_token') || localStorage.getItem('aiorch_github_token') || '';
     let cachedUserRepos = [];
 
     async function initGitHubSession() {
@@ -1794,10 +1816,15 @@
         if (user && user.login && user.authenticated !== false) {
           currentGitHubUser = user.login;
           localStorage.setItem('aios_github_user', user.login);
+          localStorage.setItem('aiorch_github_user', user.login);
           renderGitHubUserState(user);
           await loadUserGitHubRepos(false);
+          if (window.appsInterface) {
+            window.appsInterface.syncWithGlobalAuth(currentGitHubUser, currentGitHubToken);
+          }
         } else {
-          renderGitHubLoggedOutState();
+          renderGitHubUserState({ login: currentGitHubUser || 'karnkeshav', avatar_url: `https://avatars.githubusercontent.com/${currentGitHubUser || 'karnkeshav'}` });
+          await loadUserGitHubRepos(false);
         }
       } catch (e) {
         renderGitHubUserState({ login: currentGitHubUser || 'karnkeshav', avatar_url: `https://avatars.githubusercontent.com/${currentGitHubUser || 'karnkeshav'}` });
@@ -1813,7 +1840,7 @@
       const nameElem = document.getElementById('ghUserName');
       if (nameElem) nameElem.innerText = `@${user.login || currentGitHubUser || 'karnkeshav'}`;
       const avatarElem = document.getElementById('ghUserAvatar');
-      if (avatarElem) avatarElem.src = user.avatar_url || `https://avatars.githubusercontent.com/${user.login || 'karnkeshav'}`;
+      if (avatarElem) avatarElem.src = user.avatar_url || `https://avatars.githubusercontent.com/${user.login || currentGitHubUser || 'karnkeshav'}`;
     }
 
     function renderGitHubLoggedOutState() {
@@ -1841,10 +1868,16 @@
         currentGitHubToken = '';
         currentGitHubUser = 'karnkeshav';
         localStorage.removeItem('aios_github_token');
+        localStorage.removeItem('aiorch_github_token');
         localStorage.setItem('aios_github_user', 'karnkeshav');
+        localStorage.setItem('aiorch_github_user', 'karnkeshav');
         closeGitHubLoginModal();
         await initGitHubSession();
         await loadUserGitHubRepos(true);
+        if (window.appsInterface) {
+          window.appsInterface.syncWithGlobalAuth('karnkeshav', '');
+          window.appsInterface.loadRepos(true);
+        }
         showToast('✓ Connected to GitHub CLI account: @karnkeshav');
       } catch (err) {
         showToast('Error connecting to GitHub');
@@ -1874,14 +1907,21 @@
           currentGitHubUser = data.user.login;
           currentGitHubToken = token;
           localStorage.setItem('aios_github_user', currentGitHubUser);
+          localStorage.setItem('aiorch_github_user', currentGitHubUser);
           if (token) {
             localStorage.setItem('aios_github_token', token);
+            localStorage.setItem('aiorch_github_token', token);
           } else {
             localStorage.removeItem('aios_github_token');
+            localStorage.removeItem('aiorch_github_token');
           }
           closeGitHubLoginModal();
           renderGitHubUserState(data.user);
           renderReposList(data.repos || []);
+          if (window.appsInterface) {
+            window.appsInterface.syncWithGlobalAuth(currentGitHubUser, currentGitHubToken);
+            window.appsInterface.loadRepos(true);
+          }
           showToast(`✓ Connected to GitHub as @${data.user.login}`);
         } else {
           errBox.innerText = data.message || 'Failed to authenticate GitHub account.';
@@ -1896,9 +1936,14 @@
     function logoutGitHub() {
       localStorage.removeItem('aios_github_token');
       localStorage.removeItem('aios_github_user');
+      localStorage.removeItem('aiorch_github_token');
+      localStorage.removeItem('aiorch_github_user');
       currentGitHubToken = '';
       currentGitHubUser = '';
       renderGitHubLoggedOutState();
+      if (window.appsInterface) {
+        window.appsInterface.syncWithGlobalAuth('', '');
+      }
       showToast('Logged out of GitHub');
     }
 
@@ -1925,20 +1970,61 @@
         container.innerHTML = '<div style="font-size: 0.7rem; color: var(--text-muted); text-align: center; padding: 0.4rem 0;"><span class="console-spinner" style="width: 10px; height: 10px; display: inline-block; vertical-align: middle; margin-right: 4px;"></span> Loading repositories...</div>';
       }
 
+      const targetUser = currentGitHubUser || localStorage.getItem('aios_github_user') || localStorage.getItem('aiorch_github_user') || 'karnkeshav';
+      const token = currentGitHubToken || localStorage.getItem('aios_github_token') || localStorage.getItem('aiorch_github_token') || '';
+
+      // 1. Try Backend API
       try {
         const headers = {};
-        if (currentGitHubToken) headers['x-github-token'] = currentGitHubToken;
-        if (currentGitHubUser) headers['x-github-user'] = currentGitHubUser;
+        if (token) headers['x-github-token'] = token;
+        if (targetUser) headers['x-github-user'] = targetUser;
 
-        const targetUser = currentGitHubUser || 'karnkeshav';
         const resp = await apiFetch(`/api/github-repos?user=${encodeURIComponent(targetUser)}&limit=30`, { headers });
         const data = await resp.json();
         const repos = data.repos || [];
-        renderReposList(repos);
-      } catch (err) {
-        if (container) {
-          container.innerHTML = '<div style="font-size: 0.7rem; color: var(--accent-rose); text-align: center; padding: 0.4rem 0;">Error loading repos</div>';
+        if (repos.length > 0) {
+          renderReposList(repos);
+          if (window.appsInterface) window.appsInterface.renderAppRepos(repos);
+          return;
         }
+      } catch (err) {
+        console.warn('Backend github-repos endpoint failed, attempting direct GitHub API fallback:', err);
+      }
+
+      // 2. Direct GitHub API Fallback
+      try {
+        let directUrl = `https://api.github.com/users/${encodeURIComponent(targetUser)}/repos?sort=updated&per_page=30`;
+        const directHeaders = { "Accept": "application/vnd.github.v3+json" };
+        if (token) {
+          directHeaders["Authorization"] = `Bearer ${token}`;
+          directUrl = `https://api.github.com/user/repos?sort=updated&per_page=30&affiliation=owner,collaborator`;
+        }
+        const ghRes = await fetch(directUrl, { headers: directHeaders });
+        if (ghRes.ok) {
+          const rawRepos = await ghRes.json();
+          const repos = rawRepos.map(r => {
+            const rOwner = (r.owner && r.owner.login) ? r.owner.login : targetUser;
+            return {
+              name: r.name,
+              full_name: r.full_name || `${rOwner}/${r.name}`,
+              description: r.description || '',
+              url: r.html_url || `https://github.com/${rOwner}/${r.name}`,
+              homepageUrl: r.homepage || '',
+              pages_url: `https://${rOwner}.github.io/${r.name}/`,
+              is_private: r.private || false,
+              updatedAt: r.updated_at
+            };
+          });
+          renderReposList(repos);
+          if (window.appsInterface) window.appsInterface.renderAppRepos(repos);
+          return;
+        }
+      } catch (e) {
+        console.error('Direct GitHub API fetch failed:', e);
+      }
+
+      if (container) {
+        container.innerHTML = '<div style="font-size: 0.7rem; color: var(--accent-rose); text-align: center; padding: 0.4rem 0;">Error loading repos</div>';
       }
     }
 
@@ -1976,10 +2062,22 @@
     }
 
     function selectRepoForModification(repoName) {
-      const textarea = document.getElementById("promptText");
       const targetUser = currentGitHubUser || 'karnkeshav';
-      textarea.value = `Modify repository ${targetUser}/${repoName}: `;
-      textarea.focus();
+      const directive = `Modify repository ${targetUser}/${repoName}: `;
+      
+      const textarea = document.getElementById("promptText");
+      const appChatInput = document.getElementById("appChatInput");
+      
+      if (textarea) textarea.value = directive;
+      if (appChatInput) appChatInput.value = directive;
+      
+      const appsContainer = document.getElementById("appsContainer");
+      if (appsContainer && appsContainer.classList.contains("active") && appChatInput) {
+        appChatInput.focus();
+      } else if (textarea) {
+        textarea.focus();
+      }
+      
       const quickChips = document.getElementById("quickChipsContainer");
       if (quickChips) quickChips.style.display = "flex";
       showToast(`📂 Selected repository: ${targetUser}/${repoName}`);
