@@ -88,8 +88,8 @@ class AppsInterface {
   }
 
   initiateGitHubAuth() {
-    const clientId = 'YOUR_GITHUB_CLIENT_ID'; // Will be set via server
-    const redirectUri = `${window.location.origin}/auth/github/callback`;
+    const clientId = 'Ov231iGAmFJfcciWSmGH';
+    const redirectUri = `${window.location.origin}/`;
     const scope = 'repo,user:email';
 
     const authUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&scope=${scope}`;
