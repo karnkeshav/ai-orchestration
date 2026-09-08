@@ -1902,37 +1902,58 @@
       }
 
       errBox.style.display = 'none';
-      try {
-        const resp = await apiFetch('/api/github/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, token })
-        });
-        const data = await resp.json();
-        if (data.status === 'success' && data.user) {
-          currentGitHubUser = data.user.login;
-          currentGitHubToken = token;
-          localStorage.setItem('aios_github_user', currentGitHubUser);
-          localStorage.setItem('aiorch_github_user', currentGitHubUser);
-          if (token) {
+
+      // 1. Direct validation if token provided
+      if (token) {
+        try {
+          const ghUserRes = await fetch('https://api.github.com/user', {
+            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github.v3+json' }
+          });
+          if (ghUserRes.ok) {
+            const uData = await ghUserRes.json();
+            currentGitHubUser = uData.login;
+            currentGitHubToken = token;
+            localStorage.setItem('aios_github_user', currentGitHubUser);
+            localStorage.setItem('aiorch_github_user', currentGitHubUser);
             localStorage.setItem('aios_github_token', token);
             localStorage.setItem('aiorch_github_token', token);
+            closeGitHubLoginModal();
+            renderGitHubUserState(uData);
+            await loadUserGitHubRepos(true);
+            if (window.appsInterface) {
+              window.appsInterface.syncWithGlobalAuth(currentGitHubUser, currentGitHubToken);
+              window.appsInterface.loadRepos(true);
+            }
+            showToast(`✓ Connected to GitHub as @${uData.login}`);
+            return;
           } else {
-            localStorage.removeItem('aios_github_token');
-            localStorage.removeItem('aiorch_github_token');
+            errBox.innerText = 'GitHub token invalid or expired. Please check permissions (repo scope required).';
+            errBox.style.display = 'block';
+            return;
           }
-          closeGitHubLoginModal();
-          renderGitHubUserState(data.user);
-          renderReposList(data.repos || []);
-          if (window.appsInterface) {
-            window.appsInterface.syncWithGlobalAuth(currentGitHubUser, currentGitHubToken);
-            window.appsInterface.loadRepos(true);
-          }
-          showToast(`✓ Connected to GitHub as @${data.user.login}`);
-        } else {
-          errBox.innerText = data.message || 'Failed to authenticate GitHub account.';
-          errBox.style.display = 'block';
+        } catch (err) {
+          console.warn('Direct token verification warning:', err);
         }
+      }
+
+      // 2. Username-only fallback
+      try {
+        currentGitHubUser = username || 'karnkeshav';
+        currentGitHubToken = token || '';
+        localStorage.setItem('aios_github_user', currentGitHubUser);
+        localStorage.setItem('aiorch_github_user', currentGitHubUser);
+        if (token) {
+          localStorage.setItem('aios_github_token', token);
+          localStorage.setItem('aiorch_github_token', token);
+        }
+        closeGitHubLoginModal();
+        renderGitHubUserState({ login: currentGitHubUser, avatar_url: `https://avatars.githubusercontent.com/${currentGitHubUser}` });
+        await loadUserGitHubRepos(true);
+        if (window.appsInterface) {
+          window.appsInterface.syncWithGlobalAuth(currentGitHubUser, currentGitHubToken);
+          window.appsInterface.loadRepos(true);
+        }
+        showToast(`✓ Connected to GitHub as @${currentGitHubUser}`);
       } catch (e) {
         errBox.innerText = `Error: ${e.message}`;
         errBox.style.display = 'block';
@@ -2200,7 +2221,7 @@
         image_data: attachedImageData,
         location: "Bangalore",
         github_user: currentGitHubUser || "karnkeshav",
-        github_token: currentGitHubToken || undefined
+        github_token: currentGitHubToken || localStorage.getItem('aios_github_token') || localStorage.getItem('aiorch_github_token') || undefined
       };
 
       try {
@@ -2247,7 +2268,72 @@
             });
             if (resPayload.answer) {
               resultSection.style.display = "block";
-              answerContent.innerHTML = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+              let renderedHtml = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+
+              if (resPayload.deliverable && resPayload.deliverable.html) {
+                const del = resPayload.deliverable;
+                window.lastGeneratedApp = del;
+
+                let actionCardsHtml = '';
+                if (del.deployed && del.live_url) {
+                  actionCardsHtml = `
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1.2rem; margin-bottom: 1.2rem;">
+                      <a href="${del.live_url}" target="_blank" class="btn-action" style="text-decoration: none; padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                        🌐 Open Live App
+                      </a>
+                      <a href="${del.repo_url}" target="_blank" class="btn-secondary" style="text-decoration: none; padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                        💻 GitHub Repository
+                      </a>
+                      <button type="button" class="btn-secondary" onclick="openGeneratedAppInNewTab()" style="padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                        👁️ Fullscreen Tab
+                      </button>
+                    </div>
+                  `;
+                } else {
+                  actionCardsHtml = `
+                    <div style="background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.35); border-radius: 10px; padding: 1.1rem; margin-top: 1.2rem; margin-bottom: 1.2rem;">
+                      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                        <div>
+                          <div style="font-weight: 700; color: #fff; font-size: 0.96rem;">🚀 Deploy this App to GitHub Pages</div>
+                          <div style="font-size: 0.82rem; color: #cbd5e1; margin-top: 2px;">Publish directly to @${del.owner || currentGitHubUser || 'karnkeshav'}/${del.repo_name} with automated GitHub Pages hosting.</div>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                          <button type="button" class="btn-action" onclick="deployLastGeneratedApp()" style="padding: 0.6rem 1.2rem; font-size: 0.84rem;">
+                            🚀 Publish to GitHub Pages
+                          </button>
+                          <button type="button" class="btn-secondary" onclick="openGeneratedAppInNewTab()" style="padding: 0.6rem 1.2rem; font-size: 0.84rem;">
+                            👁️ Open In New Tab
+                          </button>
+                          <button type="button" class="btn-secondary" onclick="downloadGeneratedAppHtml()" style="padding: 0.6rem 1.2rem; font-size: 0.84rem;">
+                            💾 Download HTML
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }
+
+                const previewFrameHtml = `
+                  <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: #000;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 0.6rem 1rem; border-bottom: 1px solid var(--border-color);">
+                      <span style="font-size: 0.82rem; color: #fff; font-weight: 600;">📱 Live Interactive App Preview</span>
+                      <button type="button" onclick="openGeneratedAppInNewTab()" style="background: none; border: none; color: var(--accent-cyan); font-size: 0.78rem; font-weight: 600; cursor: pointer;">⤢ Open In New Tab</button>
+                    </div>
+                    <iframe id="appSandboxFrame" style="width: 100%; height: 500px; border: none; background: #0b1326;"></iframe>
+                  </div>
+                `;
+
+                renderedHtml += actionCardsHtml + previewFrameHtml;
+              }
+
+              answerContent.innerHTML = renderedHtml;
+
+              if (resPayload.deliverable && resPayload.deliverable.html) {
+                const frame = document.getElementById('appSandboxFrame');
+                if (frame) {
+                  frame.srcdoc = resPayload.deliverable.html;
+                }
+              }
             }
           }
 
@@ -2383,16 +2469,106 @@
       statusText.style.color = "var(--accent-emerald)";
     }
 
-    function showToast(msg) {
-      const toast = document.getElementById("toast");
-      toast.innerText = msg;
-      toast.style.opacity = "1";
-      toast.style.transform = "translateY(0)";
-      setTimeout(() => {
-        toast.style.opacity = "0";
-        toast.style.transform = "translateY(20px)";
-      }, 3500);
-    }
+    window.openGeneratedAppInNewTab = function() {
+      if (!window.lastGeneratedApp || !window.lastGeneratedApp.html) return;
+      const blob = new Blob([window.lastGeneratedApp.html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+    };
+
+    window.downloadGeneratedAppHtml = function() {
+      if (!window.lastGeneratedApp || !window.lastGeneratedApp.html) return;
+      const blob = new Blob([window.lastGeneratedApp.html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${window.lastGeneratedApp.repo_name || 'app'}.html`;
+      a.click();
+    };
+
+    window.deployLastGeneratedApp = async function() {
+      if (!window.lastGeneratedApp) return;
+      const token = currentGitHubToken || localStorage.getItem('aiorch_github_token') || localStorage.getItem('aios_github_token');
+      if (!token) {
+        openGitHubLoginModal();
+        showToast('Please connect your GitHub Personal Access Token to deploy');
+        return;
+      }
+
+      showToast('🚀 Provisioning GitHub repository & deploying Pages...');
+      try {
+        const resp = await apiFetch('/api/deploy-code', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repoName: window.lastGeneratedApp.repo_name,
+            html: window.lastGeneratedApp.html,
+            github_token: token,
+            github_user: currentGitHubUser || 'karnkeshav'
+          })
+        });
+
+        if (resp.ok) {
+          const resData = await resp.json();
+          window.lastGeneratedApp.deployed = true;
+          window.lastGeneratedApp.live_url = resData.liveUrl;
+          window.lastGeneratedApp.repo_url = resData.repoUrl;
+          showToast('✅ Deployed successfully to GitHub Pages!');
+          if (typeof loadUserGitHubRepos === 'function') loadUserGitHubRepos(true);
+          if (window.appsInterface) window.appsInterface.loadRepos(true);
+
+          // Update result section action buttons
+          const liveUrl = resData.liveUrl;
+          const repoUrl = resData.repoUrl;
+          const answerBox = document.getElementById("answerBox");
+          if (answerBox) {
+            const updatedAnswer = `### 🚀 App Successfully Generated & Deployed!
+
+* **Live App URL:** [${liveUrl}](${liveUrl})
+* **GitHub Repository:** [${repoUrl}](${repoUrl})
+* **Owner:** \`@${currentGitHubUser || 'karnkeshav'}\`
+
+---
+
+#### 🌟 Features Built:
+* **Google Stitch Design:** Clean Glassmorphism cards, glowing status badges, and modern typography.
+* **Interactive Telemetry:** Live data analytics, responsive charts, and searchable filters.
+* **Autonomous Hosting:** Production build committed to \`main\` branch and hosted live on GitHub Pages.`;
+
+            let renderedHtml = window.marked ? marked.parse(updatedAnswer) : updatedAnswer.replace(/\n/g, "<br>");
+            renderedHtml += `
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 1.2rem; margin-bottom: 1.2rem;">
+                <a href="${liveUrl}" target="_blank" class="btn-action" style="text-decoration: none; padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                  🌐 Open Live App
+                </a>
+                <a href="${repoUrl}" target="_blank" class="btn-secondary" style="text-decoration: none; padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                  💻 GitHub Repository
+                </a>
+                <button type="button" class="btn-secondary" onclick="openGeneratedAppInNewTab()" style="padding: 0.65rem 1.3rem; font-size: 0.88rem; display: inline-flex; align-items: center; gap: 6px;">
+                  👁️ Fullscreen Tab
+                </button>
+              </div>
+              <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: #000;">
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 0.6rem 1rem; border-bottom: 1px solid var(--border-color);">
+                  <span style="font-size: 0.82rem; color: #fff; font-weight: 600;">📱 Live Interactive App Preview</span>
+                  <button type="button" onclick="openGeneratedAppInNewTab()" style="background: none; border: none; color: var(--accent-cyan); font-size: 0.78rem; font-weight: 600; cursor: pointer;">⤢ Open In New Tab</button>
+                </div>
+                <iframe id="appSandboxFrame" style="width: 100%; height: 500px; border: none; background: #0b1326;"></iframe>
+              </div>
+            `;
+            document.getElementById("answerContent").innerHTML = renderedHtml;
+            const frame = document.getElementById('appSandboxFrame');
+            if (frame && window.lastGeneratedApp.html) {
+              frame.srcdoc = window.lastGeneratedApp.html;
+            }
+          }
+        } else {
+          const errData = await resp.json();
+          showToast(`❌ Deploy failed: ${errData.error || resp.statusText}`);
+        }
+      } catch (err) {
+        showToast(`❌ Deploy failed: ${err.message}`);
+      }
+    };
 
     // Initialize
     setLanguage(currentLang);
