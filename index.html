@@ -478,9 +478,73 @@
     }
 
     #answerBox table {
-      display: block;
-      max-width: 100%;
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.2rem 0;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      overflow: hidden;
+      display: table;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    #answerBox th, #answerBox td {
+      padding: 0.8rem 1.1rem;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.88rem;
+    }
+
+    #answerBox th {
+      background: rgba(30, 41, 59, 0.95);
+      color: #93c5fd;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.76rem;
+      letter-spacing: 0.05em;
+    }
+
+    #answerBox tr:last-child td {
+      border-bottom: none;
+    }
+
+    #answerBox tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .mermaid-chart-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin: 1.2rem 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
       overflow-x: auto;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    }
+
+    .format-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .format-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.5);
+      color: #fff;
     }
 
     /* Cards Grid */
@@ -920,7 +984,24 @@
         if (el) el.innerHTML = svg;
       } catch (err) {
         const el = document.getElementById(id);
-        if (el) el.innerHTML = `<div style="color:#ffb4ab;font-size:12px;">Diagram error: ${err.message}</div>`;
+        if (el) el.innerHTML = `<div style="color:#ffb4ab;font-size:12px;padding:8px;">Diagram render notice: ${err.message}</div>`;
+      }
+    };
+    window.postProcessMermaid = async (container) => {
+      if (!container) return;
+      const codeBlocks = container.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid');
+      for (let i = 0; i < codeBlocks.length; i++) {
+        const codeEl = codeBlocks[i];
+        const preEl = codeEl.parentElement;
+        const codeText = codeEl.textContent.trim();
+        const chartId = 'mermaid-chart-' + Math.random().toString(36).substring(2, 9);
+        const wrapper = document.createElement('div');
+        wrapper.id = chartId;
+        wrapper.className = 'mermaid-chart-box';
+        preEl.replaceWith(wrapper);
+        if (window.renderMermaid) {
+          await window.renderMermaid(chartId, codeText);
+        }
       }
     };
   </script>
@@ -1036,7 +1117,15 @@
 
       <!-- Result / Summary: appears alongside Progress -->
       <section id="resultSection" style="display: none;">
-        <div class="section-title" data-i18n="resultTitle">📄 Result</div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 1.5rem; margin-bottom: 0.8rem;">
+          <div class="section-title" style="margin: 0;" data-i18n="resultTitle">📄 Result</div>
+          <div id="formatSwitcher" style="display: flex; gap: 6px; flex-wrap: wrap;">
+            <button type="button" class="format-btn" onclick="requestFormat('table')">📊 Tabular</button>
+            <button type="button" class="format-btn" onclick="requestFormat('graphical')">📈 Graphical</button>
+            <button type="button" class="format-btn" onclick="requestFormat('sentence')">📝 Sentence</button>
+            <button type="button" class="format-btn" onclick="requestFormat('composite')">📋 Multi-View</button>
+          </div>
+        </div>
         <div id="answerBox">
           <div id="answerContent" style="font-size: 0.95rem; line-height: 1.6;"></div>
         </div>
@@ -2388,6 +2477,11 @@
               }
 
               answerContent.innerHTML = renderedHtml;
+              window.lastExecutedPrompt = prompt;
+
+              if (window.postProcessMermaid) {
+                window.postProcessMermaid(answerContent);
+              }
 
               if (resPayload.deliverable && resPayload.deliverable.html) {
                 const frame = document.getElementById('appSandboxFrame');
@@ -2440,6 +2534,33 @@
         progressLogs.appendChild(errStep);
         showToast("⚠️ Execution notice — check progress panel");
       }
+    }
+
+    function requestFormat(formatType) {
+      const textarea = document.getElementById("promptText");
+      const basePrompt = textarea.value.trim() || window.lastExecutedPrompt || "what are the cost of my aws, oci, azure and gcp";
+      let cleaned = basePrompt
+        .replace(/\b(give me (in a )?|in a |in )?(tabular format|table format|graphical presentation|graphical format|chart format|sentence format|summary format|multi-view format|tabular|table|graphical|chart|sentence)\b/gi, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
+      if (!cleaned) {
+        cleaned = "what are the cost of my aws, oci, azure and gcp";
+      }
+
+      let newPrompt = cleaned;
+      if (formatType === 'table') {
+        newPrompt += " give me in a tabular format";
+      } else if (formatType === 'graphical') {
+        newPrompt += " give me graphical presentation";
+      } else if (formatType === 'sentence') {
+        newPrompt += " in sentence format";
+      } else if (formatType === 'composite') {
+        newPrompt += " with complete breakdown";
+      }
+
+      textarea.value = newPrompt;
+      executeMission();
     }
 
     async function checkBackendHealth() {
