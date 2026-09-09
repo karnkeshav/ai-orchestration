@@ -109,50 +109,66 @@ def query_oci_buckets():
     except Exception as e:
         return f"OCI Storage Error: {str(e)}"
 
+def _get_gcp_token_and_project(project_id=None):
+    import os, json
+    os.environ['NO_GCE_CHECK'] = 'True'
+    os.environ['GCE_METADATA_HOST'] = '127.0.0.1'
+    project = project_id or os.environ.get("GOOGLE_CLOUD_PROJECT") or "calm-catfish-464514-t6"
+    adc_path = os.path.expanduser("~/.config/gcloud/application_default_credentials.json")
+    if os.path.exists(adc_path):
+        try:
+            from google.oauth2 import credentials as oauth2_cred
+            from google.auth.transport.requests import Request
+            with open(adc_path) as f:
+                info = json.load(f)
+            creds = oauth2_cred.Credentials.from_authorized_user_info(info)
+            creds.refresh(Request())
+            return creds.token, project
+        except Exception:
+            pass
+    try:
+        import google.auth
+        from google.auth.transport.requests import Request
+        credentials, auto_proj = google.auth.default()
+        credentials.refresh(Request())
+        return credentials.token, (project_id or os.environ.get("GOOGLE_CLOUD_PROJECT") or auto_proj or "calm-catfish-464514-t6")
+    except Exception:
+        return None, project
+
 def query_gcp_instances(project_id=None):
     try:
-        from google.cloud import compute_v1, resourcemanager_v3
-        import google.auth
-        credentials, auto_proj = google.auth.default()
+        import httpx
+        token, project = _get_gcp_token_and_project(project_id)
+        if not token:
+            return "GCP Query Status: No valid credentials found for GCP."
         
-        projs = []
-        if project_id: projs = [project_id]
-        elif os.environ.get("GOOGLE_CLOUD_PROJECT"): projs = [os.environ["GOOGLE_CLOUD_PROJECT"]]
-        else:
-            try:
-                rm_client = resourcemanager_v3.ProjectsClient(credentials=credentials)
-                page_result = rm_client.list_projects()
-                projs = [p.project_id for p in page_result if p.state.name in ("ACTIVE", "STATE_UNSPECIFIED")]
-            except Exception:
-                if auto_proj: projs = [auto_proj]
+        r = httpx.get(
+            f"https://compute.googleapis.com/compute/v1/projects/{project}/aggregated/instances",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=8.0
+        )
+        if r.status_code != 200:
+            return f"GCP Query Status: HTTP {r.status_code} - {r.text[:150]}"
         
-        if not projs:
-            projs = ["calm-catfish-464514-t6"]
-            
-        client = compute_v1.InstancesClient(credentials=credentials)
+        data = r.json()
         results = []
-        for proj in projs[:5]:
-            try:
-                request = compute_v1.AggregatedListInstancesRequest(project=proj)
-                agg_list = client.aggregated_list(request=request)
-                for zone, response in agg_list:
-                    if response.instances:
-                        z_name = zone.split("/")[-1]
-                        for inst in response.instances:
-                            ext_ip = "N/A"
-                            if inst.network_interfaces:
-                                for ac in inst.network_interfaces[0].access_configs:
-                                    if ac.nat_i_p: ext_ip = ac.nat_i_p
-                            results.append({
-                                "name": inst.name,
-                                "project": proj,
-                                "zone": z_name,
-                                "type": inst.machine_type.split("/")[-1],
-                                "state": inst.status,
-                                "ip": ext_ip
-                            })
-            except Exception:
-                continue
+        for zone_key, zone_val in data.get("items", {}).items():
+            for inst in zone_val.get("instances", []):
+                ext_ip = "N/A"
+                if inst.get("networkInterfaces"):
+                    for ac in inst["networkInterfaces"][0].get("accessConfigs", []):
+                        if ac.get("natIP"):
+                            ext_ip = ac.get("natIP")
+                m_type = inst.get("machineType", "").split("/")[-1]
+                z_name = zone_key.split("/")[-1]
+                results.append({
+                    "name": inst.get("name"),
+                    "project": project,
+                    "zone": z_name,
+                    "type": m_type,
+                    "state": inst.get("status"),
+                    "ip": ext_ip
+                })
         return results
     except Exception as e:
         return f"GCP Query Status: {str(e)}"
@@ -245,17 +261,40 @@ def query_azure_services():
 
 def query_gcp_services():
     try:
-        from google.cloud import run_v2, functions_v2
-        import google.auth
-        credentials, auto_proj = google.auth.default()
-        project = os.environ.get("GOOGLE_CLOUD_PROJECT", auto_proj or "calm-catfish-464514-t6")
+        import httpx
+        token, project = _get_gcp_token_and_project()
+        if not token:
+            return "GCP Services Error: No valid GCP credentials found."
         results = []
-        run_client = run_v2.ServicesClient(credentials=credentials)
-        for svc in run_client.list_services(parent=f"projects/{project}/locations/-"):
-            results.append({"type": "Cloud Run", "name": svc.name.split("/")[-1], "state": "READY" if svc.terminal_condition.state == 1 else "NOT_READY"})
-        fn_client = functions_v2.FunctionServiceClient(credentials=credentials)
-        for fn in fn_client.list_functions(parent=f"projects/{project}/locations/-"):
-            results.append({"type": "Cloud Function", "name": fn.name.split("/")[-1], "state": fn.state.name if hasattr(fn.state, "name") else str(fn.state)})
+        # Cloud Run REST endpoint
+        try:
+            r = httpx.get(
+                f"https://run.googleapis.com/v2/projects/{project}/locations/-/services",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0
+            )
+            if r.status_code == 200:
+                for svc in r.json().get("services", []):
+                    name = svc.get("name", "").split("/")[-1]
+                    status_cond = svc.get("terminalCondition", {}).get("state")
+                    state = "READY" if status_cond == "CONDITION_SUCCEEDED" else "ACTIVE"
+                    results.append({"type": "Cloud Run", "name": name, "state": state})
+        except Exception:
+            pass
+        # Cloud Functions REST endpoint
+        try:
+            r = httpx.get(
+                f"https://cloudfunctions.googleapis.com/v2/projects/{project}/locations/-/functions",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0
+            )
+            if r.status_code == 200:
+                for fn in r.json().get("functions", []):
+                    name = fn.get("name", "").split("/")[-1]
+                    state = fn.get("state", "ACTIVE")
+                    results.append({"type": "Cloud Function", "name": name, "state": state})
+        except Exception:
+            pass
         return results
     except Exception as e:
         return f"GCP Services Error: {str(e)}"
@@ -1492,9 +1531,20 @@ def _resolve_gemini_providers(arg):
 
 async def _gemini_exec_query_compute(loop, provider):
     target = _resolve_gemini_providers(provider)
+    
+    async def _query(p):
+        try:
+            res = await asyncio.wait_for(loop.run_in_executor(None, _GEMINI_COMPUTE_FN[p]), timeout=10.0)
+            return p, res
+        except asyncio.TimeoutError:
+            return p, f"{_GEMINI_NAMES[p]} query timed out after 10s"
+        except Exception as e:
+            return p, f"{_GEMINI_NAMES[p]} Error: {str(e)}"
+
+    results = dict(await asyncio.gather(*[_query(p) for p in target]))
     lines = []
     for p in target:
-        r = await loop.run_in_executor(None, _GEMINI_COMPUTE_FN[p])
+        r = results.get(p)
         if isinstance(r, list):
             body = "\n".join(f"• {_GEMINI_COMPUTE_FMT[p](i)}" for i in r) if r else "• None"
             lines.append(f"{_GEMINI_ICONS[p]} **{_GEMINI_NAMES[p]} ({len(r)}):**\n{body}")
@@ -1504,12 +1554,22 @@ async def _gemini_exec_query_compute(loop, provider):
 
 async def _gemini_exec_query_storage(loop, provider):
     target = _resolve_gemini_providers(provider)
+    
+    async def _query(p):
+        if p not in _GEMINI_STORAGE_FN:
+            return p, "Storage querying not implemented for this provider."
+        try:
+            res = await asyncio.wait_for(loop.run_in_executor(None, _GEMINI_STORAGE_FN[p]), timeout=10.0)
+            return p, res
+        except asyncio.TimeoutError:
+            return p, f"Storage query on {p.upper()} timed out after 10s"
+        except Exception as e:
+            return p, f"Storage error on {p.upper()}: {str(e)}"
+
+    results = dict(await asyncio.gather(*[_query(p) for p in target]))
     lines = []
     for p in target:
-        if p not in _GEMINI_STORAGE_FN:
-            lines.append(f"{_GEMINI_ICONS[p]} **{_GEMINI_NAMES[p]}:** Storage querying not implemented for this provider.")
-            continue
-        r = await loop.run_in_executor(None, _GEMINI_STORAGE_FN[p])
+        r = results.get(p)
         if isinstance(r, list):
             lines.append(f"{_GEMINI_ICONS[p]} **{_GEMINI_NAMES[p]} ({len(r)}):** " + (", ".join(r) if r else "None"))
         else:
@@ -1518,12 +1578,22 @@ async def _gemini_exec_query_storage(loop, provider):
 
 async def _gemini_exec_query_cost(loop, provider):
     target = _resolve_gemini_providers(provider)
+    
+    async def _query(p):
+        if p not in _GEMINI_COST_FN:
+            return p, "Cost querying not implemented for this provider."
+        try:
+            res = await asyncio.wait_for(loop.run_in_executor(None, _GEMINI_COST_FN[p]), timeout=10.0)
+            return p, res
+        except asyncio.TimeoutError:
+            return p, f"Cost query on {p.upper()} timed out after 10s"
+        except Exception as e:
+            return p, f"Cost error on {p.upper()}: {str(e)}"
+
+    results = dict(await asyncio.gather(*[_query(p) for p in target]))
     lines, numeric = [], []
     for p in target:
-        if p not in _GEMINI_COST_FN:
-            lines.append(f"{_GEMINI_ICONS[p]} **{_GEMINI_NAMES[p]}:** Cost querying not implemented for this provider.")
-            continue
-        r = await loop.run_in_executor(None, _GEMINI_COST_FN[p])
+        r = results.get(p)
         if isinstance(r, dict):
             numeric.append((p, r["total"], r["unit"]))
             lines.append(f"{_GEMINI_ICONS[p]} **{_GEMINI_NAMES[p]}:** {r['total']:.2f} {r['unit']} ({r['period']})")
@@ -1539,9 +1609,20 @@ async def _gemini_exec_query_cost(loop, provider):
 
 async def _gemini_exec_query_services(loop, provider):
     target = _resolve_gemini_providers(provider)
+    
+    async def _query(p):
+        try:
+            res = await asyncio.wait_for(loop.run_in_executor(None, _GEMINI_SERVICES_FN[p]), timeout=10.0)
+            return p, res
+        except asyncio.TimeoutError:
+            return p, f"Services query on {p.upper()} timed out after 10s"
+        except Exception as e:
+            return p, f"Services error on {p.upper()}: {str(e)}"
+
+    results = dict(await asyncio.gather(*[_query(p) for p in target]))
     rows, errors = [], []
     for p in target:
-        r = await loop.run_in_executor(None, _GEMINI_SERVICES_FN[p])
+        r = results.get(p)
         if isinstance(r, list):
             for svc in r:
                 rows.append((p.upper(), svc["type"], svc["name"], svc["state"]))
@@ -2181,9 +2262,8 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["status"] = "COMPLETED"
 
 async def try_instant_app_creation(task_id: str, prompt: str, category: str = "general", github_user: Optional[str] = None, github_token: Optional[str] = None) -> bool:
-    """Zero-latency autonomous app builder & modifier: if the category is apps/websites or
-    the prompt asks to create, build, make, deploy, or modify an app/website/GitHub repo,
-    runs the complete Google Stitch UI + GitHub Pages deployment pipeline directly."""
+    """Zero-latency autonomous app builder & modifier: ONLY triggers when the user
+    specifically asks to create, build, generate, deploy, or modify an app/website/repo."""
     prompt_lower = prompt.lower().strip()
     
     # 1. Check for modify / update repository intent
@@ -2203,20 +2283,30 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
         tasks[task_id]["status"] = "COMPLETED"
         return True
 
-    # 2. Check for app / website category OR creation keywords
+    # 2. Check for explicit app/website creation keywords
+    # Strict regex requiring an action verb (create/build/make/generate/deploy/code/develop) + app/website target
     app_creation_patterns = [
-        r'\b(create|build|make|generate|deploy)\s+(an?\s+)?(app|website|web\s*app|dashboard|ui|application|site)\b',
-        r'\b(create|build|make|generate|deploy)\s+(an?\s+)?([a-z0-9_-]+\s+)+(app|website|web\s*app|dashboard|ui|application|site)\b',
-        r'^create\s+(app|website|site)\b',
-        r'^build\s+(app|website|site)\b',
-        r'^make\s+(app|website|site)\b',
-        r'^deploy\s+(app|website|site)\b',
-        r'\b(portfolio|dashboard|landing page|storefront|e-?commerce|shop)\b',
+        r'\b(?:create|build|make|generate|deploy|scaffold|develop|code)\s+(?:an?\s+)?(?:[a-z0-9_-]+\s+)*(?:app|webapp|web\s*app|website|site|application|portal|landing\s*page|storefront)\b',
+        r'^(?:create|build|make|generate|deploy)\s+(?:an?\s+)?(?:[a-z0-9_-]+\s+)*(?:dashboard|portfolio|calculator|tracker|clone|game)\b',
+        r'\b(?:build|create|generate|deploy)\s+(?:me\s+)?(?:an?\s+)?(?:full-?stack|frontend|react|vue|html|svelte|single-?page\s+app)\b',
     ]
-    is_app_category = category in ("apps", "websites")
+    
+    # Non-app intents (cloud queries, food, rides, deals, status questions) must not be hijacked
+    is_non_app_query = any(k in prompt_lower for k in [
+        "instance", "vm", "server", "ec2", "bucket", "s3", "billing", "cost", "spend", "invoice",
+        "how many", "list ", "check ", "show ", "query ", "status",
+        "ride", "cab", "uber", "ola", "rapido", "zomato", "swiggy", "food", "biryani", "pizza",
+        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "deal", "discount"
+    ])
+    
     matches_pattern = any(re.search(p, prompt_lower) for p in app_creation_patterns)
 
-    if not (is_app_category or matches_pattern):
+    # If it's a non-app query and doesn't match an explicit app creation pattern, do not intercept
+    if is_non_app_query and not matches_pattern:
+        return False
+
+    is_app_category = category in ("apps", "websites")
+    if not (matches_pattern or (is_app_category and not is_non_app_query)):
         return False
 
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Antigravity Engine: Directive received: {prompt[:60]}...")
@@ -2249,12 +2339,8 @@ _MUTATION_VERBS = (
 async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     """Zero-dependency, near-instant path for unambiguous read-only cost/
     compute/storage/service queries: pure local keyword matching straight
-    into a direct cloud SDK call -- no LLM round trip, no agy CLI/MCP
-    bootstrap. Returns True (and completes the task) only for a confident,
-    unambiguous read query; returns False for everything else so the
-    caller escalates to agy instead. Deliberately conservative: erring
-    toward agy on anything that isn't a clean, unambiguous read query is
-    far safer than a keyword guess silently mishandling a real action."""
+    into direct cloud SDK calls -- no LLM round trip, no agy CLI/MCP
+    bootstrap. Runs provider queries concurrently with strict per-cloud timeouts."""
     prompt_lower = prompt.lower()
     if any(v in prompt_lower for v in _MUTATION_VERBS):
         return False
@@ -2293,9 +2379,19 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     if wants_services:
         target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
+        
+        async def _run_services(p):
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, services_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Services query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Services error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_services(p) for p in target])
         rows, errors = [], []
-        for p in target:
-            result = await loop.run_in_executor(None, services_fn[p])
+        for p, result in fetched:
             if isinstance(result, list):
                 for svc in result:
                     rows.append((p.upper(), svc["type"], svc["name"], svc["state"]))
@@ -2317,12 +2413,21 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     elif wants_cost:
         target = providers if providers else ["aws", "oci", "azure"]
         tasks[task_id]["logs"].append(f"[00:01] 💰 Querying cost/billing on: {', '.join(p.upper() for p in target)}...")
-        lines, numeric = [], []
-        for p in target:
+        
+        async def _run_cost(p):
             if p not in cost_fn:
-                lines.append(f"{icons[p]} **{p.upper()}:** Cost querying not implemented for this provider yet.")
-                continue
-            result = await loop.run_in_executor(None, cost_fn[p])
+                return p, f"Cost querying not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, cost_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Cost query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Cost error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_cost(p) for p in target])
+        lines, numeric = [], []
+        for p, result in fetched:
             if isinstance(result, dict):
                 numeric.append((p, result["total"], result["unit"]))
                 lines.append(f"{icons[p]} **{p.upper()}:** {result['total']:.2f} {result['unit']} ({result['period']})")
@@ -2342,12 +2447,21 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     elif wants_storage:
         target = providers if providers else ["aws", "oci"]
         tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
-        lines, total = [], 0
-        for p in target:
+        
+        async def _run_storage(p):
             if p not in storage_fn:
-                lines.append(f"{icons[p]} **{p.upper()}:** Storage querying not implemented for this provider yet.")
-                continue
-            result = await loop.run_in_executor(None, storage_fn[p])
+                return p, f"Storage querying not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, storage_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Storage query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Storage error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_storage(p) for p in target])
+        lines, total = [], 0
+        for p, result in fetched:
             if isinstance(result, list):
                 total += len(result)
                 lines.append(f"{icons[p]} **{p.upper()} ({len(result)}):** " + (", ".join(result) if result else "None"))
@@ -2359,7 +2473,18 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     else:  # wants_compute
         target = providers or ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🌐 Querying compute instances on: {', '.join(p.upper() for p in target)}...")
-        results = {p: await loop.run_in_executor(None, compute_fn[p]) for p in target}
+        
+        async def _run_compute(p):
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, compute_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"{names.get(p, p.upper())} query timed out after 10s"
+            except Exception as e:
+                return p, f"{names.get(p, p.upper())} Error: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_compute(p) for p in target])
+        results = dict(fetched)
         total = sum(len(r) for r in results.values() if isinstance(r, list))
         if len(target) == 1:
             p = target[0]
@@ -2543,9 +2668,19 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     if wants_services:
         target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
+        
+        async def _run_services_m(p):
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, services_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Services query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Services error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_services_m(p) for p in target])
         rows, errors = [], []
-        for p in target:
-            result = await loop.run_in_executor(None, services_fn[p])
+        for p, result in fetched:
             if isinstance(result, list):
                 for svc in result:
                     rows.append((p.upper(), svc["type"], svc["name"], svc["state"]))
@@ -2568,12 +2703,21 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     elif wants_cost:
         target = providers if providers else ["aws", "oci", "azure"]
         tasks[task_id]["logs"].append(f"[00:01] 💰 Querying cost/billing on: {', '.join(p.upper() for p in target)}...")
-        lines, numeric = [], []
-        for p in target:
+        
+        async def _run_cost_m(p):
             if p not in cost_fn:
-                lines.append(f"{icons[p]} **{p.upper()}:** Cost querying not implemented for this provider yet.")
-                continue
-            result = await loop.run_in_executor(None, cost_fn[p])
+                return p, f"Cost querying not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, cost_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Cost query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Cost error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_cost_m(p) for p in target])
+        lines, numeric = [], []
+        for p, result in fetched:
             if isinstance(result, dict):
                 numeric.append((p, result["total"], result["unit"]))
                 lines.append(f"{icons[p]} **{p.upper()}:** {result['total']:.2f} {result['unit']} ({result['period']})")
@@ -2594,12 +2738,21 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     elif wants_storage and not wants_compute:
         target = providers if providers else ["aws", "oci"]
         tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
-        lines, total = [], 0
-        for p in target:
+        
+        async def _run_storage_m(p):
             if p not in storage_fn:
-                lines.append(f"{icons[p]} **{p.upper()}:** Storage querying not implemented for this provider yet.")
-                continue
-            result = await loop.run_in_executor(None, storage_fn[p])
+                return p, f"Storage querying not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, storage_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Storage query on {p.upper()} timed out after 10s"
+            except Exception as e:
+                return p, f"Storage error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_storage_m(p) for p in target])
+        lines, total = [], 0
+        for p, result in fetched:
             if isinstance(result, list):
                 total += len(result)
                 lines.append(f"{icons[p]} **{p.upper()} ({len(result)}):** " + (", ".join(result) if result else "None"))
@@ -2612,7 +2765,18 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     elif wants_compute or providers:
         target = providers or ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🌐 Querying compute instances on: {', '.join(p.upper() for p in target)}...")
-        results = {p: await loop.run_in_executor(None, compute_fn[p]) for p in target}
+        
+        async def _run_compute_m(p):
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, compute_fn[p]), timeout=10.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"{names.get(p, p.upper())} query timed out after 10s"
+            except Exception as e:
+                return p, f"{names.get(p, p.upper())} Error: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_compute_m(p) for p in target])
+        results = dict(fetched)
         total = sum(len(r) for r in results.values() if isinstance(r, list))
 
         if len(target) == 1:
