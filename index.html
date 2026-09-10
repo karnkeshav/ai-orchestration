@@ -513,6 +513,26 @@
       background: rgba(255, 255, 255, 0.03);
     }
 
+    /* Markdown-rendered links default to the browser's dark-blue visited/unvisited
+       colors, which are unreadable against this dark theme -- force a bright,
+       on-brand, accessible color with a visible hover state instead. */
+    #answerBox a {
+      color: var(--accent-cyan);
+      text-decoration: underline;
+      text-decoration-color: rgba(6, 182, 212, 0.4);
+      text-underline-offset: 2px;
+      font-weight: 600;
+    }
+
+    #answerBox a:hover {
+      color: #67e8f9;
+      text-decoration-color: #67e8f9;
+    }
+
+    #answerBox a:visited {
+      color: var(--accent-purple);
+    }
+
     .mermaid-chart-box {
       background: rgba(15, 23, 42, 0.7);
       border: 1px solid rgba(99, 102, 241, 0.3);
@@ -1554,7 +1574,7 @@
         'media-video': { title: 'Video Generation', desc: 'Create cinematic AI videos with voiceovers', prompt: "Create a cinematic AI video with voiceover and background music." },
         'finops-powerbi': { title: 'AWS + OCI FinOps', desc: 'Auto-pull S3 CUR + OCI Telemetry into Power BI', prompt: "Fetch AWS CUR and OCI usage telemetry, normalize spend, and stream into Power BI." },
         'finops-azure-foundry': { title: 'Azure FinOps AI', desc: 'Cost intelligence with gpt-5-mini', prompt: "Run Azure FinOps cost analysis using Azure AI Foundry." },
-        'finops-gcp-active-assist': { title: 'Quad-Cloud FinOps', desc: 'AWS, OCI, Azure, GCP cost analysis', prompt: "Execute Google Cloud FinOps analysis across project." },
+        'finops-gcp-active-assist': { title: 'Quad-Cloud FinOps', desc: 'AWS, OCI, Azure, GCP cost analysis', prompt: "What is the cost of my AWS, OCI, Azure and GCP in a tabular format?" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonomous Always-Free VM provisioning', prompt: "Continuously provision an Always-Free OCI Ampere VM." },
         'hybrid-dr': { title: 'Multi-Cloud DR', desc: 'Automated failover & egress arbitrage', prompt: "Architect Multi-Cloud DR pipeline between AWS EKS and OCI." },
         'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." }
@@ -2361,7 +2381,7 @@
       statusText.style.color = "";
       technicalLogs.innerHTML = "";
       activityStageIndex = 0;
-      pushLiveProgressLog(progressLogs, statusText, `[00:00] ⚡ Antigravity Engine: Directive received: "${prompt.slice(0, 70)}..."`);
+      pushFriendlyStage(progressLogs, statusText);
       pushTechnicalLog(technicalLogs, `Directive received: ${prompt}`);
 
       const execCategory = currentCategory === 'apps' ? 'apps' : (attachedImageData ? 'shopping' : (currentCategory || 'general'));
@@ -2412,7 +2432,11 @@
           if (isActive) {
             (resPayload.logs || []).forEach(log => {
               if (log !== "[DONE] Finished") {
-                pushLiveProgressLog(progressLogs, statusText, log);
+                // User-facing panel only ever advances through generic, friendly
+                // stage labels -- it must never show raw backend detail (which
+                // agent/tool/model handled the request). The unfiltered log still
+                // goes to the Activity tab for debugging.
+                pushFriendlyStage(progressLogs, statusText);
                 pushTechnicalLog(technicalLogs, log);
               }
             });
@@ -2571,7 +2595,7 @@
         if (res.ok) {
           activeBackendUrl = "http://localhost:8000";
           if (badge) {
-            badge.innerHTML = '<span class="status-dot"></span> <span>Antigravity Engine Online (Port 8000)</span>';
+            badge.innerHTML = '<span class="status-dot"></span> <span>AI Engine Online</span>';
             badge.style.color = "var(--accent-emerald)";
           }
           return true;
@@ -2600,19 +2624,9 @@
       return false;
     }
 
-    function pushLiveProgressLog(logsBox, statusText, logText) {
-      if (!logsBox || !logText) return;
-      const item = document.createElement("div");
-      item.className = "activity-step";
-      item.style.fontFamily = "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
-      item.style.fontSize = "0.82rem";
-      item.innerText = logText;
-      logsBox.appendChild(item);
-      logsBox.scrollTop = logsBox.scrollHeight;
-      if (statusText) statusText.innerText = logText;
-    }
-
-    // Appends the next generic, non-technical progress stage (fallback)
+    // Appends the next generic, non-technical progress stage. This is the only
+    // function allowed to write into the user-facing progress panel -- it must
+    // never be passed raw backend log text (see pushTechnicalLog for that).
     function pushFriendlyStage(logsBox, statusText) {
       const idx = Math.min(activityStageIndex, STAGE_KEYS.length - 1);
       const label = t(STAGE_KEYS[idx]);
