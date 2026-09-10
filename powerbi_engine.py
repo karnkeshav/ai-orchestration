@@ -79,8 +79,11 @@ def _graph_get(url: str, token: str, params: Optional[dict] = None) -> dict:
 
 
 def resolve_site(token: str, site_query: str) -> dict:
-    """site_query can be a search term, a site name, or a full SharePoint URL."""
+    """site_query can be empty (tenant root site), a search term, a site name,
+    or a full SharePoint URL."""
     site_query = (site_query or "").strip()
+    if not site_query:
+        return _graph_get(f"{GRAPH_BASE}/sites/root", token)
     if site_query.startswith("http"):
         # https://tenant.sharepoint.com/sites/SiteName -> hostname + /sites/SiteName
         m = re.match(r"https://([^/]+)(/.*)?", site_query)
@@ -110,6 +113,59 @@ def list_drive_csvs(token: str, site_id: str, folder_path: Optional[str] = None)
     items = data.get("value", [])
     csvs = [i for i in items if "file" in i and i.get("name", "").lower().endswith(".csv")]
     return drive_id, csvs
+
+
+def list_all_csvs_recursive(token: str, drive_id: str, folder_path: Optional[str] = None,
+                             max_items: int = 300, max_folders: int = 100) -> List[dict]:
+    """BFS through the folder tree under folder_path collecting every .csv file,
+    returning its name, full path, and size. Capped to bound worst-case latency
+    on very large document libraries."""
+    start = (folder_path or "").strip("/")
+    to_visit = [start]
+    visited = set()
+    results: List[dict] = []
+    folders_scanned = 0
+    while to_visit and len(results) < max_items and folders_scanned < max_folders:
+        current = to_visit.pop(0)
+        if current in visited:
+            continue
+        visited.add(current)
+        folders_scanned += 1
+        url = (
+            f"{GRAPH_BASE}/drives/{drive_id}/root:/{current}:/children"
+            if current
+            else f"{GRAPH_BASE}/drives/{drive_id}/root/children"
+        )
+        try:
+            data = _graph_get(url, token)
+        except PowerBIEngineError:
+            continue
+        for item in data.get("value", []):
+            item_path = f"{current}/{item['name']}" if current else item["name"]
+            if "folder" in item:
+                to_visit.append(item_path)
+            elif item.get("name", "").lower().endswith(".csv"):
+                results.append({"name": item["name"], "path": item_path, "size": item.get("size", 0)})
+    return results
+
+
+def list_sharepoint_csvs(site_query: str, folder_path: Optional[str] = None, on_log=None) -> dict:
+    def log(msg):
+        if on_log:
+            on_log(msg)
+
+    token = _graph_token()
+    log(f"🔎 Resolving SharePoint site '{site_query or '(tenant root)'}'...")
+    site = resolve_site(token, site_query)
+    drive = _graph_get(f"{GRAPH_BASE}/sites/{site['id']}/drive", token)
+    drive_id = drive["id"]
+    log("📂 Scanning document library for CSV files...")
+    files = list_all_csvs_recursive(token, drive_id, folder_path)
+    return {
+        "site_name": site.get("displayName") or site.get("name") or site_query,
+        "site_url": site.get("webUrl", ""),
+        "files": files,
+    }
 
 
 def download_csv_bytes(token: str, drive_id: str, item_id: str) -> bytes:

@@ -948,6 +948,18 @@ def _gemini_tool_declarations():
             parameters=types.Schema(type="OBJECT", properties={}),
         ),
         types.FunctionDeclaration(
+            name="list_sharepoint_csv_files",
+            description=(
+                "List CSV files (with their folder paths and sizes) found in a SharePoint site's document library, "
+                "via Microsoft Graph, without building anything. Call this whenever the user asks to list, find, "
+                "show, or see what CSV/data files exist on SharePoint."
+            ),
+            parameters=types.Schema(type="OBJECT", properties={
+                "site_query": types.Schema(type="STRING", description="SharePoint site name, search term, or full site URL. Omit to use the tenant's default/root site."),
+                "folder_path": types.Schema(type="STRING", description="Optional folder path to scope the search (e.g. 'landmark'). Omit to scan the whole document library."),
+            }),
+        ),
+        types.FunctionDeclaration(
             name="generate_powerbi_dashboard",
             description=(
                 "Pull CSV file(s) from a SharePoint site/folder via Microsoft Graph, auto-detect relationships "
@@ -957,11 +969,11 @@ def _gemini_tool_declarations():
                 "Power BI dashboard, report, or data model from SharePoint data."
             ),
             parameters=types.Schema(type="OBJECT", properties={
-                "site_query": types.Schema(type="STRING", description="SharePoint site name, search term, or full site URL (e.g. 'Finance', 'https://contoso.sharepoint.com/sites/Finance')."),
+                "site_query": types.Schema(type="STRING", description="SharePoint site name, search term, or full site URL (e.g. 'Finance', 'https://contoso.sharepoint.com/sites/Finance'). Omit to use the tenant's default/root site."),
                 "folder_path": types.Schema(type="STRING", description="Folder path within the site's document library containing the CSVs (e.g. 'Shared Documents/2026 Sales'). Empty/omit for the library root."),
                 "filenames": types.Schema(type="ARRAY", items=types.Schema(type="STRING"), description="Optional list of specific CSV filenames to use (e.g. ['Sales.csv', 'Customers.csv']). Omit to use every CSV found in the folder."),
                 "project_name": types.Schema(type="STRING", description="Name for the generated Power BI project (e.g. 'SalesDashboard'). Default 'Dashboard'."),
-            }, required=["site_query"]),
+            }),
         ),
     ]
 
@@ -1815,6 +1827,27 @@ async def _gemini_exec_create_and_deploy_app(loop, prompt, app_title=None, task_
         tasks[task_id]["deliverable"] = res.get("deliverable")
     return res.get("markdown", "App created successfully.")
 
+async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_path=None):
+    import powerbi_engine
+
+    try:
+        result = await loop.run_in_executor(None, lambda: powerbi_engine.list_sharepoint_csvs(site_query or "", folder_path))
+    except powerbi_engine.PowerBIEngineError as e:
+        return f"❌ **SharePoint lookup failed:** {str(e)}"
+    except Exception as e:
+        return f"❌ **SharePoint lookup failed:** {str(e)}"
+
+    files = result["files"]
+    scope = f"'{result['site_name']}'" + (f" / '{folder_path}'" if folder_path else "")
+    if not files:
+        return f"No CSV files found in {scope}."
+
+    lines = [f"📄 **CSV files in {scope}** ({len(files)} found):", ""]
+    for f in files:
+        size_kb = round((f.get("size") or 0) / 1024, 1)
+        lines.append(f"• `{f['path']}` ({size_kb} KB)")
+    return "\n".join(lines)
+
 async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=None, filenames=None, project_name=None, task_id=None):
     import powerbi_engine
 
@@ -2307,6 +2340,7 @@ _GEMINI_DISPATCH = {
     "search_finops_guide": lambda loop, args: _gemini_exec_search_finops_guide(loop, args.get("question"), args.get("provider")),
     "create_github_repo": lambda loop, args: _gemini_exec_create_github_repo(loop, args.get("name"), args.get("description"), args.get("private")),
     "create_and_deploy_app": lambda loop, args: _gemini_exec_create_and_deploy_app(loop, args.get("prompt"), args.get("app_title")),
+    "list_sharepoint_csv_files": lambda loop, args: _gemini_exec_list_sharepoint_csv_files(loop, args.get("site_query"), args.get("folder_path")),
     "generate_powerbi_dashboard": lambda loop, args: _gemini_exec_generate_powerbi_dashboard(loop, args.get("site_query"), args.get("folder_path"), args.get("filenames"), args.get("project_name")),
     "find_best_deals": lambda loop, args: _gemini_exec_find_best_deals(loop, args.get("query"), args.get("category"), args.get("location")),
     "compare_food_delivery": lambda loop, args: _gemini_exec_compare_food_delivery(loop, args.get("dish"), args.get("location")),
@@ -2343,6 +2377,8 @@ _GEMINI_SYSTEM_INSTRUCTION = (
     "Given the user's free-form request, call the appropriate tool(s) to answer it. "
     "If the user asks to create an app, build an app, generate a web app, create a website, create a dashboard, or deploy an app to github, "
     "call 'create_and_deploy_app'. "
+    "If the user asks to list, find, or show CSV/data files on SharePoint (without asking to build anything), "
+    "call 'list_sharepoint_csv_files'. "
     "If the user asks to build a Power BI dashboard/report from SharePoint CSVs/data, or otherwise mentions Power BI "
     "together with SharePoint, call 'generate_powerbi_dashboard'. "
     "If the user asks to generate Facebook post copy, announcements, or Facebook ads, call 'facebook_generate_post_copy' or 'facebook_create_ad_campaign'. "
