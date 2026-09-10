@@ -2551,7 +2551,17 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
     """Zero-latency autonomous app builder & modifier: ONLY triggers when the user
     specifically asks to create, build, generate, deploy, or modify an app/website/repo."""
     prompt_lower = prompt.lower().strip()
-    
+
+    # Power BI / SharePoint requests must never be hijacked by the generic web-app
+    # builder below, even when they also match a "create ... dashboard" style
+    # pattern (e.g. "create a drill-down powerbi dashboard" matches the dashboard
+    # trigger just as much as a real web-app request does). These need the
+    # dedicated SharePoint/Power BI tooling (agy's powerbi/sharepoint MCP tools),
+    # never a Stitch-generated web app -- so this check is an absolute veto,
+    # checked before any app-creation pattern matching, not just a soft exclusion.
+    if any(k in prompt_lower for k in ("power bi", "powerbi", "sharepoint", "pbix", "pbip", "dax", "tmdl", "semantic model")):
+        return False
+
     # 1. Check for modify / update repository intent
     mod_match = re.search(r'(?:modify|update|edit|change|upgrade)\s+(?:repo|repository)\s+([a-zA-Z0-9_-]+(?:/[a-zA-Z0-9_-]+)?)\s*[:\-]?\s*(.*)', prompt_lower, re.IGNORECASE)
     if mod_match:
@@ -2582,8 +2592,7 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
         "instance", "vm", "server", "ec2", "bucket", "s3", "billing", "cost", "spend", "invoice",
         "how many", "list ", "check ", "show ", "query ", "status",
         "ride", "cab", "uber", "ola", "rapido", "zomato", "swiggy", "food", "biryani", "pizza",
-        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "deal", "discount",
-        "power bi", "powerbi", "sharepoint", "pbix", "pbip", "dax", "tmdl"
+        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "deal", "discount"
     ])
     
     matches_pattern = any(re.search(p, prompt_lower) for p in app_creation_patterns)
@@ -3586,6 +3595,82 @@ _AGY_TOOL_HINT = (
     "on the zomato server) and must be preferred whenever one applies.\n\nUser request: "
 )
 
+# Power BI build requests get a much more forceful, specific directive than the
+# generic hint above. Observed failure mode without this: agy invented a
+# plausible-looking but entirely fictional schema (a generic "marketing
+# campaign" model) instead of reading the user's real CSVs, and returned a
+# copy-paste instruction guide instead of actually writing project files --
+# technically an answer, but useless as a deliverable.
+_AGY_POWERBI_HINT = (
+    "This is a Power BI Desktop dashboard-building request. You MUST ground everything in the "
+    "user's REAL data — never invent a fictional schema, table, or column name. Follow these steps "
+    "in order and do not skip any:\n"
+    "1. First call the 'sharepoint' MCP server's tools (sharepoint_search / sharepoint_list_items / "
+    "sharepoint_read_file) to inspect the actual CSV files in the user's SharePoint at "
+    "'Shared Documents/landmark/data/' on site https://keyshavkarnoutlook.sharepoint.com — read enough "
+    "of each file to know its real column names and types. Do not guess column names.\n"
+    "2. Check whether a Power BI project already exists locally at "
+    "/mnt/c/Users/keysh/Documents/landmark/powerbi/Landmark_Margin_Leakage_Sentry.pbip (a .pbip project "
+    "with a .SemanticModel and .Report folder). If it exists and its tables already correspond to this "
+    "real data, EXTEND it (add/update TMDL relationships, DAX measures, and hierarchies, and add real "
+    "report pages/visuals) rather than starting a new, separate project from scratch.\n"
+    "3. Actually WRITE the result as real files on disk (TMDL under <Project>.SemanticModel/definition/, "
+    "PBIR under <Project>.Report/definition/) using your own file-editing tools — do not just describe "
+    "the DAX/relationships/layout in your final markdown answer. The user must be able to open the "
+    "project directly in Power BI Desktop afterward with no manual copy-pasting required.\n"
+    "4. In your final answer, list exactly which files you created or modified (full paths) and a short "
+    "summary of the relationships/measures/hierarchies now in the model.\n\nUser request: "
+)
+
+_POWERBI_INTENT_KEYWORDS = ("power bi", "powerbi", "pbix", "pbip", "dax", "tmdl", "semantic model")
+
+# Where agy's local Power BI Desktop projects live (see _AGY_POWERBI_HINT above).
+# Windows-native path since server.py itself runs on Windows, not inside WSL.
+_LOCAL_POWERBI_BASE_DIR = os.environ.get(
+    "LOCAL_POWERBI_BASE_DIR", r"C:\Users\keysh\Documents\landmark\powerbi"
+)
+
+
+def _autofix_powerbi_project_files(base_dir: str) -> List[str]:
+    """Repairs two known agy file-writing bugs in any PBIR (*.Report) JSON files
+    under base_dir, observed live when agy builds/edits a Power BI project:
+    1. '$schema' written as an empty-string key ("": "https://...") instead of
+       "$schema" -- a bash heredoc variable-interpolation bug ($schema silently
+       expands to nothing inside an unquoted heredoc). This alone makes Power BI
+       Desktop refuse to open the report ("Something went wrong").
+    2. A new page.json missing required height/width fields when displayOption
+       isn't a fully dynamic size ("Invalid height and width on page ...").
+    Returns the list of file paths that were fixed."""
+    import glob
+    from collections import OrderedDict
+
+    fixed = []
+    for report_dir in glob.glob(os.path.join(base_dir, "**", "*.Report"), recursive=True):
+        for path in glob.glob(os.path.join(report_dir, "**", "*.json"), recursive=True):
+            try:
+                with open(path, encoding="utf-8") as f:
+                    d = json.load(f, object_pairs_hook=OrderedDict)
+            except Exception:
+                continue
+            if not isinstance(d, dict):
+                continue
+            changed = False
+            if "" in d:
+                new_d = OrderedDict()
+                for k, v in d.items():
+                    new_d["$schema" if k == "" else k] = v
+                d = new_d
+                changed = True
+            if os.path.basename(path) == "page.json" and ("height" not in d or "width" not in d):
+                d.setdefault("height", 720)
+                d.setdefault("width", 1280)
+                changed = True
+            if changed:
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(d, f, indent=2)
+                fixed.append(path)
+    return fixed
+
 # --- Warm agy session ------------------------------------------------------
 # A one-shot `agy -p "..."` process pays its full MCP-server bootstrap (every
 # configured server: azure, aws-mcp, oci, m365, flowagent, shopping/social
@@ -3867,7 +3952,8 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
 
-    full_prompt = _AGY_TOOL_HINT + prompt
+    is_powerbi_build = any(k in prompt.lower() for k in _POWERBI_INTENT_KEYWORDS)
+    full_prompt = (_AGY_POWERBI_HINT if is_powerbi_build else _AGY_TOOL_HINT) + prompt
     final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
 
     markdown_answer = None
@@ -3885,8 +3971,35 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
         except (json.JSONDecodeError, AttributeError, TypeError):
             markdown_answer = final_response
 
+    fixed_files = []
+    if is_powerbi_build:
+        loop = asyncio.get_event_loop()
+        try:
+            fixed_files = await loop.run_in_executor(None, _autofix_powerbi_project_files, _LOCAL_POWERBI_BASE_DIR)
+        except Exception as e:
+            tasks[task_id]["logs"].append(f"[00:02] ⚠️ Power BI project auto-repair step failed: {str(e)}")
+        if fixed_files:
+            tasks[task_id]["logs"].append(
+                f"[00:02] 🔧 Auto-repaired {len(fixed_files)} project file(s): corrupted '$schema' key and/or missing page dimensions."
+            )
+
     if markdown_answer:
         tasks[task_id]["answer"] = markdown_answer
+        if fixed_files:
+            tasks[task_id]["answer"] += (
+                f"\n\n---\n\n✅ **Auto-repair applied:** {len(fixed_files)} project file(s) had a known "
+                "formatting bug from the write step (corrupted `$schema` key and/or missing page "
+                "dimensions) — automatically fixed so the project opens cleanly in Power BI Desktop."
+            )
+    elif fixed_files:
+        # agy hit its print-timeout before composing a final answer, but real
+        # project files were written and just got auto-repaired -- tell the user
+        # that instead of a bare failure message, since the work actually landed.
+        tasks[task_id]["answer"] = (
+            "✅ The Power BI project was updated (agy didn't finish composing a summary before timing out, "
+            f"but the file changes did land). {len(fixed_files)} project file(s) were auto-repaired for a known "
+            "formatting bug so the project opens cleanly. Open it in Power BI Desktop to review."
+        )
     elif not tasks[task_id].get("answer"):
         tasks[task_id]["answer"] = "⚠️ Antigravity agent produced no output."
 
