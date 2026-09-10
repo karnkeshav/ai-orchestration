@@ -960,6 +960,21 @@ def _gemini_tool_declarations():
             }),
         ),
         types.FunctionDeclaration(
+            name="query_m365_graph",
+            description=(
+                "Read-only query against Microsoft Graph for ANY Microsoft 365 data: SharePoint (sites, lists, "
+                "drives/files beyond CSVs), Teams (teams, channels, channel messages, chats), Outlook (mail, "
+                "calendar/events), OneDrive, users, and groups. Call this for any M365 question not covered by a "
+                "more specific tool. This is app-only auth with no signed-in user -- there is no '/me'; queries "
+                "about 'my mail/calendar/chats' must target the specific user's UPN via a 'users/{upn}/...' path."
+            ),
+            parameters=types.Schema(type="OBJECT", properties={
+                "path": types.Schema(type="STRING", description="Relative Microsoft Graph v1.0 API path, no leading slash, e.g. 'users/keshav@contoso.onmicrosoft.com/messages', 'teams', 'sites/root/lists', 'groups'."),
+                "query_params": types.Schema(type="OBJECT", description="Optional OData query params as a flat object, e.g. {\"$top\": \"10\", \"$select\": \"subject,from\", \"$orderby\": \"receivedDateTime desc\", \"$filter\": \"...\"}."),
+                "summary_hint": types.Schema(type="STRING", description="Short plain-language description of what this query is fetching, for the reply (e.g. 'recent emails', 'Teams channel list')."),
+            }, required=["path"]),
+        ),
+        types.FunctionDeclaration(
             name="generate_powerbi_dashboard",
             description=(
                 "Pull CSV file(s) from a SharePoint site/folder via Microsoft Graph, auto-detect relationships "
@@ -1827,6 +1842,23 @@ async def _gemini_exec_create_and_deploy_app(loop, prompt, app_title=None, task_
         tasks[task_id]["deliverable"] = res.get("deliverable")
     return res.get("markdown", "App created successfully.")
 
+async def _gemini_exec_query_m365_graph(loop, path, query_params=None, summary_hint=None):
+    import graph_engine
+
+    def _call():
+        return graph_engine.query_graph(path, params=query_params)
+
+    try:
+        data = await loop.run_in_executor(None, _call)
+    except graph_engine.GraphQueryError as e:
+        return f"❌ **Microsoft Graph query failed:** {str(e)}"
+    except Exception as e:
+        return f"❌ **Microsoft Graph query failed:** {str(e)}"
+
+    body = graph_engine.summarize_graph_result(data)
+    header = f"🔎 **{summary_hint or 'Microsoft Graph result'}** (`GET {path}`)"
+    return f"{header}\n\n{body}"
+
 async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_path=None):
     import powerbi_engine
 
@@ -2341,6 +2373,7 @@ _GEMINI_DISPATCH = {
     "create_github_repo": lambda loop, args: _gemini_exec_create_github_repo(loop, args.get("name"), args.get("description"), args.get("private")),
     "create_and_deploy_app": lambda loop, args: _gemini_exec_create_and_deploy_app(loop, args.get("prompt"), args.get("app_title")),
     "list_sharepoint_csv_files": lambda loop, args: _gemini_exec_list_sharepoint_csv_files(loop, args.get("site_query"), args.get("folder_path")),
+    "query_m365_graph": lambda loop, args: _gemini_exec_query_m365_graph(loop, args.get("path"), args.get("query_params"), args.get("summary_hint")),
     "generate_powerbi_dashboard": lambda loop, args: _gemini_exec_generate_powerbi_dashboard(loop, args.get("site_query"), args.get("folder_path"), args.get("filenames"), args.get("project_name")),
     "find_best_deals": lambda loop, args: _gemini_exec_find_best_deals(loop, args.get("query"), args.get("category"), args.get("location")),
     "compare_food_delivery": lambda loop, args: _gemini_exec_compare_food_delivery(loop, args.get("dish"), args.get("location")),
@@ -2381,6 +2414,17 @@ _GEMINI_SYSTEM_INSTRUCTION = (
     "call 'list_sharepoint_csv_files'. "
     "If the user asks to build a Power BI dashboard/report from SharePoint CSVs/data, or otherwise mentions Power BI "
     "together with SharePoint, call 'generate_powerbi_dashboard'. "
+    "For ANY other Microsoft 365 question -- SharePoint sites/lists/non-CSV files, Teams (teams, channels, channel "
+    "messages, chats), Outlook mail, calendar/events, OneDrive, users, or groups -- call 'query_m365_graph' with the "
+    "right Graph v1.0 path. This is app-only auth: there is NO '/me' -- for 'my mail/calendar/chats' style requests, "
+    f"target the known tenant user explicitly: 'users/{os.environ.get('MS_DEFAULT_USER_UPN', '<ask the user for their UPN>')}/...'. "
+    "Common path patterns: list SharePoint sites -> 'sites?search={term}'; a site's lists -> 'sites/{site-id}/lists'; "
+    "a user's OneDrive files -> 'users/{upn}/drive/root/children'; recent mail -> 'users/{upn}/messages' with "
+    "query_params {\"$top\":\"10\",\"$orderby\":\"receivedDateTime desc\"}; calendar events -> 'users/{upn}/events'; "
+    "all Teams in the org -> \"groups?$filter=resourceProvisioningOptions/Any(x:x eq 'Team')\"; a team's channels -> "
+    "'teams/{team-id}/channels'; channel messages -> 'teams/{team-id}/channels/{channel-id}/messages'; users -> "
+    "'users'; groups -> 'groups'. Never guess a site/team/channel id -- first call a listing path to resolve the id, "
+    "then call the follow-up path using that id. "
     "If the user asks to generate Facebook post copy, announcements, or Facebook ads, call 'facebook_generate_post_copy' or 'facebook_create_ad_campaign'. "
     "If the user asks to publish to Facebook, call 'facebook_publish_post'. "
     "If the user asks to generate LinkedIn thought leadership, executive articles, or B2B outreach/InMail notes, call 'linkedin_generate_thought_leadership_post' or 'linkedin_b2b_lead_outreach'. "
