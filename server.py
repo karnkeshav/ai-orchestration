@@ -3924,28 +3924,27 @@ async def run_pipeline(
         return
     if not image_data and await try_instant_mission_match(task_id, prompt, location=location):
         return
+    # Gemini fast-path tier disabled (GEMINI_API_KEY revoked/leaked as of 2026-09-10 --
+    # every call fails immediately with 403 PERMISSION_DENIED, so the fixed-toolset
+    # router below was pure dead weight ahead of agy on every single request). Once a
+    # valid key exists again, restore the run_gemini_pipeline(..., allow_no_match=False)
+    # attempt here ahead of run_agy_pipeline to re-enable it.
+    tasks[task_id]["logs"].append("[00:01] ⚡ Gemini fast-path disabled, routing directly to Antigravity CLI agent...")
     try:
-        await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, allow_no_match=False)
-    except Exception as e:
-        tasks[task_id]["logs"].append(f"[00:01] ℹ️ No fast-path match ({str(e)}), escalating to Antigravity CLI agent...")
+        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+    except Exception as e2:
+        tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e2)}), falling back to Gemini direct-answer...")
         tasks[task_id]["status"] = "PROCESSING"
         tasks[task_id]["answer"] = None
         tasks[task_id]["deliverable"] = None
         try:
-            await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
-        except Exception as e2:
-            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e2)}), falling back to Gemini direct-answer...")
+            await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        except Exception as e3:
+            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e3)}), falling back to keyword routing...")
             tasks[task_id]["status"] = "PROCESSING"
             tasks[task_id]["answer"] = None
             tasks[task_id]["deliverable"] = None
-            try:
-                await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
-            except Exception as e3:
-                tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e3)}), falling back to keyword routing...")
-                tasks[task_id]["status"] = "PROCESSING"
-                tasks[task_id]["answer"] = None
-                tasks[task_id]["deliverable"] = None
-                await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
 
 @app.get("/api/github/user")
 async def get_github_user_endpoint(
