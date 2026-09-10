@@ -427,11 +427,121 @@ def query_azure_cost():
             return "Azure Cost Error: No Azure credentials found. Run `az login` and retry."
         return f"Azure Cost Error: {msg}"
 
+def _query_gcp_bigquery_cost(project):
+    """
+    Real month-to-date GCP spend via the Cloud Billing export to BigQuery
+    (the "Standard usage cost" export table). This is the only way to get an
+    actual dollar total programmatically — the Cloud Billing REST API only
+    exposes enabled/disabled status, not a cost total.
+
+    Configured via env var GCP_BILLING_BQ_TABLE — a fully-qualified
+    `project.dataset.table` string pointing at the export table created when
+    the user turns on BigQuery billing export in the GCP Console (Billing >
+    Billing export > BigQuery export). A single combined var (rather than a
+    split dataset/prefix pair) was chosen because the export table name is
+    fixed by GCP (`gcp_billing_export_v1_<BILLING_ACCOUNT_ID>`) and the user
+    can just copy the fully-qualified table id shown in the BigQuery console
+    — no need to make them split it back apart.
+
+    Returns a result dict on success, or None if BigQuery isn't configured
+    (caller should fall through to the next method). Raises on a real
+    query/credentials failure so the caller can report it.
+    """
+    table = os.environ.get("GCP_BILLING_BQ_TABLE")
+    if not table:
+        return None
+
+    from google.cloud import bigquery
+    from datetime import date, timedelta
+
+    client = bigquery.Client(project=project)
+    start = date.today().replace(day=1)
+    next_month = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    query = f"""
+        SELECT
+          SUM(cost) + IFNULL(SUM((SELECT SUM(c.amount) FROM UNNEST(credits) AS c)), 0) AS total_cost,
+          ANY_VALUE(currency) AS currency
+        FROM `{table}`
+        WHERE usage_start_time >= TIMESTAMP(@month_start)
+          AND usage_start_time < TIMESTAMP(@month_end)
+          AND project.id = @project_id
+    """
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("month_start", "DATE", start.isoformat()),
+            bigquery.ScalarQueryParameter("month_end", "DATE", next_month.isoformat()),
+            bigquery.ScalarQueryParameter("project_id", "STRING", project),
+        ]
+    )
+    rows = list(client.query(query, job_config=job_config).result())
+    total = 0.0
+    currency = "USD"
+    if rows and rows[0]["total_cost"] is not None:
+        total = float(rows[0]["total_cost"])
+        currency = rows[0]["currency"] or "USD"
+    return {
+        "total": round(total, 2),
+        "unit": currency,
+        "period": "month to date",
+        "source": "BigQuery Billing Export (Live)",
+    }
+
 def query_gcp_cost(project_id=None):
     try:
         import os, csv, httpx
         token, project = _get_gcp_token_and_project(project_id)
-        
+
+        if token:
+            # 1. Real dollar total via the BigQuery billing export, if configured.
+            try:
+                bq_result = _query_gcp_bigquery_cost(project)
+                if bq_result is not None:
+                    return bq_result
+            except ImportError:
+                return ("GCP Cost Error: google-cloud-bigquery is not installed. Run "
+                        "`pip install google-cloud-bigquery` to enable live BigQuery billing export queries.")
+            except Exception as e:
+                bq_msg = str(e)
+                # Only swallow and fall through for credentials/permissions/config
+                # issues — anything else (bad table name, transient BQ error) is
+                # still worth surfacing rather than silently reporting billing
+                # status instead.
+                if not any(s in bq_msg for s in (
+                    "403", "PermissionDenied", "Forbidden", "Not found", "404",
+                    "NotFound", "credentials", "Reauthentication", "invalid_grant",
+                )):
+                    return f"GCP Cost Error: BigQuery billing export query failed - {bq_msg[:250]}"
+                # else: fall through to the billingInfo check below with an
+                # actionable note about what went wrong with BigQuery.
+
+            # 2. No real total available — fall back to the Cloud Billing API's
+            # billingInfo endpoint, which only tells us honestly whether billing
+            # is enabled (not a cost total). Make the messaging actionable so the
+            # user knows exactly how to get a real dollar figure.
+            r = httpx.get(
+                f"https://cloudbilling.googleapis.com/v1/projects/{project}/billingInfo",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=5.0
+            )
+            if r.status_code == 200:
+                bdata = r.json()
+                if not bdata.get("billingEnabled", False):
+                    return {"total": 0.0, "unit": "USD", "period": "month to date", "source": "GCP Billing Disabled (Free Tier)"}
+                return {
+                    "total": 0.0, "unit": "USD", "period": "month to date",
+                    "source": (
+                        "GCP Active (billing enabled, but no BigQuery billing export configured — live cost total "
+                        "unavailable). To see real spend here: in the GCP Console go to Billing > Billing export > "
+                        "BigQuery export, enable the 'Standard usage cost' export, then set the GCP_BILLING_BQ_TABLE "
+                        "env var to the resulting `project.dataset.table` id and retry."
+                    )
+                }
+            return f"GCP Cost Error: billingInfo lookup failed (HTTP {r.status_code}) - {r.text[:150]}"
+
+        # No live GCP credentials at all — fall back to the bundled sample CSV,
+        # but label it unmistakably as demo data so the UI/callers can never
+        # mistake it for real spend.
         sample_path = os.path.join(os.path.dirname(__file__), "finops_samples", "gcp_detailed_billing_export_sample.csv")
         if os.path.exists(sample_path):
             total_cost = 0.0
@@ -446,21 +556,12 @@ def query_gcp_cost(project_id=None):
                             currency = row.get("currency")
                     except (ValueError, TypeError):
                         pass
-            return {"total": round(total_cost, 2), "unit": currency, "period": "month to date", "source": "Cloud Billing Export"}
+            return {
+                "total": round(total_cost, 2), "unit": currency, "period": "month to date",
+                "source": "Demo Data (Sample CSV — no live GCP credentials)"
+            }
 
-        if not token:
-            return {"total": 0.0, "unit": "USD", "period": "month to date", "source": "Free Tier / Default"}
-
-        r = httpx.get(
-            f"https://cloudbilling.googleapis.com/v1/projects/{project}/billingInfo",
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=5.0
-        )
-        if r.status_code == 200:
-            bdata = r.json()
-            if not bdata.get("billingEnabled", False):
-                return {"total": 0.0, "unit": "USD", "period": "month to date", "source": "Free Tier"}
-        return {"total": 0.0, "unit": "USD", "period": "month to date", "source": "GCP Active"}
+        return {"total": 0.0, "unit": "USD", "period": "month to date", "source": "No GCP credentials found"}
     except Exception as e:
         return f"GCP Cost Error: {str(e)}"
 
@@ -845,6 +946,22 @@ def _gemini_tool_declarations():
             name="linkedin_check_account_status",
             description="Check LinkedIn OAuth 2.0 connection, Access Token status, and profile URNs.",
             parameters=types.Schema(type="OBJECT", properties={}),
+        ),
+        types.FunctionDeclaration(
+            name="generate_powerbi_dashboard",
+            description=(
+                "Pull CSV file(s) from a SharePoint site/folder via Microsoft Graph, auto-detect relationships "
+                "between tables, auto-generate DAX measures (sums, averages, YTD/YoY time intelligence) and "
+                "drill-down hierarchies (date, geography, category), and produce a ready-to-open Power BI Project "
+                "(.pbip, TMDL semantic model) as a downloadable zip. Call this whenever the user asks to build a "
+                "Power BI dashboard, report, or data model from SharePoint data."
+            ),
+            parameters=types.Schema(type="OBJECT", properties={
+                "site_query": types.Schema(type="STRING", description="SharePoint site name, search term, or full site URL (e.g. 'Finance', 'https://contoso.sharepoint.com/sites/Finance')."),
+                "folder_path": types.Schema(type="STRING", description="Folder path within the site's document library containing the CSVs (e.g. 'Shared Documents/2026 Sales'). Empty/omit for the library root."),
+                "filenames": types.Schema(type="ARRAY", items=types.Schema(type="STRING"), description="Optional list of specific CSV filenames to use (e.g. ['Sales.csv', 'Customers.csv']). Omit to use every CSV found in the folder."),
+                "project_name": types.Schema(type="STRING", description="Name for the generated Power BI project (e.g. 'SalesDashboard'). Default 'Dashboard'."),
+            }, required=["site_query"]),
         ),
     ]
 
@@ -1698,6 +1815,55 @@ async def _gemini_exec_create_and_deploy_app(loop, prompt, app_title=None, task_
         tasks[task_id]["deliverable"] = res.get("deliverable")
     return res.get("markdown", "App created successfully.")
 
+async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=None, filenames=None, project_name=None, task_id=None):
+    import powerbi_engine
+
+    def log_cb(msg: str):
+        if task_id and task_id in tasks:
+            tasks[task_id]["logs"].append(msg)
+
+    output_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_dashboards", task_id or str(uuid.uuid4()))
+    os.makedirs(output_dir, exist_ok=True)
+
+    try:
+        result = await loop.run_in_executor(None, lambda: powerbi_engine.generate_pbip_project(
+            site_query=site_query or "",
+            folder_path=folder_path or "",
+            filenames=filenames,
+            project_name=project_name or "Dashboard",
+            output_dir=output_dir,
+            on_log=log_cb,
+        ))
+    except powerbi_engine.PowerBIEngineError as e:
+        return f"❌ **Power BI generation failed:** {str(e)}"
+    except Exception as e:
+        return f"❌ **Power BI generation failed:** {str(e)}"
+
+    zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
+    lines = [
+        f"✅ **Power BI project generated from '{result['site_name']}'** — [Download {result['project_name']}.zip](/{zip_rel})",
+        "",
+        f"**Tables:** {', '.join(result['tables'])}" + (" + Date (auto-built)" if result["date_dimension"] else ""),
+    ]
+    if result["relationships"]:
+        rel_lines = [f"• {r['from_table']}[{r['from_col']}] → {r['to_table']}[{r['to_col']}] ({r['cardinality']})" for r in result["relationships"]]
+        lines.append("**Relationships auto-linked:**\n" + "\n".join(rel_lines))
+    if result["hierarchies"]:
+        h_lines = [f"• {key.split('::')[0]}: {' > '.join(cols)}" for key, cols in result["hierarchies"].items()]
+        lines.append("**Drill-down hierarchies:**\n" + "\n".join(h_lines))
+    for t, measures in result["measures"].items():
+        if measures:
+            lines.append(f"**DAX measures ({t}):** " + ", ".join(measures))
+    lines.append(
+        "\n**Next step:** unzip and open the `.pbip` file directly in Power BI Desktop — the data model, "
+        "relationships, measures, and hierarchies are all pre-built. The report opens with a starter page; "
+        "drag fields from the Data pane onto visuals for your drill-down layout, then **File → Save As → .pbix** "
+        "if you need the traditional binary file."
+    )
+    if task_id and task_id in tasks:
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI Project: {result['project_name']}", "url": f"/{zip_rel}"}
+    return "\n\n".join(lines)
+
 async def _gemini_exec_find_best_deals(loop, query, category, location):
     answer_text, _ = await find_best_deals_across_platforms(
         query=query or "product",
@@ -2141,6 +2307,7 @@ _GEMINI_DISPATCH = {
     "search_finops_guide": lambda loop, args: _gemini_exec_search_finops_guide(loop, args.get("question"), args.get("provider")),
     "create_github_repo": lambda loop, args: _gemini_exec_create_github_repo(loop, args.get("name"), args.get("description"), args.get("private")),
     "create_and_deploy_app": lambda loop, args: _gemini_exec_create_and_deploy_app(loop, args.get("prompt"), args.get("app_title")),
+    "generate_powerbi_dashboard": lambda loop, args: _gemini_exec_generate_powerbi_dashboard(loop, args.get("site_query"), args.get("folder_path"), args.get("filenames"), args.get("project_name")),
     "find_best_deals": lambda loop, args: _gemini_exec_find_best_deals(loop, args.get("query"), args.get("category"), args.get("location")),
     "compare_food_delivery": lambda loop, args: _gemini_exec_compare_food_delivery(loop, args.get("dish"), args.get("location")),
     "get_ola_ride_estimate": lambda loop, args: _gemini_exec_get_ola_ride_estimate(loop, args.get("pickup"), args.get("drop"), args.get("passengers")),
@@ -2176,6 +2343,8 @@ _GEMINI_SYSTEM_INSTRUCTION = (
     "Given the user's free-form request, call the appropriate tool(s) to answer it. "
     "If the user asks to create an app, build an app, generate a web app, create a website, create a dashboard, or deploy an app to github, "
     "call 'create_and_deploy_app'. "
+    "If the user asks to build a Power BI dashboard/report from SharePoint CSVs/data, or otherwise mentions Power BI "
+    "together with SharePoint, call 'generate_powerbi_dashboard'. "
     "If the user asks to generate Facebook post copy, announcements, or Facebook ads, call 'facebook_generate_post_copy' or 'facebook_create_ad_campaign'. "
     "If the user asks to publish to Facebook, call 'facebook_publish_post'. "
     "If the user asks to generate LinkedIn thought leadership, executive articles, or B2B outreach/InMail notes, call 'linkedin_generate_thought_leadership_post' or 'linkedin_b2b_lead_outreach'. "
@@ -2333,7 +2502,8 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
         "instance", "vm", "server", "ec2", "bucket", "s3", "billing", "cost", "spend", "invoice",
         "how many", "list ", "check ", "show ", "query ", "status",
         "ride", "cab", "uber", "ola", "rapido", "zomato", "swiggy", "food", "biryani", "pizza",
-        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "deal", "discount"
+        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "deal", "discount",
+        "power bi", "powerbi", "sharepoint", "pbix", "pbip", "dax", "tmdl"
     ])
     
     matches_pattern = any(re.search(p, prompt_lower) for p in app_creation_patterns)
@@ -2462,8 +2632,7 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
                 res = await asyncio.wait_for(loop.run_in_executor(None, cost_fn[p]), timeout=10.0)
                 return p, res
             except asyncio.TimeoutError:
-                fallback_cost = {"aws": 14.20, "azure": 5.80, "oci": 0.0, "gcp": 0.0}
-                return p, {"total": fallback_cost.get(p, 0.0), "unit": "USD", "period": "month to date", "source": f"{p.upper()} Telemetry (Cached)"}
+                return p, f"{p.upper()} cost query timed out after 10s — no live figure available"
             except Exception as e:
                 return p, f"Cost error on {p.upper()}: {str(e)}"
 
@@ -2746,6 +2915,181 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     tasks[task_id]["status"] = "COMPLETED"
     return True
 
+# --- Shared mission-category keyword sets & handlers ------------------------
+# Factored out of run_mission_pipeline so the exact same trigger words and the
+# exact same already-working handler functions can be reused by
+# try_instant_mission_match below -- no logic is duplicated, only the
+# reachability of these branches changes.
+
+_FOOD_KEYWORDS = [
+    "paneer", "butter masala", "biryani", "pizza", "burger", "dosa", "roti",
+    "curry", "thali", "zomato", "swiggy", "food delivery", "restaurant",
+    "food", "dish", "dishes", "swiggy and zomato", "zomato and swiggy",
+    "chowmein", "fried rice", "pasta", "dal makhani", "tikka", "naan",
+    "chole bhature", "pav bhaji", "sandwich", "momos", "roll", "rolls",
+    "chinese", "north indian", "south indian", "dessert", "ice cream"
+]
+
+def is_food_mission_query(prompt_lower: str) -> bool:
+    return any(k in prompt_lower for k in _FOOD_KEYWORDS) and (
+        any(k in prompt_lower for k in ["cheaper", "faster", "get", "compare", "where", "order", "delivery", "price", "zomato", "swiggy", "cost", "app", "restaurant"])
+        or "paneer" in prompt_lower or "biryani" in prompt_lower or "pizza" in prompt_lower or "zomato" in prompt_lower or "swiggy" in prompt_lower
+    )
+
+def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = None) -> bool:
+    return any(k in prompt_lower for k in [
+        "deal", "best deal", "where to buy", "cheapest", "lowest price",
+        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "discount", "shopping"
+    ]) or bool(image_data)
+
+_VIDEO_KEYWORDS = ("pixar", "story", "brother", "video", "disney", "cartoon")
+
+def is_video_mission_query(prompt_lower: str) -> bool:
+    return any(k in prompt_lower for k in _VIDEO_KEYWORDS)
+
+_RIDE_PROVIDER_KEYWORDS = ("ola", "uber", "rapido")
+_RIDE_INTENT_KEYWORDS = ("fare", "fares", "cab", "cabs", "ride", "compare", "cheaper", "cheapest", "book")
+
+def is_ride_mission_query(prompt_lower: str) -> bool:
+    return any(p in prompt_lower for p in _RIDE_PROVIDER_KEYWORDS) and any(k in prompt_lower for k in _RIDE_INTENT_KEYWORDS)
+
+_ROUTE_RE = re.compile(r"from\s+(.+?)\s+to\s+(.+?)(?:[,.\?]|$)", re.IGNORECASE)
+_PASSENGERS_RE = re.compile(r"(\d+)\s*(?:passenger|people|pax|seat)", re.IGNORECASE)
+
+def _extract_ride_params(prompt: str) -> tuple[str, str, int]:
+    """Best-effort 'from X to Y[, N passengers]' extraction for the ride-fare
+    presets/typical requests. Falls back to sensible Bangalore defaults if the
+    prompt doesn't spell out a route -- the downstream comparison functions
+    handle any string, so an imperfect guess still returns a real fare table
+    instead of failing closed."""
+    m = _ROUTE_RE.search(prompt)
+    pickup = m.group(1).strip() if m else "Koramangala, Bangalore"
+    drop = m.group(2).strip() if m else "Kempegowda International Airport, Bangalore"
+    pm = _PASSENGERS_RE.search(prompt)
+    passengers = int(pm.group(1)) if pm else 1
+    return pickup, drop, passengers
+
+async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
+    """3D Pixar/Disney story video via the local hybrid engine (Edge-TTS +
+    FFmpeg, no external API/quota). Shared by try_instant_mission_match and
+    run_mission_pipeline's fallback chain -- hybrid_video_engine itself is
+    untouched."""
+    tasks[task_id]["logs"].append("[00:01] 🎬 Synthesizing 3D Pixar scene illustrations & character aesthetics (0 Canva AI credits)...")
+    await asyncio.sleep(0.3)
+    tasks[task_id]["logs"].append("[00:02] 🎙️ Generating local neural character voiceover (Edge-TTS) + harmonic soundtrack...")
+
+    try:
+        from hybrid_video_engine import render_hybrid_video
+        target_video = os.path.join(base_dir, "Hybrid_Pixar_Demo_1080p.mp4")
+        await render_hybrid_video(
+            story_prompt=prompt,
+            output_mp4_path=target_video,
+            character_name="Chhotu & Didi (3D Pixar)",
+            language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en"
+        )
+        tasks[task_id]["logs"].append("[00:04] 🎥 Full HD 1080p FFmpeg motion compositing & audio multiplexing complete!")
+        tasks[task_id]["answer"] = (
+            "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
+            "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + Synthetic Harmonics + FFmpeg 2.5D Compositor)\n"
+            "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
+            "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
+            "• **Throughput:** Ready for 1,000+ videos/day automated batch pipeline."
+        )
+        tasks[task_id]["deliverable"] = {
+            "type": "video",
+            "title": "🎬 3D Pixar Animated Story (Full HD 1080p)",
+            "url": "./Hybrid_Pixar_Demo_1080p.mp4"
+        }
+    except Exception as vid_err:
+        tasks[task_id]["logs"].append(f"[00:03] ⚠️ Local renderer fallback: {str(vid_err)}")
+        tasks[task_id]["answer"] = "✓ 65-Second 3D Pixar Animated Hindi Story Video delivered successfully!"
+        tasks[task_id]["deliverable"] = {
+            "type": "video",
+            "title": "🎬 3D Pixar Brother-Sister Emotional Story (65s)",
+            "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
+        }
+
+async def try_instant_mission_match(task_id: str, prompt: str, location: Optional[str] = "Bangalore") -> bool:
+    """Zero-LLM keyword fast-path (same pattern as try_instant_cloud_query)
+    for mission categories that have a real, already-working dedicated
+    handler -- food delivery, shopping deals, ride-fare comparisons, and
+    local video rendering -- so they're reachable even though Gemini
+    (step 3) and the agy CLI (step 4) can both fail. Every branch here calls
+    the SAME function run_mission_pipeline already calls; no logic is
+    duplicated, only reachability changes."""
+    prompt_lower = prompt.lower()
+    loop = asyncio.get_event_loop()
+
+    if is_food_mission_query(prompt_lower):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant food-delivery comparison — answering directly, no agent needed...")
+        tasks[task_id]["logs"].append(f"[00:01] 🍲 Querying all restaurants across Zomato & Swiggy in {location or 'Bangalore'}...")
+        answer, deliverable = await compare_food_delivery_zomato_swiggy(dish=prompt, location=location or "Bangalore")
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = deliverable
+        tasks[task_id]["logs"].append("[00:03] 💎 Comparison Matrix compiled: Cheapest & Fastest restaurant determined!")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    # Ride-fare comparison is checked before shopping: prompts like "which is
+    # cheapest between Rapido, Uber, and Ola" contain "cheapest" (a shopping
+    # trigger word too) and must not be misrouted to the product-deal finder.
+    if is_ride_mission_query(prompt_lower):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant ride-fare comparison — answering directly, no agent needed...")
+        pickup, drop, passengers = _extract_ride_params(prompt)
+        has_ola, has_uber, has_rapido = ("ola" in prompt_lower, "uber" in prompt_lower, "rapido" in prompt_lower)
+        try:
+            if has_rapido and (has_uber or has_ola):
+                tasks[task_id]["logs"].append("[00:02] 🟡 Comparing Rapido vs Uber vs Ola fares...")
+                answer = await _gemini_exec_compare_rapido_vs_uber_vs_ola(loop, pickup, drop)
+                title = "🟡 Rapido vs Uber vs Ola Fare Comparison"
+            elif has_uber and has_ola:
+                tasks[task_id]["logs"].append("[00:02] 🚗 Comparing Uber vs Ola fares...")
+                answer = await _gemini_exec_compare_uber_vs_ola(loop, pickup, drop, passengers)
+                title = "🚗 Uber vs Ola Fare Comparison"
+            elif has_rapido:
+                tasks[task_id]["logs"].append("[00:02] 🟡 Fetching Rapido fare estimate...")
+                answer = await _gemini_exec_get_rapido_ride_estimate(loop, pickup, drop)
+                title = "🟡 Rapido Fare Estimate"
+            elif has_uber:
+                tasks[task_id]["logs"].append("[00:02] 🚗 Fetching Uber fare estimate...")
+                answer = await _gemini_exec_get_uber_ride_estimate(loop, pickup, drop, passengers)
+                title = "🚗 Uber Fare Estimate"
+            else:
+                tasks[task_id]["logs"].append("[00:02] 🚖 Fetching Ola fare estimate...")
+                answer = await _gemini_exec_get_ola_ride_estimate(loop, pickup, drop, passengers)
+                title = "🚖 Ola Fare Estimate"
+        except Exception as e:
+            answer = f"Error comparing ride fares: {str(e)}"
+            title = "🚖 Ride Fare Comparison"
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = {"type": "info", "title": title, "url": "#"}
+        tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    if is_shopping_mission_query(prompt_lower):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant deal-finder query — answering directly, no agent needed...")
+        tasks[task_id]["logs"].append("[00:01] 🛒 Querying Amazon, Flipkart, Blinkit, Zepto, and Meesho in parallel...")
+        answer, deliverable = await find_best_deals_across_platforms(query=prompt, location=location or "Bangalore")
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = deliverable
+        tasks[task_id]["logs"].append("[00:03] 💎 Best deals comparison compiled successfully!")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    if is_video_mission_query(prompt_lower):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant video-generation request — answering directly, no agent needed...")
+        await run_pixar_video_mission(task_id, prompt, prompt_lower)
+        tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    return False
+
 async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     await asyncio.sleep(0.2)
@@ -2753,20 +3097,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     loop = asyncio.get_event_loop()
 
     # 1. Food Delivery comparison detection (Zomato vs Swiggy)
-    food_keywords = [
-        "paneer", "butter masala", "biryani", "pizza", "burger", "dosa", "roti",
-        "curry", "thali", "zomato", "swiggy", "food delivery", "restaurant",
-        "food", "dish", "dishes", "swiggy and zomato", "zomato and swiggy",
-        "chowmein", "fried rice", "pasta", "dal makhani", "tikka", "naan",
-        "chole bhature", "pav bhaji", "sandwich", "momos", "roll", "rolls",
-        "chinese", "north indian", "south indian", "dessert", "ice cream"
-    ]
-    is_food_query = any(k in prompt_lower for k in food_keywords) and (
-        any(k in prompt_lower for k in ["cheaper", "faster", "get", "compare", "where", "order", "delivery", "price", "zomato", "swiggy", "cost", "app", "restaurant"])
-        or "paneer" in prompt_lower or "biryani" in prompt_lower or "pizza" in prompt_lower or "zomato" in prompt_lower or "swiggy" in prompt_lower
-    )
-
-    if is_food_query:
+    if is_food_mission_query(prompt_lower):
         tasks[task_id]["logs"].append(f"[00:01] 🍲 Querying all restaurants across Zomato & Swiggy in {location or 'Bangalore'}...")
         tasks[task_id]["logs"].append("[00:02] 🛵 Auditing Swiggy dish prices, delivery ETAs & coupon discounts...")
         tasks[task_id]["logs"].append("[00:02] 🔴 Auditing Zomato menus, delivery speed & customer ratings...")
@@ -2781,12 +3112,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
         return
 
     # 2. E-Commerce & Deals detection
-    is_shopping_query = any(k in prompt_lower for k in [
-        "deal", "best deal", "where to buy", "cheapest", "lowest price",
-        "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "discount", "shopping"
-    ]) or bool(image_data)
-
-    if is_shopping_query:
+    if is_shopping_mission_query(prompt_lower, image_data):
         tasks[task_id]["logs"].append("[00:01] 🛒 Querying Amazon, Flipkart, Blinkit, Zepto, and Meesho in parallel...")
         answer, deliverable = await find_best_deals_across_platforms(
             query=prompt,
@@ -3036,41 +3362,8 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
             tasks[task_id]["deliverable"] = {"type": "cloud_query", "title": f"🌐 Multi-Cloud Inventory: {total} Total", "url": "#"}
 
     # 4. 3D Pixar & Disney Animation Video (Local Hybrid Pipeline)
-    elif "pixar" in prompt_lower or "story" in prompt_lower or "brother" in prompt_lower or "video" in prompt_lower or "disney" in prompt_lower or "cartoon" in prompt_lower:
-        tasks[task_id]["logs"].append("[00:01] 🎬 Synthesizing 3D Pixar scene illustrations & character aesthetics (0 Canva AI credits)...")
-        await asyncio.sleep(0.3)
-        tasks[task_id]["logs"].append("[00:02] 🎙️ Generating local neural character voiceover (Edge-TTS) + harmonic soundtrack...")
-
-        try:
-            from hybrid_video_engine import render_hybrid_video
-            target_video = os.path.join(base_dir, "Hybrid_Pixar_Demo_1080p.mp4")
-            await render_hybrid_video(
-                story_prompt=prompt,
-                output_mp4_path=target_video,
-                character_name="Chhotu & Didi (3D Pixar)",
-                language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en"
-            )
-            tasks[task_id]["logs"].append("[00:04] 🎥 Full HD 1080p FFmpeg motion compositing & audio multiplexing complete!")
-            tasks[task_id]["answer"] = (
-                "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
-                "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + Synthetic Harmonics + FFmpeg 2.5D Compositor)\n"
-                "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
-                "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
-                "• **Throughput:** Ready for 1,000+ videos/day automated batch pipeline."
-            )
-            tasks[task_id]["deliverable"] = {
-                "type": "video",
-                "title": "🎬 3D Pixar Animated Story (Full HD 1080p)",
-                "url": "./Hybrid_Pixar_Demo_1080p.mp4"
-            }
-        except Exception as vid_err:
-            tasks[task_id]["logs"].append(f"[00:03] ⚠️ Local renderer fallback: {str(vid_err)}")
-            tasks[task_id]["answer"] = "✓ 65-Second 3D Pixar Animated Hindi Story Video delivered successfully!"
-            tasks[task_id]["deliverable"] = {
-                "type": "video",
-                "title": "🎬 3D Pixar Brother-Sister Emotional Story (65s)",
-                "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
-            }
+    elif is_video_mission_query(prompt_lower):
+        await run_pixar_video_mission(task_id, prompt, prompt_lower)
 
     # 5. FinOps & Power BI
     elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
@@ -3539,12 +3832,17 @@ async def run_pipeline(
     """Entry point, cheapest tier first:
     1. try_instant_app_creation — zero latency, builds and deploys to user GitHub account with Google Stitch UI.
     2. try_instant_cloud_query — zero dependency, no LLM round trip at all.
+    2.5 try_instant_mission_match — zero dependency, no LLM round trip: reuses
+        run_mission_pipeline's own dedicated handlers (food/shop/ride/video) so
+        they're reachable without depending on Gemini/agy succeeding.
     3. The fast, fixed-toolset Gemini router.
     4. The Antigravity CLI agent (agy) for complex MCP toolsets.
     5. Fallback keyword router."""
     if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
+        return
+    if not image_data and await try_instant_mission_match(task_id, prompt, location=location):
         return
     try:
         await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, allow_no_match=False)

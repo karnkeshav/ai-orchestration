@@ -21,3 +21,6 @@ venv/
 *.mp4
 *.mkv
 *.avi
+
+# Generated Power BI projects (downloaded per-request, not source)
+generated_dashboards/

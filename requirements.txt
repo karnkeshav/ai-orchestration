@@ -10,6 +10,7 @@ azure-mgmt-costmanagement
 google-cloud-compute
 google-cloud-resource-manager
 google-cloud-storage
+google-cloud-bigquery
 google-auth
 azure-mgmt-storage
 azure-storage-blob
@@ -28,3 +29,5 @@ httpx
 beautifulsoup4
 curl-cffi
 fastmcp
+msal
+pandas
