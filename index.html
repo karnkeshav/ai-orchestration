@@ -1102,11 +1102,11 @@
 
           <!-- Quick Modifier Chips for Website & Repo Customization -->
           <div id="quickChipsContainer" class="quick-chips-wrapper" style="display: none;">
-            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add a modern Dark/Light theme toggle switch with glowing accents')">✨ + Dark/Light Theme</button>
-            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add interactive Chart.js line and doughnut analytics charts with live telemetry')">📊 + Live Chart.js</button>
-            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add a searchable and filterable live data table with CSV export')">📋 + Data Table & CSV</button>
-            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Redesign hero section with Google Stitch Glassmorphism and animated badges')">🎨 + Hero Redesign</button>
-            <button type="button" class="quick-chip-btn" onclick="appendInstruction('Add interactive transaction modal form with instant submission feedback')">➕ + Action Modal</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipDarkLight" onclick="appendInstruction(t('chipDarkLightPrompt'))">✨ + Dark/Light Theme</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipCharts" onclick="appendInstruction(t('chipChartsPrompt'))">📊 + Live Chart.js</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipDataTable" onclick="appendInstruction(t('chipDataTablePrompt'))">📋 + Data Table & CSV</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipHeroRedesign" onclick="appendInstruction(t('chipHeroRedesignPrompt'))">🎨 + Hero Redesign</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipActionModal" onclick="appendInstruction(t('chipActionModalPrompt'))">➕ + Action Modal</button>
           </div>
 
           <textarea id="promptText" class="prompt-textarea" data-i18n-placeholder="promptPlaceholder" placeholder="Ask a question, paste an image (Ctrl+V), or choose a capability from the left..."></textarea>
@@ -1433,7 +1433,18 @@
         toastInvalidImage: "⚠️ Please select a valid image file!",
         toastEmptyPrompt: "⚠️ Please enter a directive or attach a picture!",
         toastExecutionCompleted: "💎 Execution completed!",
-        toastDone: "💎 Done!"
+        toastDone: "💎 Done!",
+        chipDarkLight: "✨ + Dark/Light Theme",
+        chipDarkLightPrompt: "Add a modern Dark/Light theme toggle switch with glowing accents",
+        chipCharts: "📊 + Live Chart.js",
+        chipChartsPrompt: "Add interactive Chart.js line and doughnut analytics charts with live telemetry",
+        chipDataTable: "📋 + Data Table & CSV",
+        chipDataTablePrompt: "Add a searchable and filterable live data table with CSV export",
+        chipHeroRedesign: "🎨 + Hero Redesign",
+        chipHeroRedesignPrompt: "Redesign hero section with Google Stitch Glassmorphism and animated badges",
+        chipActionModal: "➕ + Action Modal",
+        chipActionModalPrompt: "Add interactive transaction modal form with instant submission feedback",
+        toastCustomizationAdded: "✓ Customization added to directive"
       },
       hi: {
         badgeCloudEngine: "क्लाउड इंजन",
@@ -1474,7 +1485,18 @@
         toastInvalidImage: "⚠️ कृपया एक मान्य इमेज फ़ाइल चुनें!",
         toastEmptyPrompt: "⚠️ कृपया एक निर्देश दर्ज करें या तस्वीर जोड़ें!",
         toastExecutionCompleted: "💎 निष्पादन पूरा हुआ!",
-        toastDone: "💎 हो गया!"
+        toastDone: "💎 हो गया!",
+        chipDarkLight: "✨ + डार्क/लाइट थीम",
+        chipDarkLightPrompt: "चमकते एक्सेंट के साथ एक आधुनिक डार्क/लाइट थीम टॉगल स्विच जोड़ें",
+        chipCharts: "📊 + लाइव Chart.js",
+        chipChartsPrompt: "लाइव टेलीमेट्री के साथ इंटरैक्टिव Chart.js लाइन और डोनट एनालिटिक्स चार्ट जोड़ें",
+        chipDataTable: "📋 + डेटा टेबल और CSV",
+        chipDataTablePrompt: "CSV एक्सपोर्ट के साथ एक खोजने योग्य और फ़िल्टर करने योग्य लाइव डेटा टेबल जोड़ें",
+        chipHeroRedesign: "🎨 + हीरो रीडिज़ाइन",
+        chipHeroRedesignPrompt: "Google Stitch ग्लासमॉर्फिज्म और एनिमेटेड बैज के साथ हीरो सेक्शन को रीडिज़ाइन करें",
+        chipActionModal: "➕ + एक्शन मोडल",
+        chipActionModalPrompt: "इंस्टेंट सबमिशन फीडबैक के साथ इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ें",
+        toastCustomizationAdded: "✓ निर्देश में कस्टमाइज़ेशन जोड़ा गया"
       },
       es: {
         badgeCloudEngine: "Motor Cloud",
@@ -1515,7 +1537,18 @@
         toastInvalidImage: "⚠️ ¡Selecciona un archivo de imagen válido!",
         toastEmptyPrompt: "⚠️ ¡Ingresa una directiva o adjunta una foto!",
         toastExecutionCompleted: "💎 ¡Ejecución completada!",
-        toastDone: "💎 ¡Listo!"
+        toastDone: "💎 ¡Listo!",
+        chipDarkLight: "✨ + Tema Oscuro/Claro",
+        chipDarkLightPrompt: "Agrega un interruptor moderno de tema Oscuro/Claro con acentos brillantes",
+        chipCharts: "📊 + Chart.js en Vivo",
+        chipChartsPrompt: "Agrega gráficos interactivos de líneas y de dona de Chart.js con telemetría en vivo",
+        chipDataTable: "📋 + Tabla de Datos y CSV",
+        chipDataTablePrompt: "Agrega una tabla de datos en vivo buscable y filtrable con exportación a CSV",
+        chipHeroRedesign: "🎨 + Rediseño del Hero",
+        chipHeroRedesignPrompt: "Rediseña la sección hero con Glassmorphism de Google Stitch y insignias animadas",
+        chipActionModal: "➕ + Modal de Acción",
+        chipActionModalPrompt: "Agrega un formulario modal de transacción interactivo con retroalimentación instantánea",
+        toastCustomizationAdded: "✓ Personalización agregada a la directiva"
       },
       te: {
         badgeCloudEngine: "క్లౌడ్ ఇంజిన్",
@@ -1556,7 +1589,18 @@
         toastInvalidImage: "⚠️ దయచేసి చెల్లుబాటు అయ్యే చిత్ర ఫైల్‌ను ఎంచుకోండి!",
         toastEmptyPrompt: "⚠️ దయచేసి ఒక నిర్దేశాన్ని నమోదు చేయండి లేదా చిత్రాన్ని జోడించండి!",
         toastExecutionCompleted: "💎 అమలు పూర్తయింది!",
-        toastDone: "💎 పూర్తయింది!"
+        toastDone: "💎 పూర్తయింది!",
+        chipDarkLight: "✨ + డార్క్/లైట్ థీమ్",
+        chipDarkLightPrompt: "మెరిసే యాక్సెంట్లతో ఆధునిక డార్క్/లైట్ థీమ్ టోగుల్ స్విచ్ జోడించండి",
+        chipCharts: "📊 + లైవ్ Chart.js",
+        chipChartsPrompt: "లైవ్ టెలిమెట్రీతో ఇంటరాక్టివ్ Chart.js లైన్ మరియు డోనట్ అనలిటిక్స్ చార్ట్‌లను జోడించండి",
+        chipDataTable: "📋 + డేటా టేబుల్ & CSV",
+        chipDataTablePrompt: "CSV ఎగుమతితో శోధించదగిన మరియు ఫిల్టర్ చేయదగిన లైవ్ డేటా టేబుల్‌ను జోడించండి",
+        chipHeroRedesign: "🎨 + హీరో రీడిజైన్",
+        chipHeroRedesignPrompt: "Google Stitch గ్లాస్‌మార్ఫిజం మరియు యానిమేటెడ్ బ్యాడ్జీలతో హీరో సెక్షన్‌ను రీడిజైన్ చేయండి",
+        chipActionModal: "➕ + యాక్షన్ మోడల్",
+        chipActionModalPrompt: "తక్షణ సమర్పణ ఫీడ్‌బ్యాక్‌తో ఇంటరాక్టివ్ ట్రాన్సాక్షన్ మోడల్ ఫారమ్‌ను జోడించండి",
+        toastCustomizationAdded: "✓ నిర్దేశానికి అనుకూలీకరణ జోడించబడింది"
       },
       kn: {
         badgeCloudEngine: "ಕ್ಲೌಡ್ ಎಂಜಿನ್",
@@ -1597,7 +1641,18 @@
         toastInvalidImage: "⚠️ ದಯವಿಟ್ಟು ಮಾನ್ಯ ಚಿತ್ರ ಫೈಲ್ ಆಯ್ಕೆಮಾಡಿ!",
         toastEmptyPrompt: "⚠️ ದಯವಿಟ್ಟು ನಿರ್ದೇಶನ ನಮೂದಿಸಿ ಅಥವಾ ಚಿತ್ರ ಲಗತ್ತಿಸಿ!",
         toastExecutionCompleted: "💎 ಎಕ್ಸಿಕ್ಯೂಶನ್ ಪೂರ್ಣಗೊಂಡಿದೆ!",
-        toastDone: "💎 ಮುಗಿದಿದೆ!"
+        toastDone: "💎 ಮುಗಿದಿದೆ!",
+        chipDarkLight: "✨ + ಡಾರ್ಕ್/ಲೈಟ್ ಥೀಮ್",
+        chipDarkLightPrompt: "ಹೊಳೆಯುವ ಉಚ್ಚಾರಣೆಗಳೊಂದಿಗೆ ಆಧುನಿಕ ಡಾರ್ಕ್/ಲೈಟ್ ಥೀಮ್ ಟಾಗಲ್ ಸ್ವಿಚ್ ಸೇರಿಸಿ",
+        chipCharts: "📊 + ಲೈವ್ Chart.js",
+        chipChartsPrompt: "ಲೈವ್ ಟೆಲಿಮೆಟ್ರಿಯೊಂದಿಗೆ ಇಂಟರಾಕ್ಟಿವ್ Chart.js ಲೈನ್ ಮತ್ತು ಡೋನಟ್ ಅನಾಲಿಟಿಕ್ಸ್ ಚಾರ್ಟ್‌ಗಳನ್ನು ಸೇರಿಸಿ",
+        chipDataTable: "📋 + ಡೇಟಾ ಟೇಬಲ್ ಮತ್ತು CSV",
+        chipDataTablePrompt: "CSV ರಫ್ತಿನೊಂದಿಗೆ ಹುಡುಕಬಹುದಾದ ಮತ್ತು ಫಿಲ್ಟರ್ ಮಾಡಬಹುದಾದ ಲೈವ್ ಡೇಟಾ ಟೇಬಲ್ ಸೇರಿಸಿ",
+        chipHeroRedesign: "🎨 + ಹೀರೋ ಮರುವಿನ್ಯಾಸ",
+        chipHeroRedesignPrompt: "Google Stitch ಗ್ಲಾಸ್‌ಮಾರ್ಫಿಸಂ ಮತ್ತು ಆನಿಮೇಟೆಡ್ ಬ್ಯಾಡ್ಜ್‌ಗಳೊಂದಿಗೆ ಹೀರೋ ವಿಭಾಗವನ್ನು ಮರುವಿನ್ಯಾಸಗೊಳಿಸಿ",
+        chipActionModal: "➕ + ಆಕ್ಷನ್ ಮೋಡಲ್",
+        chipActionModalPrompt: "ತಕ್ಷಣದ ಸಲ್ಲಿಕೆ ಪ್ರತಿಕ್ರಿಯೆಯೊಂದಿಗೆ ಇಂಟರಾಕ್ಟಿವ್ ಟ್ರಾನ್ಸಾಕ್ಷನ್ ಮೋಡಲ್ ಫಾರ್ಮ್ ಸೇರಿಸಿ",
+        toastCustomizationAdded: "✓ ನಿರ್ದೇಶನಕ್ಕೆ ಕಸ್ಟಮೈಸೇಶನ್ ಸೇರಿಸಲಾಗಿದೆ"
       },
       bn: {
         badgeCloudEngine: "ক্লাউড ইঞ্জিন",
@@ -1638,7 +1693,18 @@
         toastInvalidImage: "⚠️ অনুগ্রহ করে একটি বৈধ ছবি ফাইল নির্বাচন করুন!",
         toastEmptyPrompt: "⚠️ অনুগ্রহ করে একটি নির্দেশ লিখুন বা ছবি সংযুক্ত করুন!",
         toastExecutionCompleted: "💎 এক্সিকিউশন সম্পন্ন হয়েছে!",
-        toastDone: "💎 সম্পন্ন!"
+        toastDone: "💎 সম্পন্ন!",
+        chipDarkLight: "✨ + ডার্ক/লাইট থিম",
+        chipDarkLightPrompt: "উজ্জ্বল অ্যাকসেন্ট সহ একটি আধুনিক ডার্ক/লাইট থিম টগল সুইচ যোগ করুন",
+        chipCharts: "📊 + লাইভ Chart.js",
+        chipChartsPrompt: "লাইভ টেলিমেট্রি সহ ইন্টারেক্টিভ Chart.js লাইন এবং ডোনাট অ্যানালিটিক্স চার্ট যোগ করুন",
+        chipDataTable: "📋 + ডেটা টেবিল ও CSV",
+        chipDataTablePrompt: "CSV এক্সপোর্ট সহ একটি অনুসন্ধানযোগ্য এবং ফিল্টারযোগ্য লাইভ ডেটা টেবিল যোগ করুন",
+        chipHeroRedesign: "🎨 + হিরো রিডিজাইন",
+        chipHeroRedesignPrompt: "Google Stitch গ্লাসমরফিজম এবং অ্যানিমেটেড ব্যাজ সহ হিরো সেকশন রিডিজাইন করুন",
+        chipActionModal: "➕ + অ্যাকশন মোডাল",
+        chipActionModalPrompt: "তাৎক্ষণিক সাবমিশন ফিডব্যাক সহ ইন্টারেক্টিভ ট্রানজ্যাকশন মোডাল ফর্ম যোগ করুন",
+        toastCustomizationAdded: "✓ নির্দেশে কাস্টমাইজেশন যোগ করা হয়েছে"
       },
       fr: {
         badgeCloudEngine: "Moteur Cloud",
@@ -1679,7 +1745,18 @@
         toastInvalidImage: "⚠️ Veuillez sélectionner un fichier image valide !",
         toastEmptyPrompt: "⚠️ Veuillez saisir une directive ou joindre une photo !",
         toastExecutionCompleted: "💎 Exécution terminée !",
-        toastDone: "💎 Terminé !"
+        toastDone: "💎 Terminé !",
+        chipDarkLight: "✨ + Thème Sombre/Clair",
+        chipDarkLightPrompt: "Ajouter un commutateur de thème Sombre/Clair moderne avec des accents lumineux",
+        chipCharts: "📊 + Chart.js en Direct",
+        chipChartsPrompt: "Ajouter des graphiques interactifs en ligne et en anneau Chart.js avec télémétrie en direct",
+        chipDataTable: "📋 + Tableau de Données et CSV",
+        chipDataTablePrompt: "Ajouter un tableau de données en direct consultable et filtrable avec export CSV",
+        chipHeroRedesign: "🎨 + Refonte du Hero",
+        chipHeroRedesignPrompt: "Repenser la section hero avec le Glassmorphism de Google Stitch et des badges animés",
+        chipActionModal: "➕ + Modal d'Action",
+        chipActionModalPrompt: "Ajouter un formulaire modal de transaction interactif avec retour instantané",
+        toastCustomizationAdded: "✓ Personnalisation ajoutée à la directive"
       },
       de: {
         badgeCloudEngine: "Cloud-Engine",
@@ -1720,7 +1797,18 @@
         toastInvalidImage: "⚠️ Bitte wählen Sie eine gültige Bilddatei aus!",
         toastEmptyPrompt: "⚠️ Bitte geben Sie eine Direktive ein oder fügen Sie ein Bild an!",
         toastExecutionCompleted: "💎 Ausführung abgeschlossen!",
-        toastDone: "💎 Fertig!"
+        toastDone: "💎 Fertig!",
+        chipDarkLight: "✨ + Dunkel/Hell-Design",
+        chipDarkLightPrompt: "Fügen Sie einen modernen Dunkel/Hell-Design-Umschalter mit leuchtenden Akzenten hinzu",
+        chipCharts: "📊 + Live Chart.js",
+        chipChartsPrompt: "Fügen Sie interaktive Chart.js-Linien- und Donut-Analysediagramme mit Live-Telemetrie hinzu",
+        chipDataTable: "📋 + Datentabelle & CSV",
+        chipDataTablePrompt: "Fügen Sie eine durchsuchbare und filterbare Live-Datentabelle mit CSV-Export hinzu",
+        chipHeroRedesign: "🎨 + Hero-Neugestaltung",
+        chipHeroRedesignPrompt: "Gestalten Sie den Hero-Bereich mit Google Stitch Glassmorphism und animierten Abzeichen neu",
+        chipActionModal: "➕ + Aktions-Modal",
+        chipActionModalPrompt: "Fügen Sie ein interaktives Transaktions-Modal-Formular mit sofortigem Feedback hinzu",
+        toastCustomizationAdded: "✓ Anpassung zur Direktive hinzugefügt"
       }
     };
 
@@ -2541,7 +2629,7 @@
         textarea.value = textarea.value.trim() + " • " + extraText;
       }
       textarea.focus();
-      showToast("✓ Customization added to directive");
+      showToast(t('toastCustomizationAdded'));
     }
 
     function loadPrompt(key) {
