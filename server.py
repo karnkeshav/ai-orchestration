@@ -2598,7 +2598,7 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
             tasks[task_id]["logs"].append(msg)
             
         from stitch_app_engine import modify_and_deploy_stitch_app
-        result = await modify_and_deploy_stitch_app(repo_target, instructions, on_log=log_cb, user=github_user, token=github_token)
+        result = await modify_and_deploy_stitch_app(repo_target, instructions, on_log=log_cb, user=github_user, token=github_token, language=language)
         tasks[task_id]["answer"] = result["markdown"]
         tasks[task_id]["deliverable"] = result["deliverable"]
         tasks[task_id]["status"] = "COMPLETED"
@@ -3123,7 +3123,7 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
             "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
         }
 
-async def try_instant_mission_match(task_id: str, prompt: str, location: Optional[str] = "Bangalore") -> bool:
+async def try_instant_mission_match(task_id: str, prompt: str, location: Optional[str] = "Bangalore", language: Optional[str] = "en") -> bool:
     """Zero-LLM keyword fast-path (same pattern as try_instant_cloud_query)
     for mission categories that have a real, already-working dedicated
     handler -- food delivery, shopping deals, ride-fare comparisons, and
@@ -3204,7 +3204,7 @@ async def try_instant_mission_match(task_id: str, prompt: str, location: Optiona
 
     return False
 
-async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en"):
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     await asyncio.sleep(0.2)
     prompt_lower = prompt.lower()
@@ -4061,7 +4061,7 @@ async def run_pipeline(
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
-    if not image_data and await try_instant_mission_match(task_id, prompt, location=location):
+    if not image_data and await try_instant_mission_match(task_id, prompt, location=location, language=language):
         return
     # Gemini fast-path tier disabled (GEMINI_API_KEY revoked/leaked as of 2026-09-10 --
     # every call fails immediately with 403 PERMISSION_DENIED, so the fixed-toolset
@@ -4083,7 +4083,7 @@ async def run_pipeline(
             tasks[task_id]["status"] = "PROCESSING"
             tasks[task_id]["answer"] = None
             tasks[task_id]["deliverable"] = None
-            await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            await run_mission_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language)
 
 @app.get("/api/github/user")
 async def get_github_user_endpoint(

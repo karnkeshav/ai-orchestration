@@ -1560,7 +1560,8 @@ async def modify_and_deploy_stitch_app(
     instructions: str,
     on_log: Optional[Callable[[str], None]] = None,
     user: Optional[str] = None,
-    token: Optional[str] = None
+    token: Optional[str] = None,
+    language: str = "en"
 ) -> Dict[str, Any]:
     """Clones an existing repository, modifies/enhances its web app code using Google Stitch UI design tokens, commits, and pushes to main."""
     def log(msg: str):
