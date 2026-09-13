@@ -12,6 +12,231 @@ from typing import Dict, Any, Optional, Tuple, Callable
 # Default GitHub User
 GITHUB_USER = "karnkeshav"
 
+# Chrome strings for the generated Stitch app template (build_app_html), keyed
+# by the same language codes as index.html's switcher. English is the
+# template's native language, so it needs no entries -- other languages list
+# (english_phrase -> translated_phrase) pairs applied via ordered string
+# replacement over the finished HTML. Ordered longest-phrase-first so a phrase
+# like "Live on Main" is swapped before the standalone word "Live" inside it.
+SITE_CHROME_TRANSLATIONS: Dict[str, list] = {
+    "hi": [
+        ("Live Operations & Orchestrations", "लाइव संचालन और ऑर्केस्ट्रेशन"),
+        ("Performance & Execution Vector", "प्रदर्शन और निष्पादन वेक्टर"),
+        ("Deep Intelligence & Analytics", "गहन इंटेलिजेंस और एनालिटिक्स"),
+        ("Data Records Explorer", "डेटा रिकॉर्ड एक्सप्लोरर"),
+        ("Google Stitch Engine", "Google Stitch इंजन"),
+        ("Live on Main", "मेन पर लाइव"),
+        ("Autonomous Tasks", "स्वायत्त कार्य"),
+        ("Efficiency Score", "दक्षता स्कोर"),
+        ("Total Throughput", "कुल थ्रूपुट"),
+        ("Saved Arbitrage", "बचाई गई आर्बिट्राज"),
+        ("New Transaction", "नया लेनदेन"),
+        ("Service / Action", "सेवा / कार्रवाई"),
+        ("Cluster / Zone", "क्लस्टर / ज़ोन"),
+        ("Export Data", "डेटा निर्यात करें"),
+        ("Data Records", "डेटा रिकॉर्ड्स"),
+        ("Analytics", "एनालिटिक्स"),
+        ("Overview", "अवलोकन"),
+        ("Allocation", "आवंटन"),
+        ("Task ID", "टास्क आईडी"),
+        ("Latency", "लेटेंसी"),
+        ("Status", "स्थिति"),
+        ("Action", "कार्रवाई"),
+        ("Refresh", "रिफ्रेश"),
+        ("entries", "प्रविष्टियाँ"),
+        ("Showing:", "दिखा रहे हैं:"),
+        ("Repo", "रेपो"),
+        ("Live", "लाइव"),
+    ],
+    "es": [
+        ("Live Operations & Orchestrations", "Operaciones y Orquestaciones en Vivo"),
+        ("Performance & Execution Vector", "Vector de Rendimiento y Ejecución"),
+        ("Deep Intelligence & Analytics", "Inteligencia Profunda y Analítica"),
+        ("Data Records Explorer", "Explorador de Registros de Datos"),
+        ("Google Stitch Engine", "Motor Google Stitch"),
+        ("Live on Main", "En Vivo en Main"),
+        ("Autonomous Tasks", "Tareas Autónomas"),
+        ("Efficiency Score", "Puntuación de Eficiencia"),
+        ("Total Throughput", "Rendimiento Total"),
+        ("Saved Arbitrage", "Arbitraje Ahorrado"),
+        ("New Transaction", "Nueva Transacción"),
+        ("Service / Action", "Servicio / Acción"),
+        ("Cluster / Zone", "Clúster / Zona"),
+        ("Export Data", "Exportar Datos"),
+        ("Data Records", "Registros de Datos"),
+        ("Analytics", "Analítica"),
+        ("Overview", "Resumen"),
+        ("Allocation", "Asignación"),
+        ("Task ID", "ID de Tarea"),
+        ("Latency", "Latencia"),
+        ("Status", "Estado"),
+        ("Action", "Acción"),
+        ("Refresh", "Actualizar"),
+        ("entries", "entradas"),
+        ("Showing:", "Mostrando:"),
+        ("Repo", "Repo"),
+        ("Live", "En Vivo"),
+    ],
+    "te": [
+        ("Live Operations & Orchestrations", "లైవ్ ఆపరేషన్స్ & ఆర్కెస్ట్రేషన్స్"),
+        ("Performance & Execution Vector", "పనితీరు & అమలు వెక్టర్"),
+        ("Deep Intelligence & Analytics", "డీప్ ఇంటెలిజెన్స్ & అనలిటిక్స్"),
+        ("Data Records Explorer", "డేటా రికార్డ్స్ ఎక్స్‌ప్లోరర్"),
+        ("Google Stitch Engine", "Google Stitch ఇంజిన్"),
+        ("Live on Main", "మెయిన్‌పై లైవ్"),
+        ("Autonomous Tasks", "స్వతంత్ర పనులు"),
+        ("Efficiency Score", "సామర్థ్య స్కోరు"),
+        ("Total Throughput", "మొత్తం త్రూపుట్"),
+        ("Saved Arbitrage", "ఆదా చేసిన ఆర్బిట్రేజ్"),
+        ("New Transaction", "కొత్త లావాదేవీ"),
+        ("Service / Action", "సేవ / చర్య"),
+        ("Cluster / Zone", "క్లస్టర్ / జోన్"),
+        ("Export Data", "డేటాను ఎగుమతి చేయండి"),
+        ("Data Records", "డేటా రికార్డులు"),
+        ("Analytics", "అనలిటిక్స్"),
+        ("Overview", "అవలోకనం"),
+        ("Allocation", "కేటాయింపు"),
+        ("Task ID", "టాస్క్ ఐడీ"),
+        ("Latency", "లేటెన్సీ"),
+        ("Status", "స్థితి"),
+        ("Action", "చర్య"),
+        ("Refresh", "రిఫ్రెష్"),
+        ("entries", "ఎంట్రీలు"),
+        ("Showing:", "చూపిస్తోంది:"),
+        ("Repo", "రెపో"),
+        ("Live", "లైవ్"),
+    ],
+    "kn": [
+        ("Live Operations & Orchestrations", "ಲೈವ್ ಕಾರ್ಯಾಚರಣೆಗಳು & ಆರ್ಕೆಸ್ಟ್ರೇಶನ್‌ಗಳು"),
+        ("Performance & Execution Vector", "ಕಾರ್ಯಕ್ಷಮತೆ & ಎಕ್ಸಿಕ್ಯೂಶನ್ ವೆಕ್ಟರ್"),
+        ("Deep Intelligence & Analytics", "ಡೀಪ್ ಇಂಟೆಲಿಜೆನ್ಸ್ & ಅನಾಲಿಟಿಕ್ಸ್"),
+        ("Data Records Explorer", "ಡೇಟಾ ರೆಕಾರ್ಡ್ಸ್ ಎಕ್ಸ್‌ಪ್ಲೋರರ್"),
+        ("Google Stitch Engine", "Google Stitch ಎಂಜಿನ್"),
+        ("Live on Main", "ಮೇನ್‌ನಲ್ಲಿ ಲೈವ್"),
+        ("Autonomous Tasks", "ಸ್ವಾಯತ್ತ ಕಾರ್ಯಗಳು"),
+        ("Efficiency Score", "ದಕ್ಷತೆ ಸ್ಕೋರ್"),
+        ("Total Throughput", "ಒಟ್ಟು ಥ್ರೂಪುಟ್"),
+        ("Saved Arbitrage", "ಉಳಿಸಿದ ಆರ್ಬಿಟ್ರೇಜ್"),
+        ("New Transaction", "ಹೊಸ ವಹಿವಾಟು"),
+        ("Service / Action", "ಸೇವೆ / ಕ್ರಿಯೆ"),
+        ("Cluster / Zone", "ಕ್ಲಸ್ಟರ್ / ವಲಯ"),
+        ("Export Data", "ಡೇಟಾ ರಫ್ತು ಮಾಡಿ"),
+        ("Data Records", "ಡೇಟಾ ರೆಕಾರ್ಡ್‌ಗಳು"),
+        ("Analytics", "ಅನಾಲಿಟಿಕ್ಸ್"),
+        ("Overview", "ಅವಲೋಕನ"),
+        ("Allocation", "ಹಂಚಿಕೆ"),
+        ("Task ID", "ಟಾಸ್ಕ್ ಐಡಿ"),
+        ("Latency", "ಲೇಟೆನ್ಸಿ"),
+        ("Status", "ಸ್ಥಿತಿ"),
+        ("Action", "ಕ್ರಿಯೆ"),
+        ("Refresh", "ರಿಫ್ರೆಶ್"),
+        ("entries", "ನಮೂದುಗಳು"),
+        ("Showing:", "ತೋರಿಸಲಾಗುತ್ತಿದೆ:"),
+        ("Repo", "ರೆಪೊ"),
+        ("Live", "ಲೈವ್"),
+    ],
+    "bn": [
+        ("Live Operations & Orchestrations", "লাইভ অপারেশনস ও অর্কেস্ট্রেশনস"),
+        ("Performance & Execution Vector", "পারফরম্যান্স ও এক্সিকিউশন ভেক্টর"),
+        ("Deep Intelligence & Analytics", "ডিপ ইন্টেলিজেন্স ও অ্যানালিটিক্স"),
+        ("Data Records Explorer", "ডেটা রেকর্ডস এক্সপ্লোরার"),
+        ("Google Stitch Engine", "Google Stitch ইঞ্জিন"),
+        ("Live on Main", "মেইনে লাইভ"),
+        ("Autonomous Tasks", "স্বায়ত্তশাসিত কাজ"),
+        ("Efficiency Score", "দক্ষতার স্কোর"),
+        ("Total Throughput", "মোট থ্রুপুট"),
+        ("Saved Arbitrage", "সঞ্চিত আর্বিট্রাজ"),
+        ("New Transaction", "নতুন লেনদেন"),
+        ("Service / Action", "পরিষেবা / কার্যক্রম"),
+        ("Cluster / Zone", "ক্লাস্টার / জোন"),
+        ("Export Data", "ডেটা এক্সপোর্ট করুন"),
+        ("Data Records", "ডেটা রেকর্ড"),
+        ("Analytics", "অ্যানালিটিক্স"),
+        ("Overview", "সংক্ষিপ্ত বিবরণ"),
+        ("Allocation", "বরাদ্দ"),
+        ("Task ID", "টাস্ক আইডি"),
+        ("Latency", "লেটেন্সি"),
+        ("Status", "অবস্থা"),
+        ("Action", "কার্যক্রম"),
+        ("Refresh", "রিফ্রেশ"),
+        ("entries", "এন্ট্রি"),
+        ("Showing:", "দেখানো হচ্ছে:"),
+        ("Repo", "রেপো"),
+        ("Live", "লাইভ"),
+    ],
+    "fr": [
+        ("Live Operations & Orchestrations", "Opérations et Orchestrations en Direct"),
+        ("Performance & Execution Vector", "Vecteur de Performance et d'Exécution"),
+        ("Deep Intelligence & Analytics", "Intelligence Approfondie et Analytique"),
+        ("Data Records Explorer", "Explorateur d'Enregistrements de Données"),
+        ("Google Stitch Engine", "Moteur Google Stitch"),
+        ("Live on Main", "En Direct sur Main"),
+        ("Autonomous Tasks", "Tâches Autonomes"),
+        ("Efficiency Score", "Score d'Efficacité"),
+        ("Total Throughput", "Débit Total"),
+        ("Saved Arbitrage", "Arbitrage Économisé"),
+        ("New Transaction", "Nouvelle Transaction"),
+        ("Service / Action", "Service / Action"),
+        ("Cluster / Zone", "Cluster / Zone"),
+        ("Export Data", "Exporter les Données"),
+        ("Data Records", "Enregistrements de Données"),
+        ("Analytics", "Analytique"),
+        ("Overview", "Aperçu"),
+        ("Allocation", "Allocation"),
+        ("Task ID", "ID de Tâche"),
+        ("Latency", "Latence"),
+        ("Status", "Statut"),
+        ("Action", "Action"),
+        ("Refresh", "Actualiser"),
+        ("entries", "entrées"),
+        ("Showing:", "Affichage :"),
+        ("Repo", "Dépôt"),
+        ("Live", "En Direct"),
+    ],
+    "de": [
+        ("Live Operations & Orchestrations", "Live-Vorgänge & Orchestrierungen"),
+        ("Performance & Execution Vector", "Leistungs- & Ausführungsvektor"),
+        ("Deep Intelligence & Analytics", "Tiefgehende Intelligenz & Analytik"),
+        ("Data Records Explorer", "Datensatz-Explorer"),
+        ("Google Stitch Engine", "Google Stitch Engine"),
+        ("Live on Main", "Live auf Main"),
+        ("Autonomous Tasks", "Autonome Aufgaben"),
+        ("Efficiency Score", "Effizienz-Score"),
+        ("Total Throughput", "Gesamtdurchsatz"),
+        ("Saved Arbitrage", "Eingesparte Arbitrage"),
+        ("New Transaction", "Neue Transaktion"),
+        ("Service / Action", "Dienst / Aktion"),
+        ("Cluster / Zone", "Cluster / Zone"),
+        ("Export Data", "Daten Exportieren"),
+        ("Data Records", "Datensätze"),
+        ("Analytics", "Analytik"),
+        ("Overview", "Übersicht"),
+        ("Allocation", "Zuweisung"),
+        ("Task ID", "Aufgaben-ID"),
+        ("Latency", "Latenz"),
+        ("Status", "Status"),
+        ("Action", "Aktion"),
+        ("Refresh", "Aktualisieren"),
+        ("entries", "Einträge"),
+        ("Showing:", "Anzeige:"),
+        ("Repo", "Repo"),
+        ("Live", "Live"),
+    ],
+}
+
+def _apply_site_chrome_language(html: str, language: str) -> str:
+    """Swaps the generated Stitch template's fixed English chrome strings
+    (nav tabs, section titles, KPI labels, table headers) for the selected
+    language. Only covers structural UI text, not the sample data rows or
+    the app's own generated headline/description -- translating those would
+    require an LLM pass rather than a lookup table."""
+    pairs = SITE_CHROME_TRANSLATIONS.get((language or "en").lower())
+    if not pairs:
+        return html
+    for english, translated in pairs:
+        html = html.replace(english, translated)
+    return html
+
 def clean_slug(text: str) -> str:
     """Generate a clean URL/repo slug from a string."""
     clean = re.sub(r'[^a-zA-Z0-9\s-]', '', text).strip().lower()
@@ -110,7 +335,7 @@ async def call_stitch_mcp_screen(prompt: str, app_title: str) -> Dict[str, Any]:
             "status": "FALLBACK"
         }
 
-def build_app_html(app_title: str, app_desc: str, prompt: str, theme: Dict[str, Any], live_url: str, repo_url: str) -> str:
+def build_app_html(app_title: str, app_desc: str, prompt: str, theme: Dict[str, Any], live_url: str, repo_url: str, language: str = "en") -> str:
     """Generates a complete, responsive, modern single-page web app with latest CSS, Glassmorphism, Chart.js, and interactive features."""
     
     primary = theme.get("primary", "#22d3ee")
@@ -908,6 +1133,9 @@ def build_app_html(app_title: str, app_desc: str, prompt: str, theme: Dict[str, 
   </script>
 </body>
 </html>"""
+    html = _apply_site_chrome_language(html, language)
+    if (language or "en").lower() != "en":
+        html = html.replace('<html lang="en" class="dark">', f'<html lang="{language}" class="dark">', 1)
     return html
 
 def build_app_readme(app_title: str, app_desc: str, repo_name: str, live_url: str, repo_url: str, theme: Dict[str, Any], stitch_info: Dict[str, Any]) -> str:
@@ -990,7 +1218,8 @@ async def create_and_deploy_app(
     log_callback: Optional[Callable[[str], None]] = None,
     on_log: Optional[Callable[[str], None]] = None,
     user: Optional[str] = None,
-    token: Optional[str] = None
+    token: Optional[str] = None,
+    language: str = "en"
 ) -> Dict[str, Any]:
     """Autonomous end-to-end pipeline:
     1. Parse user concept and determine title & slug
@@ -1060,7 +1289,7 @@ async def create_and_deploy_app(
     live_url = f"https://{active_user}.github.io/{repo_name}/"
     repo_url = f"https://github.com/{active_user}/{repo_name}"
 
-    html_content = build_app_html(app_title, app_desc, prompt, theme, live_url, repo_url)
+    html_content = build_app_html(app_title, app_desc, prompt, theme, live_url, repo_url, language=language)
     readme_content = build_app_readme(app_title, app_desc, repo_name, live_url, repo_url, theme, stitch_info)
     log(f"[00:06] 📊 Injecting Chart.js real-time telemetry visualizations & vector analytics...")
     log(f"[00:07] ✨ Compiling Glassmorphism UI tokens, search filters, and transaction modals...")

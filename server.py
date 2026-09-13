@@ -32,6 +32,30 @@ class ExecuteRequest(BaseModel):
     location: Optional[str] = "Bangalore"
     github_user: Optional[str] = None
     github_token: Optional[str] = None
+    language: Optional[str] = "en"
+
+# Maps the language-switcher codes sent by the frontend (index.html's
+# `currentLang`) to the full language name the LLM is told to answer in.
+LANGUAGE_NAMES = {
+    "en": "English",
+    "hi": "Hindi",
+    "es": "Spanish",
+    "te": "Telugu",
+    "kn": "Kannada",
+    "bn": "Bengali",
+    "fr": "French",
+    "de": "German",
+}
+
+def _language_directive(language: Optional[str]) -> str:
+    """Empty for English (the model's default) so we don't add noise to the
+    common case; otherwise a short instruction prepended ahead of the user's
+    directive so free-form LLM answers follow the site's selected language
+    instead of always defaulting to English."""
+    lang_name = LANGUAGE_NAMES.get((language or "en").lower(), "English")
+    if lang_name == "English":
+        return ""
+    return f"Respond entirely in {lang_name}, including any headings or labels you generate. "
 
 class GitHubLoginRequest(BaseModel):
     token: Optional[str] = None
@@ -2454,7 +2478,7 @@ _GEMINI_SYSTEM_INSTRUCTION = (
     "Never fabricate cloud resource data, costs, or repository details yourself; only report what a tool actually returns."
 )
 
-async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", allow_no_match: bool = True):
+async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", allow_no_match: bool = True, language: Optional[str] = "en"):
     loop = asyncio.get_event_loop()
     client = _gemini_client()
     if client is None:
@@ -2487,10 +2511,11 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["logs"].append("[00:01] 🧠 Asking Gemini to determine intent and select tool(s)...")
 
     tool = types.Tool(function_declarations=_gemini_tool_declarations())
+    system_instruction = _language_directive(language) + _GEMINI_SYSTEM_INSTRUCTION
     resp = await loop.run_in_executor(None, lambda: client.models.generate_content(
         model=GEMINI_MODEL,
         contents=prompt,
-        config=types.GenerateContentConfig(tools=[tool], system_instruction=_GEMINI_SYSTEM_INSTRUCTION),
+        config=types.GenerateContentConfig(tools=[tool], system_instruction=system_instruction),
     ))
 
     parts = resp.candidates[0].content.parts if resp.candidates else []
@@ -2547,7 +2572,7 @@ async def run_gemini_pipeline(task_id: str, prompt: str, category: str, image_da
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
-async def try_instant_app_creation(task_id: str, prompt: str, category: str = "general", github_user: Optional[str] = None, github_token: Optional[str] = None) -> bool:
+async def try_instant_app_creation(task_id: str, prompt: str, category: str = "general", github_user: Optional[str] = None, github_token: Optional[str] = None, language: Optional[str] = "en") -> bool:
     """Zero-latency autonomous app builder & modifier: ONLY triggers when the user
     specifically asks to create, build, generate, deploy, or modify an app/website/repo."""
     prompt_lower = prompt.lower().strip()
@@ -2613,7 +2638,7 @@ async def try_instant_app_creation(task_id: str, prompt: str, category: str = "g
     def log_cb(msg: str):
         tasks[task_id]["logs"].append(msg)
         
-    result = await build_and_deploy_stitch_app(prompt, on_log=log_cb, user=github_user, token=github_token)
+    result = await build_and_deploy_stitch_app(prompt, on_log=log_cb, user=github_user, token=github_token, language=language or "en")
     tasks[task_id]["answer"] = result["markdown"]
     tasks[task_id]["deliverable"] = result["deliverable"]
     tasks[task_id]["status"] = "COMPLETED"
@@ -3942,7 +3967,7 @@ async def _start_agy_reaper():
             await _agy_session.reap_if_idle()
     asyncio.create_task(_loop())
 
-async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore"):
+async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en"):
     """Hands the raw directive to the Antigravity CLI agent (agy) running in a
     warm, reused session (see AgyWarmSession above), which has its own MCP
     toolset (cloud providers, shopping, social, Power Automate, etc.) configured
@@ -3953,7 +3978,7 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
 
     is_powerbi_build = any(k in prompt.lower() for k in _POWERBI_INTENT_KEYWORDS)
-    full_prompt = (_AGY_POWERBI_HINT if is_powerbi_build else _AGY_TOOL_HINT) + prompt
+    full_prompt = _language_directive(language) + (_AGY_POWERBI_HINT if is_powerbi_build else _AGY_TOOL_HINT) + prompt
     final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
 
     markdown_answer = None
@@ -4020,7 +4045,8 @@ async def run_pipeline(
     image_data: Optional[str] = None,
     location: Optional[str] = "Bangalore",
     github_user: Optional[str] = None,
-    github_token: Optional[str] = None
+    github_token: Optional[str] = None,
+    language: Optional[str] = "en"
 ):
     """Entry point, cheapest tier first:
     1. try_instant_app_creation — zero latency, builds and deploys to user GitHub account with Google Stitch UI.
@@ -4031,7 +4057,7 @@ async def run_pipeline(
     3. The fast, fixed-toolset Gemini router.
     4. The Antigravity CLI agent (agy) for complex MCP toolsets.
     5. Fallback keyword router."""
-    if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token):
+    if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token, language=language):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
@@ -4044,14 +4070,14 @@ async def run_pipeline(
     # attempt here ahead of run_agy_pipeline to re-enable it.
     tasks[task_id]["logs"].append("[00:01] ⚡ Gemini fast-path disabled, routing directly to Antigravity CLI agent...")
     try:
-        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language)
     except Exception as e2:
         tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e2)}), falling back to Gemini direct-answer...")
         tasks[task_id]["status"] = "PROCESSING"
         tasks[task_id]["answer"] = None
         tasks[task_id]["deliverable"] = None
         try:
-            await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location)
+            await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language)
         except Exception as e3:
             tasks[task_id]["logs"].append(f"[00:01] ⚠️ Gemini router unavailable ({str(e3)}), falling back to keyword routing...")
             tasks[task_id]["status"] = "PROCESSING"
@@ -4130,7 +4156,8 @@ async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):
         req.image_data,
         req.location,
         req.github_user,
-        req.github_token
+        req.github_token,
+        req.language
     )
     return {"task_id": task_id, "status": "PROCESSING"}
 
