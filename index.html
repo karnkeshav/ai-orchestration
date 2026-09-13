@@ -1252,18 +1252,23 @@
 
   <script src="public/apps.js"></script>
   <script>
+    const OCI_VM_BACKEND = "http://129.225.111.42:8000";
     const CLOUD_BACKEND_ORIGIN = "https://ready4launch.onrender.com";
 
     async function getBackendCandidates() {
       const candidates = [];
       const origin = window.location.origin;
-      
+
       if (origin && (origin.includes("localhost") || origin.includes("127.0.0.1"))) {
+        // Local development: try local first, then OCI VM, then cloud fallback
         if (!candidates.includes(origin)) candidates.push(origin);
         if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
         if (!candidates.includes("http://127.0.0.1:8000")) candidates.push("http://127.0.0.1:8000");
+        if (!candidates.includes(OCI_VM_BACKEND)) candidates.push(OCI_VM_BACKEND);
         if (!candidates.includes(CLOUD_BACKEND_ORIGIN)) candidates.push(CLOUD_BACKEND_ORIGIN);
       } else {
+        // Production: OCI VM is primary, localhost fallback, Render as last resort
+        if (!candidates.includes(OCI_VM_BACKEND)) candidates.push(OCI_VM_BACKEND);
         if (!candidates.includes("http://localhost:8000")) candidates.push("http://localhost:8000");
         if (!candidates.includes(CLOUD_BACKEND_ORIGIN)) candidates.push(CLOUD_BACKEND_ORIGIN);
       }
@@ -1278,17 +1283,27 @@
       if (isCloudWarmed || isCloudWarming) return;
       isCloudWarming = true;
       try {
-        const res = await fetch(`${CLOUD_BACKEND_ORIGIN}/api/health`, { mode: 'cors' });
-        if (res.ok) {
+        // Try OCI VM first, then Render as fallback
+        let cloudUrl = OCI_VM_BACKEND;
+        let res = await fetch(`${cloudUrl}/api/health`, { mode: 'cors' }).catch(() => null);
+
+        if (!res?.ok) {
+          cloudUrl = CLOUD_BACKEND_ORIGIN;
+          res = await fetch(`${cloudUrl}/api/health`, { mode: 'cors' });
+        }
+
+        if (res?.ok) {
           isCloudWarmed = true;
           const badge = document.getElementById("backendBadge");
-          if (badge && (!activeBackendUrl || activeBackendUrl.includes("render.com"))) {
-            badge.innerHTML = '<span class="status-dot" style="background: var(--accent-cyan); box-shadow: 0 0 6px var(--accent-cyan);"></span> <span style="color: var(--accent-cyan);">Ready4Launch Cloud Active</span>';
-            badge.style.color = "var(--accent-cyan)";
+          if (badge && (!activeBackendUrl || !activeBackendUrl.includes("localhost"))) {
+            const provider = cloudUrl.includes("129.225.111.42") ? "OCI VM" : "Ready4Launch Cloud";
+            const glow = cloudUrl.includes("129.225.111.42") ? "var(--accent-emerald)" : "var(--accent-cyan)";
+            badge.innerHTML = `<span class="status-dot" style="background: ${glow}; box-shadow: 0 0 6px ${glow};"></span> <span style="color: ${glow};">${provider} Active</span>`;
+            badge.style.color = glow;
           }
         }
       } catch (e) {
-        console.log("Warming up cloud backend on Render...", e);
+        console.log("Warming up cloud backends (OCI VM + Render)...", e);
       } finally {
         isCloudWarming = false;
       }
