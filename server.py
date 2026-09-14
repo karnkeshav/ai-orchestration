@@ -3787,9 +3787,9 @@ class AgyWarmSession:
                 if time.monotonic() - self.last_used > WARM_IDLE_TIMEOUT_SECONDS:
                     await self._kill()
 
-    async def _drain_stale_output(self, task_id: str):
-        """Discard any bytes already sitting in the process's stdout buffer
-        before starting a new turn.
+    async def _drain_stale_output(self, task_id: str, rolling_gap: float = 0.15, max_total: float = 2.0):
+        """Discard any bytes sitting in (or about to arrive on) the process's
+        stdout buffer that don't belong to the turn we're about to run.
 
         _read_turn() below returns the instant it sees the *first* "result"
         event for a turn — but agy can emit more than one result-shaped event
@@ -3798,13 +3798,25 @@ class AgyWarmSession:
         actually a leftover from the *previous* turn). Whatever's left unread
         after a turn completes would otherwise sit in the pipe and get handed
         to the next, completely unrelated caller as if it were their answer —
-        confirmed live: a "list my OCI instances" request came back reporting
-        an unrelated Cosmos DB deletion from an earlier turn. Draining here
-        guarantees every turn starts reading from a clean stream."""
+        confirmed live, twice now: a "list my OCI instances" request once came
+        back reporting an unrelated Cosmos DB deletion, and later a "create AWS
+        instance" request came back reporting an unrelated Azure resource-group
+        listing, both from an earlier caller's turn.
+
+        A single fixed-timeout pass (the original version of this method) only
+        catches what's *already* buffered the instant we happen to check --
+        agy's straggler line can just as easily land a beat later, after that
+        one check already came up empty, and then get read as if it opened the
+        next turn. This version instead keeps draining as long as lines keep
+        arriving within `rolling_gap` of each other (agy writing a burst of
+        leftover output pauses between lines far less than a real turn takes
+        to even start), bounded by `max_total` so a slow-but-legitimate startup
+        can never be mistaken for stale output and get stuck looping here."""
         drained = 0
-        while True:
+        loop_start = time.monotonic()
+        while time.monotonic() - loop_start < max_total:
             try:
-                raw_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=0.05)
+                raw_line = await asyncio.wait_for(self.process.stdout.readline(), timeout=rolling_gap)
             except asyncio.TimeoutError:
                 break
             if not raw_line:
@@ -3909,6 +3921,15 @@ class AgyWarmSession:
             except (asyncio.TimeoutError, RuntimeError) as e:
                 await self._kill()
                 raise RuntimeError(f"agy warm session turn failed: {e}")
+
+            # Drain again now, while it's still unambiguously *this* task's own
+            # trailing output (the exact case _drain_stale_output's docstring
+            # describes: a second result-shaped event for the same turn).
+            # Cleaning it up here, under this task_id, means it never gets a
+            # chance to sit in the pipe and be misread as the next caller's
+            # answer -- that's strictly better than relying solely on the next
+            # turn's pre-drain to catch it after the fact.
+            await self._drain_stale_output(task_id)
 
             self.last_used = time.monotonic()
             return final_status, final_response, final_structured
