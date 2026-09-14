@@ -45,6 +45,7 @@ LANGUAGE_NAMES = {
     "bn": "Bengali",
     "fr": "French",
     "de": "German",
+    "mai": "Maithili",
 }
 
 def _language_directive(language: Optional[str]) -> str:

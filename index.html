@@ -1051,6 +1051,7 @@
         <button class="lang-option" data-lang="bn" onclick="setLanguage('bn')">বাংলা</button>
         <button class="lang-option" data-lang="fr" onclick="setLanguage('fr')">Français</button>
         <button class="lang-option" data-lang="de" onclick="setLanguage('de')">Deutsch</button>
+        <button class="lang-option" data-lang="mai" onclick="setLanguage('mai')">मैथिली</button>
       </div>
     </div>
     <button class="hamburger-btn" id="hamburgerBtn">☰</button>
@@ -1824,6 +1825,58 @@
         chipActionModal: "➕ + Aktions-Modal",
         chipActionModalPrompt: "Fügen Sie ein interaktives Transaktions-Modal-Formular mit sofortigem Feedback hinzu",
         toastCustomizationAdded: "✓ Anpassung zur Direktive hinzugefügt"
+      },
+      mai: {
+        badgeCloudEngine: "क्लाउड इंजन",
+        statusOnline: "OCI ऑलवेज-फ्री क्लाउड ऑनलाइन",
+        navAll: "🌐 सभ",
+        navWebsites: "🌐 वेबसाइट बनाउ",
+        navApps: "🚀 ऐप्स",
+        navShop: "🛍️ खरीददारी",
+        navFood: "🍲 भोजन",
+        navTravel: "🚖 यात्रा",
+        navMedia: "🎬 मीडिया",
+        navFinops: "📊 फिनऑप्स",
+        navCloud: "☁️ क्लाउड",
+        navM365: "💼 M365",
+        navActivity: "📋 गतिविधि",
+        heroPill: "✨ क्लाउड-नेटिव स्वायत्त निष्पादन",
+        heroTitle: "एक क्लिक मे कोनो मिशन पूरा करु",
+        heroDesc: "अपन निर्देश टाइप करु, सर्वश्रेष्ठ डील खोजय लेल उत्पादक तस्वीर पेस्ट वा अपलोड करु, वा नीचाँ देल गेल कोनो प्रीसेट पर क्लिक करु।",
+        visionActive: "🔍 दृष्टि सक्रिय",
+        promptPlaceholder: "प्रश्न पूछू, चित्र पेस्ट करु (Ctrl+V), वा बायाँ सँ कोनो क्षमता चुनू...",
+        uploadPicture: "📷 तस्वीर अपलोड करु",
+        execute: "🚀 निष्पादित करु",
+        progressTitle: "📊 प्रगति",
+        resultTitle: "📄 परिणाम",
+        capabilitiesTitle: "⚡ क्षमतासभ",
+        activityTitle: "📋 गतिविधि",
+        activitySubtitle: "— डिबगिंग लेल, कच्चा बैकएंड लॉग",
+        stage1: "📨 निर्देश प्राप्त भेल",
+        stage2: "🚀 मिशन प्रेषित",
+        stage3: "🧠 अहाँक अनुरोध केर विश्लेषण",
+        stage4: "🔎 विवरण संकलन भऽ रहल अछि",
+        stage5: "⚙️ सभटा केँ एक संग जोड़ल जा रहल अछि",
+        missionAccomplished: "🎉 मिशन पूरा भेल",
+        missionAccomplishedStatus: "🎉 मिशन पूरा भेल!",
+        toastPromptLoaded: "✓ निर्देश लोड भेल। निष्पादित करय लेल Enter दबाउ!",
+        toastImageAttached: "📸 तस्वीर संलग्न भेल!",
+        toastImageRemoved: "🗑️ तस्वीर हटाओल गेल।",
+        toastInvalidImage: "⚠️ कृपा कऽ वैध छवि फ़ाइल चुनू!",
+        toastEmptyPrompt: "⚠️ कृपा कऽ कोनो निर्देश लिखू वा तस्वीर संलग्न करु!",
+        toastExecutionCompleted: "💎 निष्पादन सम्पन्न!",
+        toastDone: "💎 सम्पन्न!",
+        chipDarkLight: "✨ + डार्क/लाइट थीम",
+        chipDarkLightPrompt: "चमकदार एक्सेंट संग आधुनिक डार्क/लाइट थीम टॉगल स्विच जोड़ू",
+        chipCharts: "📊 + लाइव Chart.js",
+        chipChartsPrompt: "लाइव टेलीमेट्री संग इंटरैक्टिव Chart.js लाइन आ डोनट एनालिटिक्स चार्ट जोड़ू",
+        chipDataTable: "📋 + डेटा टेबल आ CSV",
+        chipDataTablePrompt: "CSV निर्यात संग खोज आ फ़िल्टर करय योग्य लाइव डेटा टेबल जोड़ू",
+        chipHeroRedesign: "🎨 + हीरो रीडिजाइन",
+        chipHeroRedesignPrompt: "Google Stitch ग्लासमोर्फिज्म आ एनिमेटेड बैज संग हीरो सेक्शन केँ पुनः डिजाइन करु",
+        chipActionModal: "➕ + एक्शन मोडल",
+        chipActionModalPrompt: "त्वरित सबमिशन फीडबैक संग इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ू",
+        toastCustomizationAdded: "✓ निर्देश मे अनुकूलन जोड़ल गेल"
       }
     };
 
@@ -2003,6 +2056,28 @@
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonome Always-Free-VM-Bereitstellung', prompt: "Stellen Sie kontinuierlich eine Always-Free-OCI-Ampere-VM bereit." },
         'hybrid-dr': { title: 'Multi-Cloud-DR', desc: 'Automatisiertes Failover & Egress-Arbitrage', prompt: "Entwerfen Sie eine Multi-Cloud-DR-Pipeline zwischen AWS EKS und OCI." },
         'm365-flow': { title: 'Power Automate', desc: 'Cloud-Flows, Teams-ChatOps, Outlook-Digests', prompt: "Erstellen Sie einen Power-Automate-Flow für Cloud-Ausgabenanomalien." }
+      },
+      mai: {
+        'website-creator': { title: 'स्वायत्त वेबसाइट निर्माता', desc: 'Google Stitch UI आ GitHub Pages संग पेशेवर वेबसाइट बनाउ आ डिप्लॉय करु', prompt: "create a website" },
+        'website-ai-saas': { title: 'आधुनिक AI SaaS पोर्टल', desc: 'लाइव टेलीमेट्री, Chart.js आ मेट्रिक्स संग ग्लासमोर्फिक डैशबोर्ड', prompt: "Create a modern AI SaaS analytics platform with Google Stitch UI design system, real-time KPI metrics, and live charts, deployed to GitHub Pages." },
+        'website-healthcare': { title: 'हेल्थकेयर टेलीमेडिसिन ऐप', desc: 'रीयल-टाइम कतार आ क्लिनिकल मेट्रिक्स संग रोगी बुकिंग पोर्टल', prompt: "Create a modern healthcare telemedicine web application with patient appointment booking, real-time doctor queue, and clinical vitals charts deployed to GitHub Pages." },
+        'website-fintech': { title: 'फिनटेक आ वेल्थ कमांड हब', desc: 'पोर्टफोलियो एनालिटिक्स, लेज़र फीड आ ट्रांजैक्शन मोडल', prompt: "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages." },
+        'app-creator': { title: 'स्वायत्त ऐप निर्माता', desc: 'Google Stitch UI आ GitHub Pages संग ऐप बनाउ आ डिप्लॉय करु', prompt: "create an app" },
+        'app-saas': { title: 'Google Stitch SaaS ऐप', desc: 'लाइव टेलीमेट्री संग आधुनिक ग्लासमोर्फिक UI डैशबोर्ड', prompt: "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages." },
+        'ecommerce-deals': { title: 'विज़ुअल बेस्ट डील फाइंडर', desc: 'फोटो अपलोड करु वा 5 प्लेटफॉर्म पर सर्वश्रेष्ठ डील पूछू', prompt: "सर्वश्रेष्ठ डील खोजय लेल Amazon, Flipkart, Blinkit, Zepto आ Meesho पर boAt Rockerz 255 Pro+ केर लाइव मूल्य केर तुलना करु।" },
+        'account-logins': { title: 'कनेक्टेड खाता', desc: 'Prime, Swiggy One, Zomato Gold केर स्थिति जांचू', prompt: "हमार सभ कनेक्टेड खाता केर लॉगिन आ मेंबरशिप स्थिति जांचू।" },
+        'food-paneer-butter-masala': { title: 'ज़ोमैटो बनाम स्विगी', desc: 'व्यंजन केर मूल्य आ डिलीवरी ETA केर तुलना करु', prompt: "पनीर बटर मसाला कतय सस्ता आ तीव्र भेटैत अछि? Zomato आ Swiggy केर तुलना करु।" },
+        'ola-mobility': { title: 'Ola कैब आ मोबिलिटी', desc: 'लाइव कैब भाड़ा आ EV स्पेसिफिकेशन', prompt: "कोरमंगला सँ केम्पेगौड़ा एयरपोर्ट, बेंगलुरु धरि लाइव Ola कैब भाड़ा (Bike, Auto, Mini, Prime, EV) केर तुलना करु।" },
+        'uber-vs-ola': { title: 'Uber बनाम Ola', desc: 'रियल-टाइम भाड़ा तुलना', prompt: "इंदिरानगर सँ व्हाइटफील्ड, बेंगलुरु धरि Uber आ Ola केर बीच लाइव कैब भाड़ा केर तुलना करु।" },
+        'rapido-vs-uber-vs-ola': { title: 'Rapido बनाम Uber बनाम Ola', desc: '3-तरफा सबसे सस्ता राइड गारंटी', prompt: "कोरमंगला सँ इंदिरानगर, बेंगलुरु धरि Rapido, Uber आ Ola मे सँ कोन सबसे सस्ता अछि?" },
+        'media-pixar': { title: '3D पिक्सर एनिमेशन', desc: 'भावनात्मक कहानी वीडियो जनरेट करु', prompt: "हिंदी/मैथिली वॉइसओवर संग भाई-बहिन केर विदाईक एकटा भावनात्मक 3D पिक्सर स्टोरी वीडियो बनाउ।" },
+        'media-video': { title: 'वीडियो जनरेशन', desc: 'वॉइसओवर संग सिनेमैटिक AI वीडियो बनाउ', prompt: "वॉइसओवर आ बैकग्राउंड संगीत संग एकटा सिनेमैटिक AI वीडियो बनाउ।" },
+        'finops-powerbi': { title: 'AWS + OCI फिनऑप्स', desc: 'S3 CUR + OCI टेलीमेट्री केँ Power BI मे ऑटो-पुल करु', prompt: "AWS CUR आ OCI उपयोग टेलीमेट्री प्राप्त करु, खर्च केँ सामान्य करु, आ Power BI मे स्ट्रीम करु।" },
+        'finops-azure-foundry': { title: 'Azure फिनऑप्स AI', desc: 'gpt-5-mini संग कॉस्ट इंटेलिजेंस', prompt: "Azure AI Foundry केर उपयोग कऽ Azure फिनऑप्स कॉस्ट विश्लेषण चलाउ।" },
+        'finops-gcp-active-assist': { title: 'क्वाड-क्लाउड फिनऑप्स', desc: 'AWS, OCI, Azure, GCP कॉस्ट विश्लेषण', prompt: "प्रोजेक्ट मे Google Cloud फिनऑप्स विश्लेषण निष्पादित करु।" },
+        'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'स्वायत्त Always-Free VM प्रोविजनिंग', prompt: "लगातार एकटा Always-Free OCI Ampere VM प्रोविज़न करु।" },
+        'hybrid-dr': { title: 'मल्टी-क्लाउड DR', desc: 'ऑटोमेटेड फेलओवर आ एग्रेस आर्बिट्राज', prompt: "AWS EKS आ OCI केर बीच मल्टी-क्लाउड DR पाइपलाइन डिज़ाइन करु।" },
+        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्चक विसंगति लेल एकटा Power Automate फ्लो बनाउ।" }
       }
     };
 
@@ -2965,7 +3040,22 @@
       }
 
       try {
-        // 2. Check Ready4Launch Cloud Backend
+        // 1.5 Check OCI VM Backend (Primary Production Cloud)
+        const ociRes = await fetch(`${OCI_VM_BACKEND}/api/health`, { mode: 'cors', signal: AbortSignal.timeout(2500) });
+        if (ociRes.ok) {
+          activeBackendUrl = OCI_VM_BACKEND;
+          if (badge) {
+            badge.innerHTML = '<span class="status-dot"></span> <span>OCI Always-Free Cloud Online</span>';
+            badge.style.color = "var(--accent-emerald)";
+          }
+          return true;
+        }
+      } catch (e) {
+        // OCI VM offline or unreachable
+      }
+
+      try {
+        // 2. Check Ready4Launch Cloud Backend (Render Fallback)
         const cloudRes = await fetch(`${CLOUD_BACKEND_ORIGIN}/api/health`, { mode: 'cors', signal: AbortSignal.timeout(3500) });
         if (cloudRes.ok) {
           activeBackendUrl = CLOUD_BACKEND_ORIGIN;
