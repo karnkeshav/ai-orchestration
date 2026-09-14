@@ -2812,6 +2812,23 @@
       processImageFile(file);
     }
 
+    // Called dozens of times throughout this file but never actually defined --
+    // the #toast div has sat in the DOM unused this whole time. Implementing it
+    // here once, since it's a shared utility, not a Jobs-specific thing.
+    let _toastTimer = null;
+    function showToast(message, durationMs = 3000) {
+      const el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = message;
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(20px)';
+      }, durationMs);
+    }
+
     // ---------------- Jobs: resume upload -> scan -> pick -> tailor ----------------
     let resumeText = null;
     let selectedJob = null;
