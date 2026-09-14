@@ -1067,13 +1067,10 @@
     <aside class="sidebar" id="sidebar">
       <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
       <button class="nav-item" data-i18n="navApps" onclick="filterCapabilities('apps', this)">🚀 Apps</button>
-      <button class="nav-item" data-i18n="navShop" onclick="filterCapabilities('shop', this)">🛍️ Shop</button>
-      <button class="nav-item" data-i18n="navFood" onclick="filterCapabilities('food', this)">🍲 Food</button>
-      <button class="nav-item" data-i18n="navTravel" onclick="filterCapabilities('travel', this)">🚖 Travel</button>
-      <button class="nav-item" data-i18n="navMedia" onclick="filterCapabilities('media', this)">🎬 Media</button>
-      <button class="nav-item" data-i18n="navFinops" onclick="filterCapabilities('finops', this)">📊 FinOps</button>
+      <button class="nav-item" data-i18n="navLifestyle" onclick="filterCapabilities('lifestyle', this)">🛍️ Lifestyle</button>
       <button class="nav-item" data-i18n="navCloud" onclick="filterCapabilities('cloud', this)">☁️ Cloud</button>
       <button class="nav-item" data-i18n="navM365" onclick="filterCapabilities('m365', this)">💼 M365</button>
+      <button class="nav-item" data-i18n="navJobs" onclick="filterCapabilities('jobs', this)">🎯 Jobs</button>
       <button class="nav-item" id="navActivity" data-i18n="navActivity" onclick="showActivity(this)">📋 Activity</button>
     </aside>
 
@@ -1186,6 +1183,67 @@
         <div style="border: 1px solid var(--border-color); border-top: none; border-radius: 0 0 12px 12px; overflow: hidden; background: #0b0f19; height: 82vh; position: relative;">
           <iframe id="ready4launchFrame" src="https://ready4launch.onrender.com/app" style="width: 100%; height: 100%; border: none; background: #0b0f19;" allow="clipboard-write; clipboard-read; camera; microphone;"></iframe>
         </div>
+      </section>
+
+      <!-- Jobs: upload resume -> scan matching jobs -> pick one -> AI tailors + HR-audits
+           the resume against that JD -> ATS-compliant .docx to download. -->
+      <section id="jobsContainer" style="display: none; margin-top: 0.5rem; margin-bottom: 2rem;">
+        <section class="hero">
+          <div class="hero-pill">🎯 AI Job Finder & Resume Tailor</div>
+          <h1>Find Jobs & Tailor Your Resume</h1>
+          <p>Upload your resume, scan for matching jobs across the web, pick one, and let AI tailor + ATS-optimize your resume for it.</p>
+        </section>
+
+        <section class="command-hub">
+          <div class="prompt-box-wrapper">
+            <input type="file" id="resumeFileInput" accept=".pdf,.docx" style="display: none;" onchange="handleResumeSelected(event)">
+            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+              <button type="button" class="btn-outline" onclick="document.getElementById('resumeFileInput').click()" style="border-color: var(--border-color); padding: 0.6rem 1rem;">
+                📄 Upload Resume (PDF or DOCX)
+              </button>
+              <span id="resumeFileName" style="color: var(--text-muted); font-size: 0.85rem;"></span>
+              <button id="btnScanJobs" class="btn-action" disabled onclick="scanForJobs()" style="opacity: 0.5;">
+                🔍 Scan for Jobs
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="jobsScanProgress" style="display: none;">
+          <div class="section-title">📊 Scanning</div>
+          <div id="jobsProgressPanel" class="console-logs" style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px;"></div>
+        </section>
+
+        <section id="jobsResultsSection" style="display: none;">
+          <div class="section-title">📋 Matching Jobs — pick one</div>
+          <div id="jobsList" style="display: flex; flex-direction: column; gap: 0.6rem;"></div>
+        </section>
+
+        <section id="jobDescSection" style="display: none; margin-top: 1.5rem;">
+          <div class="section-title">📝 Job Description</div>
+          <div class="prompt-box-wrapper">
+            <textarea id="jobDescText" class="prompt-textarea" readonly style="min-height: 160px;"></textarea>
+            <div class="prompt-footer">
+              <span id="jobDescMeta" style="color: var(--text-muted); font-size: 0.8rem;"></span>
+              <button id="btnTailorResume" class="btn-action" disabled onclick="tailorResume()" style="opacity: 0.5;">
+                ✨ Tailor My Resume
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="jobsTailorProgress" style="display: none;">
+          <div class="section-title">📊 Tailoring &amp; ATS/HR Review</div>
+          <div id="jobsTailorPanel" class="console-logs" style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px;"></div>
+        </section>
+
+        <section id="jobsTailorResult" style="display: none; margin-top: 1rem;">
+          <div class="section-title">✅ Tailored Resume Ready</div>
+          <div id="jobsTailorAnswer" style="margin-bottom: 1rem;"></div>
+          <a id="resumeDownloadLink" href="#" class="btn-action" style="text-decoration: none; display: inline-block;">
+            ⬇ Download Tailored Resume (.docx)
+          </a>
+        </section>
       </section>
 
       <!-- Activity: hidden until the Activity tab is clicked. Raw, technical backend
@@ -2194,6 +2252,10 @@
       let toShow = [];
       if (category === 'all') {
         Object.values(capabilities).forEach(arr => toShow.push(...arr));
+      } else if (category === 'lifestyle') {
+        ['shop', 'food', 'travel', 'media'].forEach(c => toShow.push(...(capabilities[c] || [])));
+      } else if (category === 'cloud') {
+        toShow = [...(capabilities.cloud || []), ...(capabilities.finops || [])];
       } else {
         toShow = capabilities[category] || [];
       }
@@ -2272,8 +2334,16 @@
       const appsContainer = document.getElementById('appsContainer');
       const capabilitiesSection = document.getElementById('capabilitiesSection');
       const activitySection = document.getElementById('activitySection');
+      const jobsContainer = document.getElementById('jobsContainer');
 
-      if (category === 'apps') {
+      if (jobsContainer) jobsContainer.style.display = category === 'jobs' ? 'block' : 'none';
+
+      if (category === 'jobs') {
+        if (heroSection) heroSection.style.display = 'none';
+        if (commandHub) commandHub.style.display = 'none';
+        if (appsContainer) appsContainer.style.display = 'none';
+        if (capabilitiesSection) capabilitiesSection.style.display = 'none';
+      } else if (category === 'apps') {
         // Show ready4launch.onrender.com directly
         if (heroSection) heroSection.style.display = 'none';
         if (commandHub) commandHub.style.display = 'none';
@@ -2297,7 +2367,7 @@
         if (commandHub) commandHub.style.display = 'block';
         if (appsContainer) appsContainer.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
-        if (category === 'all' || category === 'websites' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
+        if (category === 'all' || category === 'websites' || category === 'lifestyle' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
           if (capabilitiesSection) capabilitiesSection.style.display = 'block';
           renderCards(category);
         }
@@ -2740,6 +2810,171 @@
       const file = event.target.files && event.target.files[0];
       if (!file) return;
       processImageFile(file);
+    }
+
+    // ---------------- Jobs: resume upload -> scan -> pick -> tailor ----------------
+    let resumeText = null;
+    let selectedJob = null;
+
+    async function handleResumeSelected(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      const nameEl = document.getElementById('resumeFileName');
+      const scanBtn = document.getElementById('btnScanJobs');
+      nameEl.textContent = `⏳ Parsing ${file.name}...`;
+      scanBtn.disabled = true;
+      scanBtn.style.opacity = '0.5';
+
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const resp = await apiFetch('/api/resume/upload', { method: 'POST', body: formData });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Upload failed');
+        resumeText = data.text;
+        nameEl.textContent = `✅ ${file.name} (${resumeText.length.toLocaleString()} characters extracted)`;
+        scanBtn.disabled = false;
+        scanBtn.style.opacity = '1';
+        showToast('Resume uploaded — ready to scan.');
+      } catch (err) {
+        nameEl.textContent = `❌ ${err.message}`;
+        showToast('Resume upload failed: ' + err.message);
+      }
+    }
+
+    async function scanForJobs() {
+      if (!resumeText) return;
+      const scanProgress = document.getElementById('jobsScanProgress');
+      const progressPanel = document.getElementById('jobsProgressPanel');
+      const resultsSection = document.getElementById('jobsResultsSection');
+      const jobsList = document.getElementById('jobsList');
+      const jobDescSection = document.getElementById('jobDescSection');
+      const tailorResultSection = document.getElementById('jobsTailorResult');
+
+      scanProgress.style.display = 'block';
+      progressPanel.innerHTML = '🔎 Scanning live job postings across the web for a match to your resume...';
+      resultsSection.style.display = 'none';
+      jobDescSection.style.display = 'none';
+      tailorResultSection.style.display = 'none';
+      jobsList.innerHTML = '';
+      selectedJob = null;
+
+      try {
+        const resp = await apiFetch('/api/resume/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resume_text: resumeText })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Job scan failed');
+
+        scanProgress.style.display = 'none';
+        if (!data.jobs || data.jobs.length === 0) {
+          jobsList.innerHTML = `<div style="color: var(--text-muted);">No matching jobs found for "${data.query_used}". Try a different resume or check back later.</div>`;
+          resultsSection.style.display = 'block';
+          return;
+        }
+
+        data.jobs.forEach((job, i) => {
+          const row = document.createElement('label');
+          row.style.cssText = 'display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 10px; cursor: pointer; background: rgba(255,255,255,0.02);';
+          row.innerHTML = `
+            <input type="radio" name="jobPick" value="${i}" style="margin-top: 3px;" onchange='selectJob(${i})'>
+            <div>
+              <div style="font-weight: 700; color: #fff;">${job.title}</div>
+              <div style="font-size: 0.85rem; color: var(--text-muted);">${job.company} — ${job.location}${job.posted ? ' · ' + job.posted : ''}</div>
+            </div>
+          `;
+          jobsList.appendChild(row);
+        });
+        window._scannedJobs = data.jobs;
+        resultsSection.style.display = 'block';
+        showToast(`Found ${data.jobs.length} matching job(s).`);
+      } catch (err) {
+        scanProgress.style.display = 'none';
+        showToast('Job scan failed: ' + err.message);
+      }
+    }
+
+    function selectJob(index) {
+      const job = (window._scannedJobs || [])[index];
+      if (!job) return;
+      selectedJob = job;
+      document.getElementById('jobDescText').value = job.description || '(no description provided)';
+      document.getElementById('jobDescMeta').textContent = `${job.title} @ ${job.company}`;
+      document.getElementById('jobDescSection').style.display = 'block';
+      const tailorBtn = document.getElementById('btnTailorResume');
+      tailorBtn.disabled = false;
+      tailorBtn.style.opacity = '1';
+      document.getElementById('jobsTailorResult').style.display = 'none';
+    }
+
+    async function tailorResume() {
+      if (!selectedJob || !resumeText) return;
+      const tailorProgress = document.getElementById('jobsTailorProgress');
+      const tailorPanel = document.getElementById('jobsTailorPanel');
+      const tailorResultSection = document.getElementById('jobsTailorResult');
+      const tailorAnswer = document.getElementById('jobsTailorAnswer');
+      const downloadLink = document.getElementById('resumeDownloadLink');
+
+      tailorProgress.style.display = 'block';
+      tailorPanel.innerHTML = '';
+      tailorResultSection.style.display = 'none';
+
+      try {
+        const resp = await apiFetch('/api/resume/tailor', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resume_text: resumeText,
+            job_title: selectedJob.title,
+            company: selectedJob.company,
+            job_description: selectedJob.description || '',
+            language: currentLang
+          })
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || 'Tailoring failed to start');
+
+        let sinceIdx = 0;
+        const poll = async () => {
+          let payload;
+          try {
+            const pollResp = await apiFetch(`/api/status/${data.task_id}?since=${sinceIdx}`);
+            payload = await pollResp.json();
+          } catch (e) {
+            setTimeout(poll, 1500);
+            return;
+          }
+          sinceIdx = payload.next_since ?? sinceIdx;
+          (payload.logs || []).forEach(log => {
+            const line = document.createElement('div');
+            line.textContent = log;
+            tailorPanel.appendChild(line);
+          });
+          tailorPanel.scrollTop = tailorPanel.scrollHeight;
+
+          if (payload.status === 'COMPLETED') {
+            tailorProgress.style.display = 'none';
+            tailorAnswer.innerHTML = window.marked ? marked.parse(payload.answer || '') : (payload.answer || '');
+            if (payload.deliverable && payload.deliverable.url && payload.deliverable.url !== '#') {
+              downloadLink.href = payload.deliverable.url;
+              downloadLink.style.display = 'inline-block';
+              downloadLink.setAttribute('download', '');
+            } else {
+              downloadLink.style.display = 'none';
+            }
+            tailorResultSection.style.display = 'block';
+            showToast('Tailored resume ready!');
+            return;
+          }
+          setTimeout(poll, 2000);
+        };
+        poll();
+      } catch (err) {
+        tailorProgress.style.display = 'none';
+        showToast('Resume tailoring failed: ' + err.message);
+      }
     }
 
     function processImageFile(file) {

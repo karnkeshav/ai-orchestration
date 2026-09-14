@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"), override=True)
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, BackgroundTasks, Header, Query, Request
+from fastapi import FastAPI, BackgroundTasks, Header, Query, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -62,6 +62,94 @@ class GitHubLoginRequest(BaseModel):
     token: Optional[str] = None
     username: Optional[str] = None
     mode: Optional[str] = "token"
+
+def extract_resume_text(file_bytes: bytes, filename: str) -> str:
+    """Extract plain text from an uploaded PDF or DOCX resume."""
+    lower = (filename or "").lower()
+    if lower.endswith(".pdf"):
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(file_bytes))
+        return "\n".join(page.extract_text() or "" for page in reader.pages).strip()
+    elif lower.endswith(".docx"):
+        from docx import Document
+        doc = Document(io.BytesIO(file_bytes))
+        return "\n".join(p.text for p in doc.paragraphs).strip()
+    else:
+        raise ValueError("Unsupported resume format -- upload a .pdf or .docx file.")
+
+
+def _resume_search_query(resume_text: str) -> str:
+    """Cheap, local, zero-LLM extraction of a job-search query from resume text:
+    take the first non-empty line (almost always the name or a title line right
+    under it is unreliable) -- instead, pull the most frequent capitalized
+    2-4 word phrases and known tech/skill keywords as a lightweight signal.
+    Good enough to seed a search; the user sees and can refine the results."""
+    text_lower = resume_text.lower()
+    common_titles = [
+        "software engineer", "senior software engineer", "data scientist", "data analyst",
+        "product manager", "project manager", "devops engineer", "cloud engineer",
+        "full stack developer", "frontend developer", "backend developer",
+        "machine learning engineer", "business analyst", "financial analyst",
+        "marketing manager", "sales executive", "hr manager", "operations manager",
+        "ui/ux designer", "graphic designer", "network engineer", "security engineer",
+        "qa engineer", "test engineer", "system administrator", "database administrator",
+    ]
+    found_title = next((t for t in common_titles if t in text_lower), None)
+
+    skill_keywords = [
+        "python", "java", "javascript", "typescript", "react", "node.js", "aws", "azure",
+        "gcp", "oci", "kubernetes", "docker", "sql", "excel", "power bi", "tableau",
+        "salesforce", "sap", "figma", "django", "flask", "fastapi", "terraform",
+        "machine learning", "tensorflow", "pytorch", "c++", "c#", "go", "golang",
+    ]
+    found_skills = [s for s in skill_keywords if s in text_lower][:4]
+
+    parts = ([found_title] if found_title else []) + found_skills
+    if not parts:
+        # Last resort: first line of the resume is usually the name, not useful --
+        # fall back to a generic query rather than an empty one.
+        return "software engineer"
+    return " ".join(parts)
+
+
+def search_jobs_serpapi(query: str, location: str = "") -> "list | str":
+    """Search live job postings aggregated from LinkedIn, Indeed, Naukri, Glassdoor,
+    company sites etc. via SerpAPI's Google Jobs engine (a legitimate paid API over
+    Google's own job index -- not scraping any portal directly)."""
+    try:
+        api_key = os.environ.get("SERPAPI_KEY")
+        if not api_key:
+            return "Job search is not configured yet: SERPAPI_KEY is missing from .env."
+        params = {
+            "engine": "google_jobs",
+            "q": query,
+            "api_key": api_key,
+        }
+        if location:
+            params["location"] = location
+        r = httpx.get("https://serpapi.com/search", params=params, timeout=15.0)
+        if r.status_code != 200:
+            return f"Job search error: HTTP {r.status_code} - {r.text[:200]}"
+        data = r.json()
+        results = []
+        for job in data.get("jobs_results", []):
+            apply_link = None
+            for opt in job.get("apply_options", []) or []:
+                if opt.get("link"):
+                    apply_link = opt["link"]
+                    break
+            results.append({
+                "title": job.get("title", "N/A"),
+                "company": job.get("company_name", "N/A"),
+                "location": job.get("location", "N/A"),
+                "description": job.get("description", "")[:4000],
+                "apply_link": apply_link or job.get("share_link") or "",
+                "posted": (job.get("detected_extensions") or {}).get("posted_at", ""),
+            })
+        return results
+    except Exception as e:
+        return f"Job search error: {str(e)}"
+
 
 def query_aws_ec2():
     try:
@@ -4060,6 +4148,88 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["deliverable"] = deliverable
     tasks[task_id]["status"] = "COMPLETED"
 
+_RESUME_OUTPUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_resumes")
+
+async def run_resume_tailor_pipeline(task_id: str, resume_text: str, job_title: str, company: str, job_description: str, language: str = "en"):
+    """Hands agy a three-stage instruction: (1) tailor the resume's content to
+    the target JD, (2) re-review its own output *as if it were the hiring
+    manager / HR screener for that exact role at that company* and apply any
+    changes that pass would flag, (3) render the final version as a
+    professional, ATS-compliant .docx via python-docx and save it to a fixed
+    path this server can serve as a download -- same mechanism as the Power BI
+    project files (everything under this app's own directory is auto-served
+    as a static file)."""
+    os.makedirs(_RESUME_OUTPUT_DIR, exist_ok=True)
+    out_filename = f"tailored_resume_{task_id}.docx"
+    out_path = os.path.join(_RESUME_OUTPUT_DIR, out_filename)
+
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Tailoring resume for {job_title} at {company}...")
+    tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
+
+    full_prompt = _language_directive(language) + f"""You are helping a candidate tailor their resume for one specific job. Work in three passes, then produce one final file. Do not ask the user anything -- make reasonable judgment calls and proceed.
+
+=== CANDIDATE'S CURRENT RESUME (raw extracted text) ===
+{resume_text[:12000]}
+
+=== TARGET JOB ===
+Title: {job_title}
+Company: {company}
+Description:
+{job_description[:6000]}
+
+PASS 1 -- TAILOR: Rewrite the resume's summary, skills, and bullet points to align with this specific job's requirements and language. Keep every claim truthful to the original resume -- rephrase and reprioritize, never invent experience, employers, dates, or credentials that aren't in the original. Mirror the job description's own key terms and phrasing where the candidate genuinely has that skill/experience, since this is what ATS keyword matching looks for.
+
+PASS 2 -- HR AUDIT: Now review your own Pass 1 output as if you were the hiring manager or HR screener for this exact role at {company}. Would you shortlist this resume? Identify anything weak, generic, missing a quantifiable result, or misaligned with what this specific job actually asks for, and fix it directly.
+
+PASS 3 -- ATS-COMPLIANT PROFESSIONAL DOCX: Write and run a Python script using the `python-docx` library (already installed) that builds a clean, professional, ATS-compliant resume document from your final Pass 2 content, and saves it to exactly this path: {out_path}
+ATS-compliance and professional-formatting requirements for the docx:
+- Single column layout (no tables, no text boxes, no columns, no headers/footers containing content ATS can't parse)
+- Standard section headings as bold, slightly larger text: e.g. "SUMMARY", "SKILLS", "EXPERIENCE", "EDUCATION" (add/omit sections to match what's actually in the resume)
+- A clean, readable header with the candidate's name (large, bold) and contact info on one line beneath it
+- Consistent, professional font (e.g. Calibri or Arial, 10.5-11pt body, section headings ~13pt bold), sensible margins (~0.6-0.8in), consistent spacing between sections
+- Bullet points for experience/achievements (use the document's real bullet list style, not manually typed hyphens)
+- No images, no icons, no decorative elements -- ATS parsers choke on these
+- Bold job titles and company names, with dates right-aligned or on the same line
+Confirm the file was written successfully (print its size) before finishing.
+
+Finish with a concise markdown summary of what you changed in Pass 1 and Pass 2 and why, for the candidate to review."""
+
+    final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
+
+    markdown_answer = None
+    if isinstance(final_structured, dict):
+        markdown_answer = final_structured.get("markdown")
+    elif final_response:
+        try:
+            parsed = json.loads(final_response)
+            markdown_answer = parsed.get("markdown")
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            markdown_answer = final_response
+
+    file_ready = os.path.isfile(out_path) and os.path.getsize(out_path) > 0
+
+    if markdown_answer:
+        tasks[task_id]["answer"] = markdown_answer
+    elif file_ready:
+        tasks[task_id]["answer"] = "✅ Your tailored, ATS-compliant resume is ready to download below."
+    else:
+        tasks[task_id]["answer"] = "⚠️ Antigravity agent did not report a summary, and no resume file was found -- check Activity for details."
+
+    if final_status and final_status != "SUCCESS":
+        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ agy turn ended with status {final_status}")
+
+    if file_ready:
+        tasks[task_id]["deliverable"] = {
+            "type": "resume",
+            "title": f"📄 Tailored Resume — {job_title} @ {company}",
+            "url": f"/generated_resumes/{out_filename}",
+        }
+    else:
+        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ Expected resume file not found at {out_path}")
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "⚠️ Resume file not generated", "url": "#"}
+
+    tasks[task_id]["status"] = "COMPLETED"
+
 async def run_pipeline(
     task_id: str,
     prompt: str,
@@ -4154,6 +4324,65 @@ async def get_github_repos(
 @app.get("/api/health")
 async def health():
     return {"status": "online", "engine": "Antigravity Autonomous Core", "active_tasks": len(tasks)}
+
+@app.post("/api/resume/upload")
+async def resume_upload(file: UploadFile = File(...)):
+    try:
+        file_bytes = await file.read()
+        text = extract_resume_text(file_bytes, file.filename)
+        if not text:
+            return JSONResponse(status_code=400, content={"error": "Couldn't extract any text from that file -- is it a scanned/image-only PDF?"})
+        return {"text": text, "filename": file.filename}
+    except ValueError as e:
+        return JSONResponse(status_code=400, content={"error": str(e)})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": f"Resume parsing failed: {str(e)}"})
+
+class ResumeScanRequest(BaseModel):
+    resume_text: str
+    location: Optional[str] = ""
+
+@app.post("/api/resume/scan")
+async def resume_scan(req: ResumeScanRequest):
+    if not req.resume_text or not req.resume_text.strip():
+        return JSONResponse(status_code=400, content={"error": "No resume text provided."})
+    query = _resume_search_query(req.resume_text)
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, search_jobs_serpapi, query, req.location or "")
+    if isinstance(result, str):
+        return JSONResponse(status_code=502, content={"error": result})
+    return {"query_used": query, "jobs": result}
+
+class ResumeTailorRequest(BaseModel):
+    resume_text: str
+    job_title: str
+    company: str
+    job_description: str
+    language: Optional[str] = "en"
+
+@app.post("/api/resume/tailor")
+async def resume_tailor(req: ResumeTailorRequest, background_tasks: BackgroundTasks):
+    task_id = str(uuid.uuid4())[:8]
+    tasks[task_id] = {
+        "id": task_id,
+        "prompt": f"Tailor resume for {req.job_title} at {req.company}",
+        "category": "jobs",
+        "status": "PROCESSING",
+        "logs": ["[00:00] 🚀 Mission dispatched to OCI Cloud Backend Engine..."],
+        "answer": None,
+        "deliverable": None,
+        "created_at": time.time(),
+    }
+    background_tasks.add_task(
+        run_resume_tailor_pipeline,
+        task_id,
+        req.resume_text,
+        req.job_title,
+        req.company,
+        req.job_description,
+        req.language,
+    )
+    return {"task_id": task_id, "status": "PROCESSING"}
 
 @app.post("/api/execute")
 async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):

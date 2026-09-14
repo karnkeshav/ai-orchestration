@@ -15,6 +15,7 @@ google-auth
 azure-mgmt-storage
 azure-storage-blob
 pypdf
+python-docx
 edge-tts
 imageio-ffmpeg
 scipy
