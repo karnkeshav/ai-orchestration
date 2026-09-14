@@ -127,7 +127,10 @@ def search_jobs_serpapi(query: str, location: str = "") -> "list | str":
         }
         if location:
             params["location"] = location
-        r = httpx.get("https://serpapi.com/search", params=params, timeout=15.0)
+        # A brand-new (uncached) query can take SerpAPI itself 60-70s+ to crawl and
+        # process (confirmed live: total_time_taken 72.44s on a first-ever query) --
+        # a short timeout here would misreport that as a failure.
+        r = httpx.get("https://serpapi.com/search", params=params, timeout=90.0)
         if r.status_code != 200:
             return f"Job search error: HTTP {r.status_code} - {r.text[:200]}"
         data = r.json()
