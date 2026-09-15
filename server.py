@@ -3322,6 +3322,22 @@ async def try_instant_mission_match(task_id: str, prompt: str, location: Optiona
         tasks[task_id]["status"] = "COMPLETED"
         return True
 
+    # SharePoint CSV listing: answered directly via Microsoft Graph. This
+    # must be an instant fast-path (not just a run_mission_pipeline branch)
+    # because the agy/Antigravity CLI pipeline runs BEFORE run_mission_pipeline
+    # is ever reached, and agy can wander (e.g. calling generic list_dir on
+    # its own MCP config dir) for minutes instead of answering -- the exact
+    # "going in circles" symptom this fast-path exists to avoid.
+    if "sharepoint" in prompt_lower and "csv" in prompt_lower:
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant SharePoint CSV query — answering directly, no agent needed...")
+        tasks[task_id]["logs"].append("[00:01] 🔎 Querying Microsoft Graph for SharePoint CSV files...")
+        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint CSV Files", "url": "#"}
+        tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
     return False
 
 async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en"):
