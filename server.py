@@ -3599,6 +3599,15 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     elif is_video_mission_query(prompt_lower):
         await run_pixar_video_mission(task_id, prompt, prompt_lower)
 
+    # 4b. SharePoint CSV listing -- answered directly via Microsoft Graph, no
+    # LLM router needed, so this still works when Gemini/Antigravity are down
+    # (the case that otherwise silently fell through to the fake "mission
+    # complete" catch-all below without ever touching SharePoint).
+    elif "sharepoint" in prompt_lower and "csv" in prompt_lower:
+        tasks[task_id]["logs"].append("[00:01] 🔎 Querying Microsoft Graph for SharePoint CSV files...")
+        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint CSV Files", "url": "#"}
+
     # 5. FinOps & Power BI
     elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 📦 Pulling AWS S3 CUR (s3://finops-demo-kk) & OCI Object Storage...")
