@@ -26,14 +26,26 @@ import io
 import re
 import csv
 import json
+import time
 import uuid
 import zipfile
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, List, Dict, Any, Tuple
 
 import httpx
 import pandas as pd
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+# App-only tokens are valid ~60-90 min; cache and reuse instead of minting a
+# fresh one on every single Graph call.
+_token_cache: Dict[str, Any] = {"token": None, "expires_at": 0.0}
+
+# Short-lived cache of full folder scans, keyed by (site_query, folder_path),
+# so repeat "how many CSVs" questions don't re-walk the whole document
+# library every time.
+_csv_scan_cache: Dict[Tuple[str, str], Tuple[float, dict]] = {}
+_CSV_SCAN_CACHE_TTL = 300.0  # seconds
 
 
 class PowerBIEngineError(Exception):
@@ -45,6 +57,10 @@ class PowerBIEngineError(Exception):
 # --------------------------------------------------------------------------
 
 def _graph_token() -> str:
+    now = time.monotonic()
+    if _token_cache["token"] and now < _token_cache["expires_at"]:
+        return _token_cache["token"]
+
     tenant = os.environ.get("MS_TENANT_ID")
     client_id = os.environ.get("MS_CLIENT_ID")
     client_secret = os.environ.get("MS_CLIENT_SECRET")
@@ -68,11 +84,15 @@ def _graph_token() -> str:
         raise PowerBIEngineError(
             f"Graph auth failed: {result.get('error_description') or result.get('error') or result}"
         )
-    return result["access_token"]
+    token = result["access_token"]
+    # Refresh a bit early (60s slack) rather than racing token expiry mid-scan.
+    _token_cache["token"] = token
+    _token_cache["expires_at"] = now + max(int(result.get("expires_in", 3600)) - 60, 60)
+    return token
 
 
-def _graph_get(url: str, token: str, params: Optional[dict] = None) -> dict:
-    r = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=20.0)
+def _graph_get(url: str, token: str, params: Optional[dict] = None, timeout: float = 10.0) -> dict:
+    r = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, params=params, timeout=timeout)
     if r.status_code >= 400:
         raise PowerBIEngineError(f"Graph API error {r.status_code} calling {url}: {r.text[:300]}")
     return r.json()
@@ -115,38 +135,63 @@ def list_drive_csvs(token: str, site_id: str, folder_path: Optional[str] = None)
     return drive_id, csvs
 
 
+def _list_children(token: str, drive_id: str, folder_path: str) -> List[dict]:
+    url = (
+        f"{GRAPH_BASE}/drives/{drive_id}/root:/{folder_path}:/children"
+        if folder_path
+        else f"{GRAPH_BASE}/drives/{drive_id}/root/children"
+    )
+    try:
+        return _graph_get(url, token).get("value", [])
+    except PowerBIEngineError:
+        return []
+
+
 def list_all_csvs_recursive(token: str, drive_id: str, folder_path: Optional[str] = None,
-                             max_items: int = 300, max_folders: int = 100) -> List[dict]:
-    """BFS through the folder tree under folder_path collecting every .csv file,
-    returning its name, full path, and size. Capped to bound worst-case latency
-    on very large document libraries."""
+                             max_items: int = 300, max_folders: int = 100,
+                             time_budget_seconds: float = 40.0,
+                             max_workers: int = 8) -> Tuple[List[dict], bool]:
+    """Walk the folder tree under folder_path collecting every .csv file,
+    returning its name, full path, and size. Each BFS level is fetched
+    concurrently (instead of one folder at a time) and the whole scan is
+    bounded by a wall-clock budget so a large/slow document library degrades
+    to a partial-but-fast result instead of hanging for minutes.
+
+    Returns (files, truncated) where truncated is True if the scan stopped
+    early due to the item/folder/time caps.
+    """
     start = (folder_path or "").strip("/")
-    to_visit = [start]
+    current_level = [start]
     visited = set()
     results: List[dict] = []
     folders_scanned = 0
-    while to_visit and len(results) < max_items and folders_scanned < max_folders:
-        current = to_visit.pop(0)
-        if current in visited:
-            continue
-        visited.add(current)
-        folders_scanned += 1
-        url = (
-            f"{GRAPH_BASE}/drives/{drive_id}/root:/{current}:/children"
-            if current
-            else f"{GRAPH_BASE}/drives/{drive_id}/root/children"
-        )
-        try:
-            data = _graph_get(url, token)
-        except PowerBIEngineError:
-            continue
-        for item in data.get("value", []):
-            item_path = f"{current}/{item['name']}" if current else item["name"]
-            if "folder" in item:
-                to_visit.append(item_path)
-            elif item.get("name", "").lower().endswith(".csv"):
-                results.append({"name": item["name"], "path": item_path, "size": item.get("size", 0)})
-    return results
+    truncated = False
+    deadline = time.monotonic() + time_budget_seconds
+
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        while current_level:
+            if time.monotonic() >= deadline or folders_scanned >= max_folders or len(results) >= max_items:
+                truncated = bool(current_level)
+                break
+
+            to_fetch = [f for f in current_level if f not in visited]
+            for f in to_fetch:
+                visited.add(f)
+            folders_scanned += len(to_fetch)
+
+            next_level: List[str] = []
+            futures = {pool.submit(_list_children, token, drive_id, f): f for f in to_fetch}
+            for fut in as_completed(futures):
+                current = futures[fut]
+                for item in fut.result():
+                    item_path = f"{current}/{item['name']}" if current else item["name"]
+                    if "folder" in item:
+                        next_level.append(item_path)
+                    elif item.get("name", "").lower().endswith(".csv"):
+                        results.append({"name": item["name"], "path": item_path, "size": item.get("size", 0)})
+            current_level = next_level
+
+    return results[:max_items], truncated
 
 
 def list_sharepoint_csvs(site_query: str, folder_path: Optional[str] = None, on_log=None) -> dict:
@@ -154,18 +199,27 @@ def list_sharepoint_csvs(site_query: str, folder_path: Optional[str] = None, on_
         if on_log:
             on_log(msg)
 
+    cache_key = (site_query or "", folder_path or "")
+    cached = _csv_scan_cache.get(cache_key)
+    if cached and time.monotonic() < cached[0]:
+        log("⚡ Using cached SharePoint scan (< 5 min old)...")
+        return cached[1]
+
     token = _graph_token()
     log(f"🔎 Resolving SharePoint site '{site_query or '(tenant root)'}'...")
     site = resolve_site(token, site_query)
     drive = _graph_get(f"{GRAPH_BASE}/sites/{site['id']}/drive", token)
     drive_id = drive["id"]
     log("📂 Scanning document library for CSV files...")
-    files = list_all_csvs_recursive(token, drive_id, folder_path)
-    return {
+    files, truncated = list_all_csvs_recursive(token, drive_id, folder_path)
+    result = {
         "site_name": site.get("displayName") or site.get("name") or site_query,
         "site_url": site.get("webUrl", ""),
         "files": files,
+        "truncated": truncated,
     }
+    _csv_scan_cache[cache_key] = (time.monotonic() + _CSV_SCAN_CACHE_TTL, result)
+    return result
 
 
 def download_csv_bytes(token: str, drive_id: str, item_id: str) -> bytes:

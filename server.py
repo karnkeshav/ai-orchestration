@@ -2019,6 +2019,9 @@ async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_p
     for f in files:
         size_kb = round((f.get("size") or 0) / 1024, 1)
         lines.append(f"• `{f['path']}` ({size_kb} KB)")
+    if result.get("truncated"):
+        lines.append("")
+        lines.append("⚠️ Scan hit its time/size budget before finishing — this count may be a lower bound. Narrow with `folder_path` for a complete scan of a specific folder.")
     return "\n".join(lines)
 
 async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=None, filenames=None, project_name=None, task_id=None):
