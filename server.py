@@ -78,6 +78,17 @@ def extract_resume_text(file_bytes: bytes, filename: str) -> str:
         raise ValueError("Unsupported resume format -- upload a .pdf or .docx file.")
 
 
+def _contains_phrase(text_lower: str, phrase: str) -> bool:
+    """Word-boundary phrase match -- a plain `phrase in text_lower` substring
+    check false-positives badly (e.g. "cloud engineer" "matching" inside
+    "multi-cloud engineering"), which silently produced garbage search
+    queries. \b doesn't apply around '/' or '+' (e.g. "ui/ux", "c++"), so
+    fall back to substring for phrases containing those characters."""
+    if any(ch in phrase for ch in ("/", "+", "#", ".")):
+        return phrase in text_lower
+    return re.search(r"\b" + re.escape(phrase) + r"\b", text_lower) is not None
+
+
 def _resume_search_query(resume_text: str) -> str:
     """Cheap, local, zero-LLM extraction of a job-search query from resume text:
     take the first non-empty line (almost always the name or a title line right
@@ -85,24 +96,38 @@ def _resume_search_query(resume_text: str) -> str:
     2-4 word phrases and known tech/skill keywords as a lightweight signal.
     Good enough to seed a search; the user sees and can refine the results."""
     text_lower = resume_text.lower()
+    # Ordered most-senior-first so a Chief Architect / Director-level resume
+    # matches its actual title instead of falling through to generic skill
+    # keywords (which used to produce queries like "cloud engineer python
+    # typescript react node.js" for a 22-year architecture leader).
     common_titles = [
-        "software engineer", "senior software engineer", "data scientist", "data analyst",
+        "chief architect", "chief technology officer", "chief ai officer", "chief digital officer",
+        "vice president", "vp of engineering", "svp", "evp",
+        "director", "associate director", "senior director", "engineering director",
+        "principal architect", "enterprise architect", "solution architect", "solutions architect",
+        "cloud architect", "ai architect", "data architect", "security architect",
+        "generative ai architect", "agentic ai architect",
+        "engineering manager", "senior manager", "program manager", "delivery manager",
+        "senior software engineer", "software engineer", "staff engineer", "principal engineer",
+        "data scientist", "data analyst", "machine learning engineer", "ai engineer",
         "product manager", "project manager", "devops engineer", "cloud engineer",
         "full stack developer", "frontend developer", "backend developer",
-        "machine learning engineer", "business analyst", "financial analyst",
+        "business analyst", "financial analyst",
         "marketing manager", "sales executive", "hr manager", "operations manager",
         "ui/ux designer", "graphic designer", "network engineer", "security engineer",
         "qa engineer", "test engineer", "system administrator", "database administrator",
     ]
-    found_title = next((t for t in common_titles if t in text_lower), None)
+    found_title = next((t for t in common_titles if _contains_phrase(text_lower, t)), None)
 
     skill_keywords = [
+        "generative ai", "agentic ai", "artificial intelligence", "enterprise architecture",
+        "multi-agent", "model context protocol", "machine learning",
         "python", "java", "javascript", "typescript", "react", "node.js", "aws", "azure",
         "gcp", "oci", "kubernetes", "docker", "sql", "excel", "power bi", "tableau",
         "salesforce", "sap", "figma", "django", "flask", "fastapi", "terraform",
-        "machine learning", "tensorflow", "pytorch", "c++", "c#", "go", "golang",
+        "tensorflow", "pytorch", "c++", "c#", "go", "golang",
     ]
-    found_skills = [s for s in skill_keywords if s in text_lower][:4]
+    found_skills = [s for s in skill_keywords if _contains_phrase(text_lower, s)][:4]
 
     parts = ([found_title] if found_title else []) + found_skills
     if not parts:
