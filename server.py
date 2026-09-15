@@ -4304,7 +4304,32 @@ async def run_pipeline(
         they're reachable without depending on Gemini/agy succeeding.
     3. The fast, fixed-toolset Gemini router.
     4. The Antigravity CLI agent (agy) for complex MCP toolsets.
-    5. Fallback keyword router."""
+    5. Fallback keyword router.
+
+    Any unhandled exception from a tier below is caught at the bottom of this
+    function -- without that, the task is left stuck at status "PROCESSING"
+    forever (BackgroundTasks just logs the exception and drops it), which
+    looks to the user like the request is hanging/going in circles rather
+    than failing. Every tier should still report a real error itself when
+    possible; this is only the last-resort net."""
+    try:
+        await _run_pipeline_tiers(task_id, prompt, category, image_data, location, github_user, github_token, language)
+    except Exception as e:
+        tasks[task_id]["logs"].append(f"[00:0X] ❌ Unhandled pipeline error: {e}")
+        tasks[task_id]["answer"] = f"❌ Something went wrong processing this request: {e}"
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "❌ Error", "url": "#"}
+        tasks[task_id]["status"] = "COMPLETED"
+
+async def _run_pipeline_tiers(
+    task_id: str,
+    prompt: str,
+    category: str,
+    image_data: Optional[str],
+    location: Optional[str],
+    github_user: Optional[str],
+    github_token: Optional[str],
+    language: Optional[str],
+):
     if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token, language=language):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
