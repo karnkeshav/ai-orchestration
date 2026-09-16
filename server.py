@@ -3068,7 +3068,12 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
                 for i in all_instances
             ]
             for p in target:
-                if not isinstance(results[p], list) or len(results[p]) == 0:
+                if not isinstance(results[p], list):
+                    # results[p] is an error string (exception/timeout) -- surface it
+                    # instead of silently rendering as "0 VMs", which is indistinguishable
+                    # from a genuine empty result and hid real auth/query failures.
+                    inst_rows.append(f"| {icons[p]} **{names[p]}** | *(Query failed)* | — | — | 🔴 `{results[p]}` | — |")
+                elif len(results[p]) == 0:
                     inst_rows.append(f"| {icons[p]} **{names[p]}** | *(No active VMs)* | — | — | ⚪ `0 VMs` | — |")
             table_md = (
                 "| Cloud Provider | Instance Name | Machine Type / Shape | Zone / Region | State | IP Address |\n"
@@ -3178,7 +3183,20 @@ def is_food_mission_query(prompt_lower: str) -> bool:
         or "paneer" in prompt_lower or "biryani" in prompt_lower or "pizza" in prompt_lower or "zomato" in prompt_lower or "swiggy" in prompt_lower
     )
 
+_CLOUD_INFRA_KEYWORDS = (
+    "aws", "ec2", "gcp", "google cloud", "azure", "oci", "oracle cloud",
+    "compute engine", "virtual machine", " vm ", " vm.", "vm,", "instance",
+)
+
+def is_cloud_infra_mutation_query(prompt_lower: str) -> bool:
+    """"Create the cheapest AWS/GCP/Azure/OCI instance" contains 'cheapest'
+    (a shopping trigger word too) and must not be misrouted to the product-
+    deal finder -- same ambiguity already handled for ride-fare prompts above."""
+    return any(v in prompt_lower for v in _MUTATION_VERBS) and any(k in prompt_lower for k in _CLOUD_INFRA_KEYWORDS)
+
 def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = None) -> bool:
+    if is_cloud_infra_mutation_query(prompt_lower):
+        return False
     return any(k in prompt_lower for k in [
         "deal", "best deal", "where to buy", "cheapest", "lowest price",
         "amazon", "flipkart", "blinkit", "zepto", "meesho", "price", "discount", "shopping"
@@ -3798,7 +3816,37 @@ _AGY_TOOL_HINT = (
     "aws-mcp/azure/gcp/oci for cloud). If one does, call it directly via call_mcp_tool instead of using "
     "search_web or answering from general knowledge — the MCP tools return real computed "
     "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola, compare_zomato_vs_swiggy "
-    "on the zomato server) and must be preferred whenever one applies.\n\nUser request: "
+    "on the zomato server) and must be preferred whenever one applies.\n\n"
+    "This backend runs you unattended with tool permissions auto-approved (no human is present to "
+    "confirm anything you do). For any cloud provisioning request (aws-mcp/azure/gcp/oci): create "
+    "exactly what was asked for and then STOP. Never terminate, delete, or stop a cloud resource -- "
+    "one you just created or any pre-existing one -- as a self-verification, testing, or cleanup step. "
+    "Only call a destructive action (terminate/delete/stop instance, delete disk/bucket, etc.) if the "
+    "user's own request explicitly asks for that resource to be removed or stopped. If you want to "
+    "confirm a resource was created successfully, use a read-only check (describe/get/list) instead of "
+    "creating a throwaway resource and tearing it down.\n\nUser request: "
+)
+
+# Cloud provisioning requests were observed taking several minutes even for a
+# single instance create, because agy would first enumerate every accessible
+# project/subscription and every existing instance in each one before ever
+# calling the create API (e.g. GCP: gcp_list_projects across all 12 accessible
+# projects, then gcp_list_instances in several of them). Handing it the
+# already-known account/project/region defaults up front removes that
+# discovery phase for the common case.
+_AGY_CLOUD_HINT = (
+    "This is a cloud infrastructure request. Use these already-known account details directly instead of "
+    "rediscovering them:\n"
+    "- AWS: account 533267451842, default region us-east-1.\n"
+    "- GCP: project calm-catfish-464514-t6, default zone us-central1-a. Do not call list_projects across "
+    "all accessible projects -- this is always the right project for this app's own resources.\n"
+    "- Azure: subscription 'Azure subscription 1' (id 2cfd3004-9c52-42d0-ad18-4c46057c4ffa), resource group "
+    "rg-ai-indiasouthcentral, region indiasouthcentral.\n"
+    "- OCI: tenancy root compartment, region ap-hyderabad-1.\n"
+    "For a create/provision request, go straight to the create call using these defaults. Do not enumerate "
+    "all projects/subscriptions/instances/resource groups first as a verification step unless the user "
+    "explicitly asked you to check something before acting. One follow-up list/describe call after creation "
+    "to confirm the result is fine; multiple exploratory calls beforehand are not.\n\n"
 )
 
 # Power BI build requests get a much more forceful, specific directive than the
@@ -4199,7 +4247,13 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
         any(k in prompt_lower for k in _POWERBI_INTENT_KEYWORDS)
         and any(v in prompt_lower for v in _POWERBI_BUILD_VERBS)
     )
-    full_prompt = _language_directive(language) + (_AGY_POWERBI_HINT if is_powerbi_build else _AGY_TOOL_HINT) + prompt
+    if is_powerbi_build:
+        hint = _AGY_POWERBI_HINT
+    elif is_cloud_infra_mutation_query(prompt_lower):
+        hint = _AGY_CLOUD_HINT + _AGY_TOOL_HINT
+    else:
+        hint = _AGY_TOOL_HINT
+    full_prompt = _language_directive(language) + hint + prompt
     final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
 
     markdown_answer = None
@@ -4391,12 +4445,18 @@ async def _run_pipeline_tiers(
         return
     if not image_data and await try_instant_mission_match(task_id, prompt, category=category, location=location, language=language):
         return
-    # Gemini fast-path tier disabled (GEMINI_API_KEY revoked/leaked as of 2026-09-10 --
-    # every call fails immediately with 403 PERMISSION_DENIED, so the fixed-toolset
-    # router below was pure dead weight ahead of agy on every single request). Once a
-    # valid key exists again, restore the run_gemini_pipeline(..., allow_no_match=False)
-    # attempt here ahead of run_agy_pipeline to re-enable it.
-    tasks[task_id]["logs"].append("[00:01] ⚡ Gemini fast-path disabled, routing directly to Antigravity CLI agent...")
+    # GEMINI_API_KEY was revoked/leaked as of 2026-09-10 (every call failed
+    # immediately with 403 PERMISSION_DENIED), which left every request that
+    # missed the keyword fast-paths above (e.g. phrasing without one of the
+    # hardcoded trigger words, like "how many resources are there on gcp")
+    # with nowhere to go but the slow, occasionally unstable agy CLI agent.
+    # A fresh key has since been configured -- restoring the semantic
+    # intent -> tool selection fast-path ahead of agy, as originally intended.
+    try:
+        await run_gemini_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language, allow_no_match=False)
+        return
+    except Exception as e1:
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Gemini fast-path found no match ({str(e1)}), routing to Antigravity CLI agent...")
     try:
         await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language)
     except Exception as e2:
