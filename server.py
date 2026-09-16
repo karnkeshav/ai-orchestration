@@ -4138,9 +4138,7 @@ class AgyWarmSession:
 # AgyWarmPool holds AGY_POOL_SIZE independent sessions so concurrent
 # requests (e.g. "create instance" immediately followed by "delete instance")
 # run in parallel instead of queuing. Each session pays its own MCP bootstrap
-# and holds its own idle process, so this is a real memory/CPU tradeoff on
-# the host running agy — tune via AGY_POOL_SIZE.
-AGY_POOL_SIZE = int(os.environ.get("AGY_POOL_SIZE", 2))
+AGY_POOL_SIZE = int(os.environ.get("AGY_POOL_SIZE", 1))
 
 class AgyWarmPool:
     def __init__(self, size: int):
@@ -4148,9 +4146,6 @@ class AgyWarmPool:
         self._next = 0
 
     async def ensure_warm(self):
-        # Only the first session is warmed eagerly at startup. The rest spawn
-        # on-demand the first time traffic is actually concurrent, so a quiet
-        # deployment doesn't pay for N MCP bootstraps it never needs.
         await self.sessions[0].ensure_warm()
 
     async def reap_if_idle(self):
@@ -4161,8 +4156,6 @@ class AgyWarmPool:
         for session in self.sessions:
             if not session.lock.locked():
                 return session
-        # Every session is busy — round-robin so the overflow spreads evenly
-        # instead of always piling onto the same one.
         session = self.sessions[self._next % len(self.sessions)]
         self._next += 1
         return session
@@ -4175,11 +4168,6 @@ _agy_session = AgyWarmPool(AGY_POOL_SIZE)
 
 @app.on_event("startup")
 async def _start_agy_reaper():
-    # Background, not awaited: don't make the server's own startup (and health
-    # checks) wait on agy's MCP bootstrap. Fire-and-forget so the process is
-    # already warm by the time a real instruction shows up.
-    asyncio.create_task(_agy_session.ensure_warm())
-
     async def _loop():
         while True:
             await asyncio.sleep(WARM_REAP_INTERVAL_SECONDS)
