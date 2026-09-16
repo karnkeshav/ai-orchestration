@@ -1032,6 +1032,13 @@ def _gemini_tool_declarations():
             }, required=["provider"]),
         ),
         types.FunctionDeclaration(
+            name="query_all_resources",
+            description="List EVERY resource of EVERY type in the account/subscription/tenancy/project (not just compute instances or managed services) — the full Resource Manager / Resource Groups Tagging API / Resource Search / Cloud Asset Inventory inventory. Call this instead of query_compute+query_services whenever the user asks for 'all resources', 'everything I have', a full inventory, or a count/list that isn't scoped to just VMs or just services.",
+            parameters=types.Schema(type="OBJECT", properties={
+                "provider": types.Schema(type="STRING", description=provider_desc),
+            }, required=["provider"]),
+        ),
+        types.FunctionDeclaration(
             name="search_finops_guide",
             description="Search the 'Cloud FinOps' O'Reilly book (uploaded to cloud storage) for a cited excerpt answering a recommendation/best-practice/advice question about cloud cost management.",
             parameters=types.Schema(type="OBJECT", properties={
@@ -1310,6 +1317,7 @@ _GEMINI_COMPUTE_FMT = {
 _GEMINI_STORAGE_FN = {"aws": query_aws_s3, "oci": query_oci_buckets}
 _GEMINI_COST_FN = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost, "gcp": query_gcp_cost}
 _GEMINI_SERVICES_FN = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
+_GEMINI_ALL_RESOURCES_FN = {"aws": query_aws_all_resources, "oci": query_oci_all_resources, "azure": query_azure_all_resources, "gcp": query_gcp_all_resources}
 
 def _clean_price_num(val) -> Optional[float]:
     if val is None:
@@ -2125,6 +2133,39 @@ async def _gemini_exec_query_services(loop, provider):
         out += ("\n\n" if out else "") + "\n".join(errors)
     return out
 
+async def _gemini_exec_query_all_resources(loop, provider):
+    target = _resolve_gemini_providers(provider)
+
+    async def _query(p):
+        try:
+            res = await asyncio.wait_for(loop.run_in_executor(None, _GEMINI_ALL_RESOURCES_FN[p]), timeout=15.0)
+            return p, res
+        except asyncio.TimeoutError:
+            return p, f"Resource inventory query on {p.upper()} timed out after 15s"
+        except Exception as e:
+            return p, f"Resource inventory error on {p.upper()}: {str(e)}"
+
+    results = dict(await asyncio.gather(*[_query(p) for p in target]))
+    rows, errors = [], []
+    for p in target:
+        r = results.get(p)
+        if isinstance(r, list):
+            for res in r:
+                scope = res.get("resource_group") or res.get("compartment_id") or res.get("project") or res.get("region") or "N/A"
+                location = res.get("location") or res.get("region") or "N/A"
+                rows.append((p.upper(), res["type"], res["name"], scope, location))
+        else:
+            errors.append(f"{_GEMINI_ICONS[p]} **{p.upper()}:** {r}")
+    if not rows and not errors:
+        return f"No resources found on {', '.join(p.upper() for p in target)}."
+    out = ""
+    if rows:
+        table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n" + "\n".join(f"| {a} | {b} | {c} | {d} | {e} |" for a, b, c, d, e in rows)
+        out += f"🗂️ **Full Resource Inventory ({len(rows)} found):**\n\n{table}"
+    if errors:
+        out += ("\n\n" if out else "") + "\n".join(errors)
+    return out
+
 async def _gemini_exec_search_finops_guide(loop, question, provider):
     p = (provider or "oci").lower()
     if p not in _GEMINI_ICONS:
@@ -2686,6 +2727,7 @@ _GEMINI_DISPATCH = {
     "query_storage": lambda loop, args: _gemini_exec_query_storage(loop, args.get("provider")),
     "query_cost": lambda loop, args: _gemini_exec_query_cost(loop, args.get("provider")),
     "query_services": lambda loop, args: _gemini_exec_query_services(loop, args.get("provider")),
+    "query_all_resources": lambda loop, args: _gemini_exec_query_all_resources(loop, args.get("provider")),
     "search_finops_guide": lambda loop, args: _gemini_exec_search_finops_guide(loop, args.get("question"), args.get("provider")),
     "create_github_repo": lambda loop, args: _gemini_exec_create_github_repo(loop, args.get("name"), args.get("description"), args.get("private")),
     "create_and_deploy_app": lambda loop, args: _gemini_exec_create_and_deploy_app(loop, args.get("prompt"), args.get("app_title")),
@@ -2969,11 +3011,23 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
     wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
     wants_services = ("service" in prompt_lower) and not wants_compute
-    wants_all_resources = any(k in prompt_lower for k in (
-        "all resource", "every resource", "list resource", "list my resource",
-        "what resource", "resource inventory", "everything i have", "everything i've",
-        "what do i have", "what have i created", "resource manager",
-    )) and not (wants_cost or wants_storage or wants_compute or wants_services)
+    # "resource(s)" alone isn't a reliable enough signal on its own (a services/
+    # cost prompt can casually say "resource" too), so require it alongside a
+    # scope word -- checked as two independent substrings, not one adjacent
+    # phrase, since real phrasing rarely puts them next to each other
+    # ("list all MY Azure resources", not "list all resources"). A few
+    # standalone phrases ("everything i have", "what do i have") strongly
+    # imply the same full-inventory intent without ever saying "resource".
+    _has_resource_word = "resource" in prompt_lower
+    _has_scope_word = any(k in prompt_lower for k in (
+        "all", "every", "list", "what", "inventory", "everything", "created", "manager",
+    ))
+    _standalone_all_phrase = any(k in prompt_lower for k in (
+        "everything i have", "everything i've", "what do i have", "what have i created",
+    ))
+    wants_all_resources = (
+        (_has_resource_word and _has_scope_word) or _standalone_all_phrase
+    ) and not (wants_cost or wants_storage or wants_compute or wants_services)
 
     if not (wants_cost or wants_storage or wants_compute or wants_services or wants_all_resources):
         return False
@@ -3659,11 +3713,23 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     # below -- without this, a prompt that just names a provider (e.g. "list
     # all resources of azure") fell into "elif wants_compute or providers"
     # and silently returned only VMs, no matter what was actually asked.
-    wants_all_resources = any(k in prompt_lower for k in (
-        "all resource", "every resource", "list resource", "list my resource",
-        "what resource", "resource inventory", "everything i have", "everything i've",
-        "what do i have", "what have i created", "resource manager",
-    )) and not (wants_cost or wants_storage or wants_compute or wants_services)
+    # "resource(s)" alone isn't reliable enough on its own (a services/cost
+    # prompt can casually say "resource" too), so require it alongside a
+    # scope word as two independent substrings, not one adjacent phrase --
+    # real phrasing rarely puts them next to each other ("list all MY Azure
+    # resources", not "list all resources"). A few standalone phrases
+    # ("everything i have", "what do i have") strongly imply the same
+    # full-inventory intent without ever saying "resource".
+    _has_resource_word = "resource" in prompt_lower
+    _has_scope_word = any(k in prompt_lower for k in (
+        "all", "every", "list", "what", "inventory", "everything", "created", "manager",
+    ))
+    _standalone_all_phrase = any(k in prompt_lower for k in (
+        "everything i have", "everything i've", "what do i have", "what have i created",
+    ))
+    wants_all_resources = (
+        (_has_resource_word and _has_scope_word) or _standalone_all_phrase
+    ) and not (wants_cost or wants_storage or wants_compute or wants_services)
     # Real citation lookup against the O'Reilly Cloud FinOps PDF (uploaded to
     # all four clouds' storage). Checked ahead of the GCP/Azure showcase
     # panels below so a genuine "recommend/best practice" question gets a
