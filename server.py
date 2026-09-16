@@ -4499,7 +4499,7 @@ class ResumeTailorRequest(BaseModel):
     language: Optional[str] = "en"
 
 @app.post("/api/resume/tailor")
-async def resume_tailor(req: ResumeTailorRequest, background_tasks: BackgroundTasks):
+async def resume_tailor(req: ResumeTailorRequest):
     task_id = str(uuid.uuid4())[:8]
     tasks[task_id] = {
         "id": task_id,
@@ -4511,19 +4511,20 @@ async def resume_tailor(req: ResumeTailorRequest, background_tasks: BackgroundTa
         "deliverable": None,
         "created_at": time.time(),
     }
-    background_tasks.add_task(
-        run_resume_tailor_pipeline,
-        task_id,
-        req.resume_text,
-        req.job_title,
-        req.company,
-        req.job_description,
-        req.language,
+    asyncio.create_task(
+        run_resume_tailor_pipeline(
+            task_id,
+            req.resume_text,
+            req.job_title,
+            req.company,
+            req.job_description,
+            req.language,
+        )
     )
     return {"task_id": task_id, "status": "PROCESSING"}
 
 @app.post("/api/execute")
-async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):
+async def execute(req: ExecuteRequest):
     task_id = str(uuid.uuid4())[:8]
     prompt_snippet = req.prompt[:60] if req.prompt else "📸 [Product Image Attached]"
     tasks[task_id] = {
@@ -4537,16 +4538,17 @@ async def execute(req: ExecuteRequest, background_tasks: BackgroundTasks):
         "created_at": time.time(),
         "github_user": req.github_user
     }
-    background_tasks.add_task(
-        run_pipeline,
-        task_id,
-        req.prompt,
-        req.category,
-        req.image_data,
-        req.location,
-        req.github_user,
-        req.github_token,
-        req.language
+    asyncio.create_task(
+        run_pipeline(
+            task_id,
+            req.prompt,
+            req.category,
+            req.image_data,
+            req.location,
+            req.github_user,
+            req.github_token,
+            req.language
+        )
     )
     return {"task_id": task_id, "status": "PROCESSING"}
 
