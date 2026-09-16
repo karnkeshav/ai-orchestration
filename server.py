@@ -1,4 +1,4 @@
-import os, asyncio, json, time, uuid, base64, io, urllib.parse, re, platform
+import os, asyncio, json, time, uuid, base64, io, urllib.parse, re, platform, signal
 from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 # Explicit path (not cwd-dependent) and override=True: this project's own
@@ -2024,6 +2024,14 @@ async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_p
         lines.append("⚠️ Scan hit its time/size budget before finishing — this count may be a lower bound. Narrow with `folder_path` for a complete scan of a specific folder.")
     return "\n".join(lines)
 
+async def _gemini_exec_list_powerbi_reports(loop):
+    import powerbi_engine
+    try:
+        result = await loop.run_in_executor(None, powerbi_engine.list_powerbi_reports_summary)
+        return result
+    except Exception as e:
+        return f"❌ **Power BI lookup failed:** {str(e)}"
+
 async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=None, filenames=None, project_name=None, task_id=None):
     import powerbi_engine
 
@@ -3243,16 +3251,58 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
             "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
         }
 
-async def try_instant_mission_match(task_id: str, prompt: str, location: Optional[str] = "Bangalore", language: Optional[str] = "en") -> bool:
+_POWERBI_INTENT_KEYWORDS = ("power bi", "powerbi", "pbix", "pbip", "pbit", "dax", "tmdl", "semantic model")
+
+_POWERBI_BUILD_VERBS = (
+    "build", "create", "generate", "make", "extend", "add to", "update the",
+    "design", "construct", "develop",
+)
+
+def is_powerbi_report_query(prompt_lower: str) -> bool:
+    has_pbix = any(k in prompt_lower for k in ("pbix", "pbip", "pbit"))
+    has_powerbi = any(k in prompt_lower for k in ("power bi", "powerbi")) and any(
+        w in prompt_lower for w in ("file", "files", "report", "reports", "how many", "count", "list", "audit", "show", "find", "where", "my", "dataset", "datasets", "workspace", "workspaces", "there", "have")
+    )
+    is_build = any(v in prompt_lower for v in _POWERBI_BUILD_VERBS)
+    return (has_pbix or has_powerbi) and not is_build
+
+def is_sharepoint_file_query(prompt_lower: str) -> bool:
+    has_sharepoint = "sharepoint" in prompt_lower
+    has_csv = "csv" in prompt_lower and any(
+        w in prompt_lower for w in ("file", "files", "how many", "count", "list", "audit", "show", "find", "where", "my", "there", "have")
+    )
+    return has_sharepoint or has_csv
+
+async def try_instant_mission_match(task_id: str, prompt: str, category: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en") -> bool:
     """Zero-LLM keyword fast-path (same pattern as try_instant_cloud_query)
     for mission categories that have a real, already-working dedicated
-    handler -- food delivery, shopping deals, ride-fare comparisons, and
-    local video rendering -- so they're reachable even though Gemini
-    (step 3) and the agy CLI (step 4) can both fail. Every branch here calls
-    the SAME function run_mission_pipeline already calls; no logic is
-    duplicated, only reachability changes."""
+    handler -- food delivery, shopping deals, ride-fare comparisons,
+    local video rendering, and M365/PowerBI/SharePoint lookups -- so they're
+    reachable even though Gemini (step 3) and the agy CLI (step 4) can both fail.
+    Every branch here calls the SAME function run_mission_pipeline already calls;
+    no logic is duplicated, only reachability changes."""
     prompt_lower = prompt.lower()
     loop = asyncio.get_event_loop()
+
+    # Power BI Reports & PBIX files lookup
+    if is_powerbi_report_query(prompt_lower) or (category == "m365" and any(k in prompt_lower for k in ("power bi", "powerbi", "pbix", "pbit", "pbip", "report"))):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 💼 Recognized Power BI query — auditing Power BI reports & PBIX files...")
+        tasks[task_id]["answer"] = await _gemini_exec_list_powerbi_reports(loop)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📊 Power BI Reports & PBIX Files", "url": "https://app.powerbi.com"}
+        tasks[task_id]["logs"].append("[00:02] 💎 Power BI Report audit completed successfully!")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
+
+    # SharePoint CSV / document audit
+    if is_sharepoint_file_query(prompt_lower) or (category == "m365" and ("sharepoint" in prompt_lower or "csv" in prompt_lower)):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 💼 Recognized M365 SharePoint query — querying Microsoft Graph...")
+        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint Files", "url": "#"}
+        tasks[task_id]["logs"].append("[00:03] 💎 SharePoint audit completed successfully!")
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
 
     if is_food_mission_query(prompt_lower):
         tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
@@ -3318,22 +3368,6 @@ async def try_instant_mission_match(task_id: str, prompt: str, location: Optiona
         tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
         tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant video-generation request — answering directly, no agent needed...")
         await run_pixar_video_mission(task_id, prompt, prompt_lower)
-        tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
-        tasks[task_id]["status"] = "COMPLETED"
-        return True
-
-    # SharePoint CSV listing: answered directly via Microsoft Graph. This
-    # must be an instant fast-path (not just a run_mission_pipeline branch)
-    # because the agy/Antigravity CLI pipeline runs BEFORE run_mission_pipeline
-    # is ever reached, and agy can wander (e.g. calling generic list_dir on
-    # its own MCP config dir) for minutes instead of answering -- the exact
-    # "going in circles" symptom this fast-path exists to avoid.
-    if "sharepoint" in prompt_lower and "csv" in prompt_lower:
-        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
-        tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant SharePoint CSV query — answering directly, no agent needed...")
-        tasks[task_id]["logs"].append("[00:01] 🔎 Querying Microsoft Graph for SharePoint CSV files...")
-        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
-        tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint CSV Files", "url": "#"}
         tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
         tasks[task_id]["status"] = "COMPLETED"
         return True
@@ -3615,17 +3649,19 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     elif is_video_mission_query(prompt_lower):
         await run_pixar_video_mission(task_id, prompt, prompt_lower)
 
-    # 4b. SharePoint CSV listing -- answered directly via Microsoft Graph, no
-    # LLM router needed, so this still works when Gemini/Antigravity are down
-    # (the case that otherwise silently fell through to the fake "mission
-    # complete" catch-all below without ever touching SharePoint).
-    elif "sharepoint" in prompt_lower and "csv" in prompt_lower:
+    # 4b. Power BI & SharePoint report listing
+    elif is_powerbi_report_query(prompt_lower) or (category == "m365" and any(k in prompt_lower for k in ("power bi", "powerbi", "pbix", "pbit", "pbip", "report"))):
+        tasks[task_id]["logs"].append("[00:01] 💼 Querying Power BI Service, SharePoint & local storage for Power BI reports...")
+        tasks[task_id]["answer"] = await _gemini_exec_list_powerbi_reports(loop)
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "📊 Power BI Reports & PBIX Files", "url": "https://app.powerbi.com"}
+
+    elif is_sharepoint_file_query(prompt_lower) or (category == "m365" and ("sharepoint" in prompt_lower or "csv" in prompt_lower)):
         tasks[task_id]["logs"].append("[00:01] 🔎 Querying Microsoft Graph for SharePoint CSV files...")
         tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
         tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint CSV Files", "url": "#"}
 
     # 5. FinOps & Power BI
-    elif "finops" in prompt_lower or "power bi" in prompt_lower or "cur" in prompt_lower:
+    elif ("finops" in prompt_lower and any(k in prompt_lower for k in ("power bi", "dashboard", "cost", "spend"))) or "cur" in prompt_lower:
         tasks[task_id]["logs"].append("[00:01] 📦 Pulling AWS S3 CUR (s3://finops-demo-kk) & OCI Object Storage...")
         await asyncio.sleep(0.8)
         tasks[task_id]["logs"].append("[00:02] ⚙️ Normalizing 55 multi-cloud records into unified FinOps schema...")
@@ -3792,7 +3828,6 @@ _AGY_POWERBI_HINT = (
     "summary of the relationships/measures/hierarchies now in the model.\n\nUser request: "
 )
 
-_POWERBI_INTENT_KEYWORDS = ("power bi", "powerbi", "pbix", "pbip", "dax", "tmdl", "semantic model")
 
 # Where agy's local Power BI Desktop projects live (see _AGY_POWERBI_HINT above).
 # Windows-native path since server.py itself runs on Windows, not inside WSL.
@@ -3898,6 +3933,16 @@ class AgyWarmSession:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            # POSIX only: makes agy the leader of its own new process group, so
+            # every MCP subprocess it spawns inherits that same group. Without
+            # this, _kill() below can only ever reach the single agy PID --
+            # any MCP wrapper process agy spawned (zomato_mcp_server.py,
+            # azure_mcp_server.py, ...) becomes an orphan re-parented to init
+            # and keeps running forever. Confirmed live: repeated warm-session
+            # timeouts left 58+ orphaned MCP processes running and swap-
+            # thrashed the host into a full hang. Not available on Windows
+            # (the local-laptop deployment target), so guarded here.
+            start_new_session=(platform.system() != "Windows"),
         )
         asyncio.create_task(self._drain_stderr(proc))
         return proc
@@ -3909,8 +3954,16 @@ class AgyWarmSession:
             except Exception:
                 pass
             try:
-                self.process.kill()
+                if platform.system() != "Windows":
+                    # Kill the whole process group (agy + every MCP child it
+                    # spawned) instead of just the agy PID -- see the
+                    # start_new_session comment in _spawn() above.
+                    os.killpg(self.process.pid, signal.SIGKILL)
+                else:
+                    self.process.kill()
                 await self.process.wait()
+            except (ProcessLookupError, PermissionError):
+                pass
             except Exception:
                 pass
         self.process = None
@@ -4143,7 +4196,11 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
 
-    is_powerbi_build = any(k in prompt.lower() for k in _POWERBI_INTENT_KEYWORDS)
+    prompt_lower = prompt.lower()
+    is_powerbi_build = (
+        any(k in prompt_lower for k in _POWERBI_INTENT_KEYWORDS)
+        and any(v in prompt_lower for v in _POWERBI_BUILD_VERBS)
+    )
     full_prompt = _language_directive(language) + (_AGY_POWERBI_HINT if is_powerbi_build else _AGY_TOOL_HINT) + prompt
     final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
 
@@ -4334,7 +4391,7 @@ async def _run_pipeline_tiers(
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
         return
-    if not image_data and await try_instant_mission_match(task_id, prompt, location=location, language=language):
+    if not image_data and await try_instant_mission_match(task_id, prompt, category=category, location=location, language=language):
         return
     # Gemini fast-path tier disabled (GEMINI_API_KEY revoked/leaked as of 2026-09-10 --
     # every call fails immediately with 403 PERMISSION_DENIED, so the fixed-toolset

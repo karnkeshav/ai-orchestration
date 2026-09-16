@@ -9,6 +9,11 @@
       "command": "C:\\Users\\keysh\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
       "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_video_server.py"],
       "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
+    },
+    "clipchamp": {
+      "command": "python3",
+      "args": ["/home/keysh/.gemini/config/clipchamp_mcp_wrapper.py"],
+      "cwd": "/home/keysh/github/ai-orchestration"
     }
   }
 }

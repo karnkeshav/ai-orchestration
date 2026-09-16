@@ -1441,6 +1441,7 @@
       ],
       m365: [
         { icon: '💼', title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', category: 'm365', key: 'm365-flow' },
+        { icon: '📊', title: 'Power BI & PBIX', desc: 'Audit PBIX files, workspaces, & reports', category: 'm365', key: 'm365-powerbi' },
       ]
     };
 
@@ -1464,7 +1465,8 @@
       'finops-gcp-active-assist': "Execute Google Cloud FinOps analysis across project.",
       'cloudops-ampere': "Continuously provision an Always-Free OCI Ampere VM.",
       'hybrid-dr': "Architect Multi-Cloud DR pipeline between AWS EKS and OCI.",
-      'm365-flow': "Build a Power Automate flow for cloud spend anomalies."
+      'm365-flow': "Build a Power Automate flow for cloud spend anomalies.",
+      'm365-powerbi': "How many PBIX files and reports do I have on my Power BI?"
     };
 
     const translations = {
@@ -1959,7 +1961,8 @@
         'finops-gcp-active-assist': { title: 'Quad-Cloud FinOps', desc: 'AWS, OCI, Azure, GCP cost analysis', prompt: "What is the cost of my AWS, OCI, Azure and GCP in a tabular format?" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonomous Always-Free VM provisioning', prompt: "Continuously provision an Always-Free OCI Ampere VM." },
         'hybrid-dr': { title: 'Multi-Cloud DR', desc: 'Automated failover & egress arbitrage', prompt: "Architect Multi-Cloud DR pipeline between AWS EKS and OCI." },
-        'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." }
+        'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." },
+        'm365-powerbi': { title: 'Power BI & PBIX', desc: 'Audit PBIX files, workspaces, & reports', prompt: "How many PBIX files and reports do I have on my Power BI?" }
       },
       hi: {
         'website-creator': { title: 'स्वायत्त वेबसाइट निर्माता', desc: 'Google Stitch UI और GitHub Pages के साथ पेशेवर वेबसाइट बनाएं और डिप्लॉय करें', prompt: "create a website" },
@@ -1981,7 +1984,8 @@
         'finops-gcp-active-assist': { title: 'क्वाड-क्लाउड फिनऑप्स', desc: 'AWS, OCI, Azure, GCP कॉस्ट विश्लेषण', prompt: "प्रोजेक्ट में Google Cloud फिनऑप्स विश्लेषण निष्पादित करें।" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'स्वायत्त Always-Free VM प्रोविजनिंग', prompt: "लगातार एक Always-Free OCI Ampere VM प्रोविज़न करें।" },
         'hybrid-dr': { title: 'मल्टी-क्लाउड DR', desc: 'ऑटोमेटेड फेलओवर और एग्रेस आर्बिट्राज', prompt: "AWS EKS और OCI के बीच मल्टी-क्लाउड DR पाइपलाइन डिज़ाइन करें।" },
-        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्च की असामान्यताओं के लिए एक Power Automate फ्लो बनाएं।" }
+        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्च की असामान्यताओं के लिए एक Power Automate फ्लो बनाएं।" },
+        'm365-powerbi': { title: 'Power BI और PBIX', desc: 'PBIX फ़ाइलें, वर्कस्पेस और रिपोर्ट्स ऑडिट करें', prompt: "मेरे Power BI पर कितनी PBIX फ़ाइलें और रिपोर्ट्स हैं?" }
       },
       es: {
         'website-creator': { title: 'Creador Autónomo de Sitios Web', desc: 'Crea y despliega sitios profesionales con Google Stitch UI y GitHub Pages', prompt: "create a website" },
@@ -2003,7 +2007,8 @@
         'finops-gcp-active-assist': { title: 'FinOps Cuádruple Nube', desc: 'Análisis de costos de AWS, OCI, Azure, GCP', prompt: "Ejecuta el análisis de FinOps de Google Cloud en todo el proyecto." },
         'cloudops-ampere': { title: 'VM Ampere de OCI', desc: 'Aprovisionamiento autónomo de VM Always-Free', prompt: "Aprovisiona continuamente una VM Ampere Always-Free de OCI." },
         'hybrid-dr': { title: 'DR Multi-Nube', desc: 'Conmutación por error automatizada y arbitraje de salida', prompt: "Diseña una arquitectura de canal DR multi-nube entre AWS EKS y OCI." },
-        'm365-flow': { title: 'Power Automate', desc: 'Flujos en la nube, ChatOps de Teams, resúmenes de Outlook', prompt: "Construye un flujo de Power Automate para anomalías de gasto en la nube." }
+        'm365-flow': { title: 'Power Automate', desc: 'Flujos en la nube, ChatOps de Teams, resúmenes de Outlook', prompt: "Construye un flujo de Power Automate para anomalías de gasto en la nube." },
+        'm365-powerbi': { title: 'Power BI y PBIX', desc: 'Audita archivos PBIX, áreas de trabajo e informes', prompt: "¿Cuántos archivos PBIX e informes tengo en mi Power BI?" }
       },
       te: {
         'website-creator': { title: 'స్వయంప్రతిపత్త వెబ్‌సైట్ సృష్టికర్త', desc: 'Google Stitch UI & GitHub Pages తో ప్రొఫెషనల్ వెబ్‌సైట్‌ను రూపొందించి డిప్లాయ్ చేయండి', prompt: "create a website" },
@@ -2025,7 +2030,8 @@
         'finops-gcp-active-assist': { title: 'క్వాడ్-క్లౌడ్ ఫిన్‌ఆప్స్', desc: 'AWS, OCI, Azure, GCP కాస్ట్ విశ్లేషణ', prompt: "ప్రాజెక్ట్ అంతటా Google Cloud ఫిన్‌ఆప్స్ విశ్లేషణను అమలు చేయండి." },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'స్వయంప్రతిపత్త Always-Free VM ప్రొవిజనింగ్', prompt: "నిరంతరం ఒక Always-Free OCI Ampere VM ను ప్రొవిజన్ చేయండి." },
         'hybrid-dr': { title: 'మల్టీ-క్లౌడ్ DR', desc: 'ఆటోమేటెడ్ ఫెయిల్‌ఓవర్ & ఎగ్రెస్ ఆర్బిట్రేజ్', prompt: "AWS EKS మరియు OCI మధ్య మల్టీ-క్లౌడ్ DR పైప్‌లైన్‌ను రూపొందించండి." },
-        'm365-flow': { title: 'Power Automate', desc: 'క్లౌడ్ ఫ్లోలు, Teams ChatOps, Outlook డైజెస్ట్‌లు', prompt: "క్లౌడ్ ఖర్చు అసాధారణతల కోసం ఒక Power Automate ఫ్లోను నిర్మించండి." }
+        'm365-flow': { title: 'Power Automate', desc: 'క్లౌడ్ ఫ్లోలు, Teams ChatOps, Outlook డైజెస్ట్‌లు', prompt: "క్లౌడ్ ఖర్చు అసాధారణతల కోసం ఒక Power Automate ఫ్లోను నిర్మించండి." },
+        'm365-powerbi': { title: 'Power BI & PBIX', desc: 'PBIX ఫైళ్లు, వర్క్‌స్పేస్‌లు మరియు రిపోర్ట్‌లను ఆడిట్ చేయండి', prompt: "నా Power BI లో ఎన్ని PBIX ఫైళ్లు మరియు రిపోర్ట్‌లు ఉన్నాయి?" }
       },
       kn: {
         'website-creator': { title: 'ಸ್ವಾಯತ್ತ ವೆಬ್‌ಸೈಟ್ ಕ್ರಿಯೇಟರ್', desc: 'Google Stitch UI & GitHub Pages ಜೊತೆಗೆ ಯಾವುದೇ ವೃತ್ತಿಪರ ವೆಬ್‌ಸೈಟ್ ನಿರ್ಮಿಸಿ ಮತ್ತು ಡಿಪ್ಲಾಯ್ ಮಾಡಿ', prompt: "create a website" },
@@ -2047,7 +2053,8 @@
         'finops-gcp-active-assist': { title: 'ಕ್ವಾಡ್-ಕ್ಲೌಡ್ ಫಿನ್‌ಆಪ್ಸ್', desc: 'AWS, OCI, Azure, GCP ಕಾಸ್ಟ್ ವಿಶ್ಲೇಷಣೆ', prompt: "ಪ್ರಾಜೆಕ್ಟ್ ಉದ್ದಕ್ಕೂ Google Cloud ಫಿನ್‌ಆಪ್ಸ್ ವಿಶ್ಲೇಷಣೆಯನ್ನು ಎಕ್ಸಿಕ್ಯೂಟ್ ಮಾಡಿ." },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'ಸ್ವಾಯತ್ತ Always-Free VM ಪ್ರೊವಿಷನಿಂಗ್', prompt: "ನಿರಂತರವಾಗಿ ಒಂದು Always-Free OCI Ampere VM ಅನ್ನು ಪ್ರೊವಿಷನ್ ಮಾಡಿ." },
         'hybrid-dr': { title: 'ಮಲ್ಟಿ-ಕ್ಲೌಡ್ DR', desc: 'ಆಟೋಮೇಟೆಡ್ ಫೇಲ್‌ಓವರ್ & ಎಗ್ರೆಸ್ ಆರ್ಬಿಟ್ರೇಜ್', prompt: "AWS EKS ಮತ್ತು OCI ನಡುವೆ ಮಲ್ಟಿ-ಕ್ಲೌಡ್ DR ಪೈಪ್‌ಲೈನ್ ಅನ್ನು ವಿನ್ಯಾಸಗೊಳಿಸಿ." },
-        'm365-flow': { title: 'Power Automate', desc: 'ಕ್ಲೌಡ್ ಫ್ಲೋಗಳು, Teams ChatOps, Outlook ಡೈಜೆಸ್ಟ್‌ಗಳು', prompt: "ಕ್ಲೌಡ್ ಖರ್ಚಿನ ಅಸಹಜತೆಗಳಿಗಾಗಿ ಒಂದು Power Automate ಫ್ಲೋ ಅನ್ನು ನಿರ್ಮಿಸಿ." }
+        'm365-flow': { title: 'Power Automate', desc: 'ಕ್ಲೌಡ್ ಫ್ಲೋಗಳು, Teams ChatOps, Outlook ಡೈಜೆಸ್ಟ್‌ಗಳು', prompt: "ಕ್ಲೌಡ್ ಖರ್ಚಿನ ಅಸಹಜತೆಗಳಿಗಾಗಿ ಒಂದು Power Automate ಫ್ಲೋ ಅನ್ನು ನಿರ್ಮಿಸಿ." },
+        'm365-powerbi': { title: 'Power BI & PBIX', desc: 'PBIX ಫೈಲ್‌ಗಳು, ವರ್ಕ್‌ಸ್ಪೇಸ್‌ಗಳು ಮತ್ತು ವರದಿಗಳನ್ನು ಆಡಿಟ್ ಮಾಡಿ', prompt: "ನನ್ನ Power BI ನಲ್ಲಿ ಎಷ್ಟು PBIX ಫೈಲ್‌ಗಳು ಮತ್ತು ವರದಿಗಳಿವೆ?" }
       },
       bn: {
         'website-creator': { title: 'স্বয়ংক্রিয় ওয়েবসাইট ক্রিয়েটর', desc: 'Google Stitch UI ও GitHub Pages দিয়ে যেকোনো পেশাদার ওয়েবসাইট তৈরি ও ডিপ্লয় করুন', prompt: "create a website" },
@@ -2065,11 +2072,12 @@
         'media-pixar': { title: '3D পিক্সার অ্যানিমেশন', desc: 'আবেগঘন হিন্দি গল্পের ভিডিও তৈরি করুন', prompt: "হিন্দি ভয়েসওভার সহ ভাই-বোনের বিদায়ের একটি আবেগঘন 3D পিক্সার গল্পের ভিডিও তৈরি করুন।" },
         'media-video': { title: 'ভিডিও জেনারেশন', desc: 'ভয়েসওভার সহ সিনেমাটিক AI ভিডিও তৈরি করুন', prompt: "ভয়েসওভার ও ব্যাকগ্রাউন্ড মিউজিক সহ একটি সিনেমাটিক AI ভিডিও তৈরি করুন।" },
         'finops-powerbi': { title: 'AWS + OCI ফিনঅপস', desc: 'S3 CUR + OCI টেলিমেট্রি Power BI-তে অটো-পুল করুন', prompt: "AWS CUR ও OCI ব্যবহারের টেলিমেট্রি সংগ্রহ করুন, খরচ স্বাভাবিক করুন এবং Power BI-তে স্ট্রিম করুন।" },
-        'finops-azure-foundry': { title: 'Azure ফিনঅপস AI', desc: 'gpt-5-mini সহ কস্ট ইন্টেলিজেন্স', prompt: "Azure AI Foundry ব্যবহার করে Azure ফিনঅপস কস্ট বিশ্লেষণ চালান।" },
+        'finops-azure-foundry': { title: 'Azure ফিনঅপস AI', desc: 'gpt-5-mini সহ কস্ট ইন্টেলিজেন্স', prompt: "Azure AI Foundry ব্যবহার করে Azure ফিনঅপস কস্ট विश्लेषण চালান।" },
         'finops-gcp-active-assist': { title: 'কোয়াড-ক্লাউড ফিনঅপস', desc: 'AWS, OCI, Azure, GCP কস্ট বিশ্লেষণ', prompt: "প্রজেক্ট জুড়ে Google Cloud ফিনঅপস বিশ্লেষণ চালান।" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'স্বয়ংক্রিয় Always-Free VM প্রভিশনিং', prompt: "একটি Always-Free OCI Ampere VM ক্রমাগত প্রভিশন করুন।" },
         'hybrid-dr': { title: 'মাল্টি-ক্লাউড DR', desc: 'স্বয়ংক্রিয় ফেইলওভার ও এগ্রেস আরবিট্রাজ', prompt: "AWS EKS ও OCI-এর মধ্যে মাল্টি-ক্লাউড DR পাইপলাইন ডিজাইন করুন।" },
-        'm365-flow': { title: 'Power Automate', desc: 'ক্লাউড ফ্লো, Teams ChatOps, Outlook ডাইজেস্ট', prompt: "ক্লাউড খরচের অস্বাভাবিকতার জন্য একটি Power Automate ফ্লো তৈরি করুন।" }
+        'm365-flow': { title: 'Power Automate', desc: 'ক্লাউড ফ্লো, Teams ChatOps, Outlook ডাইজেস্ট', prompt: "ক্লাউড খরচের অস্বাভাবিকতার জন্য একটি Power Automate ফ্লো তৈরি করুন।" },
+        'm365-powerbi': { title: 'Power BI ও PBIX', desc: 'PBIX ফাইল, ওয়ার্কস্পেস এবং রিপোর্ট অডিট করুন', prompt: "আমার Power BI-তে কতগুলি PBIX ফাইল এবং রিপোর্ট আছে?" }
       },
       fr: {
         'website-creator': { title: 'Créateur Autonome de Sites Web', desc: 'Créez et déployez tout site web professionnel avec Google Stitch UI vers GitHub Pages', prompt: "create a website" },
@@ -2091,7 +2099,8 @@
         'finops-gcp-active-assist': { title: 'FinOps Quad-Cloud', desc: 'Analyse des coûts AWS, OCI, Azure, GCP', prompt: "Exécutez l'analyse FinOps Google Cloud sur l'ensemble du projet." },
         'cloudops-ampere': { title: 'VM OCI Ampere', desc: 'Provisionnement autonome de VM Always-Free', prompt: "Provisionnez en continu une VM OCI Ampere Always-Free." },
         'hybrid-dr': { title: 'DR Multi-Cloud', desc: 'Basculement automatisé et arbitrage de sortie', prompt: "Concevez un pipeline de reprise après sinistre multi-cloud entre AWS EKS et OCI." },
-        'm365-flow': { title: 'Power Automate', desc: 'Flux cloud, ChatOps Teams, résumés Outlook', prompt: "Créez un flux Power Automate pour les anomalies de dépenses cloud." }
+        'm365-flow': { title: 'Power Automate', desc: 'Flux cloud, ChatOps Teams, résumés Outlook', prompt: "Créez un flux Power Automate pour les anomalies de dépenses cloud." },
+        'm365-powerbi': { title: 'Power BI et PBIX', desc: 'Auditez les fichiers PBIX, espaces de travail et rapports', prompt: "Combien de fichiers PBIX et rapports ai-je sur mon Power BI ?" }
       },
       de: {
         'website-creator': { title: 'Autonomer Website-Ersteller', desc: 'Erstellen und veröffentlichen Sie jede professionelle Website mit Google Stitch UI auf GitHub Pages', prompt: "create a website" },
@@ -2113,7 +2122,8 @@
         'finops-gcp-active-assist': { title: 'Quad-Cloud-FinOps', desc: 'AWS-, OCI-, Azure-, GCP-Kostenanalyse', prompt: "Führen Sie die Google-Cloud-FinOps-Analyse für das gesamte Projekt durch." },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonome Always-Free-VM-Bereitstellung', prompt: "Stellen Sie kontinuierlich eine Always-Free-OCI-Ampere-VM bereit." },
         'hybrid-dr': { title: 'Multi-Cloud-DR', desc: 'Automatisiertes Failover & Egress-Arbitrage', prompt: "Entwerfen Sie eine Multi-Cloud-DR-Pipeline zwischen AWS EKS und OCI." },
-        'm365-flow': { title: 'Power Automate', desc: 'Cloud-Flows, Teams-ChatOps, Outlook-Digests', prompt: "Erstellen Sie einen Power-Automate-Flow für Cloud-Ausgabenanomalien." }
+        'm365-flow': { title: 'Power Automate', desc: 'Cloud-Flows, Teams-ChatOps, Outlook-Digests', prompt: "Erstellen Sie einen Power-Automate-Flow für Cloud-Ausgabenanomalien." },
+        'm365-powerbi': { title: 'Power BI & PBIX', desc: 'PBIX-Dateien, Arbeitsbereiche und Berichte prüfen', prompt: "Wie viele PBIX-Dateien und Berichte habe ich in meinem Power BI?" }
       },
       mai: {
         'website-creator': { title: 'स्वायत्त वेबसाइट निर्माता', desc: 'Google Stitch UI आ GitHub Pages संग पेशेवर वेबसाइट बनाउ आ डिप्लॉय करु', prompt: "create a website" },
@@ -2135,7 +2145,8 @@
         'finops-gcp-active-assist': { title: 'क्वाड-क्लाउड फिनऑप्स', desc: 'AWS, OCI, Azure, GCP कॉस्ट विश्लेषण', prompt: "प्रोजेक्ट मे Google Cloud फिनऑप्स विश्लेषण निष्पादित करु।" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'स्वायत्त Always-Free VM प्रोविजनिंग', prompt: "लगातार एकटा Always-Free OCI Ampere VM प्रोविज़न करु।" },
         'hybrid-dr': { title: 'मल्टी-क्लाउड DR', desc: 'ऑटोमेटेड फेलओवर आ एग्रेस आर्बिट्राज', prompt: "AWS EKS आ OCI केर बीच मल्टी-क्लाउड DR पाइपलाइन डिज़ाइन करु।" },
-        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्चक विसंगति लेल एकटा Power Automate फ्लो बनाउ।" }
+        'm365-flow': { title: 'Power Automate', desc: 'क्लाउड फ्लो, Teams ChatOps, Outlook डाइजेस्ट', prompt: "क्लाउड खर्चक विसंगति लेल एकटा Power Automate फ्लो बनाउ।" },
+        'm365-powerbi': { title: 'Power BI & PBIX', desc: 'PBIX फ़ाइल, वर्कस्पेस आ रिपोर्ट ऑडिट करु', prompt: "हमार Power BI पर कतेक PBIX फ़ाइल आ रिपोर्ट अछि?" }
       }
     };
 

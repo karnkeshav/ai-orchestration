@@ -33,7 +33,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, List, Dict, Any, Tuple
 
 import httpx
-import pandas as pd
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 GRAPH_BASE = "https://graph.microsoft.com/v1.0"
 
@@ -220,6 +223,271 @@ def list_sharepoint_csvs(site_query: str, folder_path: Optional[str] = None, on_
     }
     _csv_scan_cache[cache_key] = (time.monotonic() + _CSV_SCAN_CACHE_TTL, result)
     return result
+
+
+
+# --------------------------------------------------------------------------
+# Power BI Reports & PBIX Audit
+# --------------------------------------------------------------------------
+
+def _powerbi_service_token() -> Optional[str]:
+    tenant = os.environ.get("MS_TENANT_ID")
+    client_id = os.environ.get("MS_CLIENT_ID")
+    client_secret = os.environ.get("MS_CLIENT_SECRET")
+    if not (tenant and client_id and client_secret):
+        return None
+    try:
+        import msal
+        app = msal.ConfidentialClientApplication(
+            client_id,
+            authority=f"https://login.microsoftonline.com/{tenant}",
+            client_credential=client_secret,
+        )
+        res = app.acquire_token_for_client(scopes=["https://analysis.windows.net/powerbi/api/.default"])
+        return res.get("access_token")
+    except Exception:
+        return None
+
+
+def list_powerbi_service_reports() -> List[dict]:
+    token = _powerbi_service_token()
+    if not token:
+        return []
+
+    headers = {"Authorization": f"Bearer {token}"}
+    reports = []
+    seen_ids = set()
+
+    # 1. Check My Workspace reports
+    try:
+        r = httpx.get("https://api.powerbi.com/v1.0/myorg/reports", headers=headers, timeout=8.0)
+        if r.status_code == 200:
+            for item in r.json().get("value", []):
+                rid = item.get("id")
+                if rid and rid not in seen_ids:
+                    seen_ids.add(rid)
+                    reports.append({
+                        "name": item.get("name", "Untitled Report"),
+                        "id": rid,
+                        "workspace": "My Workspace (Personal)",
+                        "webUrl": item.get("webUrl", f"https://app.powerbi.com/groups/me/reports/{rid}"),
+                        "datasetId": item.get("datasetId"),
+                        "reportType": item.get("reportType", "PowerBIReport"),
+                        "source": "Power BI Service (Cloud)"
+                    })
+    except Exception:
+        pass
+
+    # 2. Check Shared Workspaces
+    try:
+        r = httpx.get("https://api.powerbi.com/v1.0/myorg/groups", headers=headers, timeout=8.0)
+        if r.status_code == 200:
+            groups = r.json().get("value", [])
+            for g in groups:
+                gid = g.get("id")
+                gname = g.get("name", "Workspace")
+                try:
+                    gr = httpx.get(f"https://api.powerbi.com/v1.0/myorg/groups/{gid}/reports", headers=headers, timeout=8.0)
+                    if gr.status_code == 200:
+                        for item in gr.json().get("value", []):
+                            rid = item.get("id")
+                            if rid and rid not in seen_ids:
+                                seen_ids.add(rid)
+                                reports.append({
+                                    "name": item.get("name", "Untitled Report"),
+                                    "id": rid,
+                                    "workspace": gname,
+                                    "webUrl": item.get("webUrl", f"https://app.powerbi.com/groups/{gid}/reports/{rid}"),
+                                    "datasetId": item.get("datasetId"),
+                                    "reportType": item.get("reportType", "PowerBIReport"),
+                                    "source": "Power BI Service (Workspace)"
+                                })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # 3. Check Apps
+    try:
+        r = httpx.get("https://api.powerbi.com/v1.0/myorg/apps", headers=headers, timeout=8.0)
+        if r.status_code == 200:
+            for app_item in r.json().get("value", []):
+                app_name = app_item.get("name", "Power BI App")
+                app_id = app_item.get("id")
+                try:
+                    ar = httpx.get(f"https://api.powerbi.com/v1.0/myorg/apps/{app_id}/reports", headers=headers, timeout=8.0)
+                    if ar.status_code == 200:
+                        for item in ar.json().get("value", []):
+                            rid = item.get("id")
+                            if rid and rid not in seen_ids:
+                                seen_ids.add(rid)
+                                reports.append({
+                                    "name": item.get("name", "Untitled Report"),
+                                    "id": rid,
+                                    "workspace": f"App: {app_name}",
+                                    "webUrl": item.get("webUrl", f"https://app.powerbi.com/apps/{app_id}/reports/{rid}"),
+                                    "datasetId": item.get("datasetId"),
+                                    "reportType": item.get("reportType", "PowerBIReport"),
+                                    "source": "Power BI App"
+                                })
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return reports
+
+
+def list_sharepoint_powerbi_files() -> List[dict]:
+    found = []
+    seen_ids = set()
+    try:
+        token = _graph_token()
+        # 1. Search root site drive
+        try:
+            r = _graph_get(f"{GRAPH_BASE}/sites/root/drive/root/search(q='.pbix')", token)
+            for item in r.get("value", []):
+                iid = item.get("id")
+                if iid and iid not in seen_ids and item.get("name", "").lower().endswith((".pbix", ".pbip", ".pbit")):
+                    seen_ids.add(iid)
+                    found.append({
+                        "name": item.get("name"),
+                        "path": f"SharePoint Root / {item.get('name')}",
+                        "size_kb": round((item.get("size") or 0) / 1024, 1),
+                        "modified": item.get("lastModifiedDateTime", "")[:16].replace("T", " "),
+                        "type": "SharePoint .pbix Report",
+                        "webUrl": item.get("webUrl", ""),
+                        "source": "SharePoint (Root Site)"
+                    })
+        except Exception:
+            pass
+
+        # 2. Search known sites (e.g. Landmark Retail Ops Simulation)
+        try:
+            sites_data = _graph_get(f"{GRAPH_BASE}/sites", token, params={"search": "landmark"})
+            for s in sites_data.get("value", []):
+                sid = s.get("id")
+                sname = s.get("displayName") or s.get("name") or "SharePoint Site"
+                try:
+                    sr = _graph_get(f"{GRAPH_BASE}/sites/{sid}/drive/root/search(q='.pbix')", token)
+                    for item in sr.get("value", []):
+                        iid = item.get("id")
+                        if iid and iid not in seen_ids and item.get("name", "").lower().endswith((".pbix", ".pbip", ".pbit")):
+                            seen_ids.add(iid)
+                            found.append({
+                                "name": item.get("name"),
+                                "path": f"SharePoint [{sname}] / {item.get('name')}",
+                                "size_kb": round((item.get("size") or 0) / 1024, 1),
+                                "modified": item.get("lastModifiedDateTime", "")[:16].replace("T", " "),
+                                "type": "SharePoint .pbix Report",
+                                "webUrl": item.get("webUrl", ""),
+                                "source": f"SharePoint ({sname})"
+                            })
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return found
+
+
+def list_local_and_onedrive_powerbi_files() -> List[dict]:
+    repo_dir = os.path.dirname(os.path.abspath(__file__))
+    search_dirs = [
+        "/mnt/c/Users/keysh/OneDrive/Documents/powerbi",
+        "/mnt/c/Users/keysh/Documents/powerbi",
+        "/mnt/c/Users/keysh/Documents/landmark/powerbi",
+        "/mnt/c/Users/keysh/OneDrive/Documents",
+        "/mnt/c/Users/keysh/OneDrive/Desktop",
+        "/mnt/c/Users/keysh/Desktop",
+        "/mnt/c/Users/keysh/Downloads",
+        r"C:\Users\keysh\OneDrive\Documents\powerbi",
+        r"C:\Users\keysh\Documents\powerbi",
+        r"C:\Users\keysh\Documents\landmark\powerbi",
+        r"C:\Users\keysh\OneDrive\Documents",
+        r"C:\Users\keysh\Desktop",
+        r"C:\Users\keysh\Downloads",
+        os.path.join(repo_dir, "generated_dashboards"),
+        "/home/ubuntu/powerbi",
+        "/home/ubuntu/ai-orchestration/generated_dashboards",
+    ]
+
+    found = []
+    seen_paths = set()
+
+    for base in search_dirs:
+        if not os.path.exists(base):
+            continue
+        try:
+            for root, dirs, files in os.walk(base):
+                rel = os.path.relpath(root, base)
+                if rel != "." and rel.count(os.sep) >= 2:
+                    dirs.clear()
+                for f in files:
+                    lower = f.lower()
+                    if lower.endswith((".pbix", ".pbip", ".pbit")):
+                        full = os.path.join(root, f)
+                        norm = os.path.normcase(os.path.abspath(full))
+                        if norm not in seen_paths:
+                            seen_paths.add(norm)
+                            sz = round(os.path.getsize(full) / 1024, 1)
+                            mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(full)))
+                            ftype = "Power BI Desktop (.pbix)" if lower.endswith(".pbix") else ("Power BI Project (.pbip)" if lower.endswith(".pbip") else "Power BI Template (.pbit)")
+                            found.append({
+                                "name": f,
+                                "path": full,
+                                "size_kb": sz,
+                                "modified": mtime,
+                                "type": ftype,
+                                "source": "Local / OneDrive"
+                            })
+        except Exception:
+            pass
+
+    return found
+
+
+def list_powerbi_reports_summary() -> str:
+    cloud_reports = list_powerbi_service_reports()
+    sharepoint_files = list_sharepoint_powerbi_files()
+    local_files = list_local_and_onedrive_powerbi_files()
+
+    total_count = len(cloud_reports) + len(sharepoint_files) + len(local_files)
+
+    lines = []
+    if total_count > 0:
+        lines.append(f"📊 **Power BI Reports & PBIX Files Found ({total_count} total):**")
+        lines.append("")
+    else:
+        lines.append("📊 **Power BI Audit Result:** No `.pbix` files or Power BI Service reports were found in indexed locations.")
+        lines.append("")
+
+    if local_files:
+        lines.append("### 📁 Local & OneDrive Synced Power BI Files")
+        for f in local_files:
+            lines.append(f"• **`{f['name']}`** ({f['size_kb']} KB) — `{f['path']}` *(Last modified: {f['modified']})*")
+        lines.append("")
+
+    if sharepoint_files:
+        lines.append("### 📂 SharePoint Document Libraries")
+        for f in sharepoint_files:
+            url_part = f"[{f['name']}]({f['webUrl']})" if f.get("webUrl") else f"`{f['name']}`"
+            lines.append(f"• **{url_part}** ({f['size_kb']} KB) — *{f['source']}*")
+        lines.append("")
+
+    if cloud_reports:
+        lines.append("### ☁️ Power BI Service (Workspaces & Apps)")
+        for r in cloud_reports:
+            lines.append(f"• **[{r['name']}]({r['webUrl']})** — *{r['workspace']}* (`{r['reportType']}`)")
+        lines.append("")
+
+    lines.append(f"✅ **Audit Summary:** Found **{total_count}** Power BI report(s) / file(s) across Power BI Service, SharePoint, and Local/OneDrive storage.")
+    if not cloud_reports:
+        lines.append("")
+        lines.append("> ℹ️ **Note on Power BI Service (Cloud):** Personal *My Workspace* reports require delegated user login or moving reports to a shared workspace where the backend app (`Azure Service Principal`) is added as a workspace member.")
+
+    return "\n".join(lines)
 
 
 def download_csv_bytes(token: str, drive_id: str, item_id: str) -> bytes:
