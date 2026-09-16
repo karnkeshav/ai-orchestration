@@ -2965,13 +2965,21 @@
         if (!resp.ok) throw new Error(data.error || 'Tailoring failed to start');
 
         let sinceIdx = 0;
+        let pollCount = 0;
+        let failedAttempts = 0;
         const poll = async () => {
+          pollCount++;
           let payload;
           try {
             const pollResp = await apiFetch(`/api/status/${data.task_id}?since=${sinceIdx}`);
+            if (!pollResp.ok) throw new Error(`status ${pollResp.status}`);
             payload = await pollResp.json();
+            failedAttempts = 0;
           } catch (e) {
-            setTimeout(poll, 1500);
+            failedAttempts++;
+            if (failedAttempts < 4) { setTimeout(poll, 800); return; }
+            tailorProgress.style.display = 'none';
+            showToast('⚠️ Lost connection while tailoring resume.');
             return;
           }
           sinceIdx = payload.next_since ?? sinceIdx;
@@ -2996,7 +3004,13 @@
             showToast('Tailored resume ready!');
             return;
           }
-          setTimeout(poll, 2000);
+          if (payload.status === 'NOT_FOUND' || payload.status === 'FAILED') {
+            tailorProgress.style.display = 'none';
+            showToast('Resume tailoring ended: ' + (payload.status || 'unknown'));
+            return;
+          }
+          const nextDelay = pollCount <= 1 ? 150 : (pollCount <= 3 ? 350 : (pollCount <= 6 ? 600 : 1000));
+          setTimeout(poll, nextDelay);
         };
         poll();
       } catch (err) {
