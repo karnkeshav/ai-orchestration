@@ -447,6 +447,10 @@ def list_local_and_onedrive_powerbi_files() -> List[dict]:
         r"C:\Users\keysh\OneDrive\Documents",
         r"C:\Users\keysh\Desktop",
         r"C:\Users\keysh\Downloads",
+        "/mnt/c/Users/keysh/Microsoft/Power BI Desktop Store App/TempSaves",
+        "/mnt/c/Users/keysh/Microsoft/Power BI Desktop Store App/TempSaves/Backups",
+        r"C:\Users\keysh\Microsoft\Power BI Desktop Store App\TempSaves",
+        r"C:\Users\keysh\Microsoft\Power BI Desktop Store App\TempSaves\Backups",
         "/home/ubuntu/ai-orchestration/generated_dashboards",
     ]
 
@@ -465,15 +469,17 @@ def list_local_and_onedrive_powerbi_files() -> List[dict]:
                     lower = f.lower()
                     if lower.endswith((".pbix", ".pbip", ".pbit")):
                         full = os.path.join(root, f)
-                        if f not in seen_names:
-                            seen_names.add(f)
+                        clean_name = re.sub(r'[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}', '', f, flags=re.IGNORECASE).replace("..", ".")
+                        norm_key = re.sub(r'[^a-z0-9]', '', clean_name.lower())
+                        if norm_key not in seen_names:
+                            seen_names.add(norm_key)
                             sz = round(os.path.getsize(full) / 1024, 1)
                             mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(full)))
                             ftype = "Power BI Desktop (.pbix)" if lower.endswith(".pbix") else ("Power BI Project (.pbip)" if lower.endswith(".pbip") else "Power BI Template (.pbit)")
                             meta = _inspect_pbix_metadata(full)
                             details = f"Pages: {', '.join(meta['pages'])}" if meta.get("pages") else ""
                             found.append({
-                                "name": f,
+                                "name": clean_name if clean_name.endswith((".pbix", ".pbip", ".pbit")) else f,
                                 "path": full,
                                 "size_kb": sz,
                                 "modified": mtime,
