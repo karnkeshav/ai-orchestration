@@ -427,6 +427,27 @@ def query_gcp_all_resources(project_id=None):
     except Exception as e:
         return f"GCP Resource Inventory Error: {str(e)}"
 
+def query_gcp_storage(project_id=None):
+    """Cloud Storage bucket names, same list-of-strings shape as
+    query_aws_s3/query_oci_buckets so it slots into the existing storage_fn
+    rendering path unchanged."""
+    try:
+        import httpx
+        token, project = _get_gcp_token_and_project(project_id)
+        if not token:
+            return "GCP Storage Error: No valid credentials found for GCP."
+        r = httpx.get(
+            "https://storage.googleapis.com/storage/v1/b",
+            headers={"Authorization": f"Bearer {token}", "X-Goog-User-Project": project},
+            params={"project": project},
+            timeout=10.0
+        )
+        if r.status_code != 200:
+            return f"GCP Storage Error: HTTP {r.status_code} - {r.text[:200]}"
+        return [b["name"] for b in r.json().get("items", [])]
+    except Exception as e:
+        return f"GCP Storage Error: {str(e)}"
+
 def query_azure_vms():
     try:
         # AzureCliCredential (not DefaultAzureCredential) -- the latter's full
@@ -463,6 +484,24 @@ def query_azure_vms():
         return results
     except Exception as e:
         return f"Azure Query Status: {str(e)}"
+
+def query_azure_storage():
+    """Storage account names, same list-of-strings shape as
+    query_aws_s3/query_oci_buckets so it slots into the existing storage_fn
+    rendering path unchanged. Lists accounts, not per-account blob
+    containers -- matches the granularity AWS S3/OCI buckets are listed at."""
+    try:
+        # See query_azure_vms above for why AzureCliCredential over DefaultAzureCredential.
+        from azure.identity import AzureCliCredential
+        from azure.mgmt.storage import StorageManagementClient
+        cred = AzureCliCredential()
+        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
+        if not sub_id:
+            return "Azure storage query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
+        client = StorageManagementClient(cred, sub_id)
+        return [acct.name for acct in client.storage_accounts.list()]
+    except Exception as e:
+        return f"Azure Storage Error: {str(e)}"
 
 # --- Managed / serverless "services" queries (ECS/Lambda, OCI Functions/OKE,
 # Azure App Service/Functions, GCP Cloud Run/Cloud Functions) -------------
@@ -1012,14 +1051,14 @@ def _gemini_tool_declarations():
         ),
         types.FunctionDeclaration(
             name="query_storage",
-            description="List storage buckets on a cloud provider (only aws and oci currently support this).",
+            description="List storage on a cloud provider: S3 buckets (aws), Object Storage buckets (oci), Storage Accounts (azure), or Cloud Storage buckets (gcp).",
             parameters=types.Schema(type="OBJECT", properties={
                 "provider": types.Schema(type="STRING", description=provider_desc),
             }, required=["provider"]),
         ),
         types.FunctionDeclaration(
             name="query_cost",
-            description="Get current month-to-date billing/cost for a cloud provider (aws, oci, azure support this; gcp does not).",
+            description="Get current month-to-date billing/cost for a cloud provider (aws, oci, azure, gcp all support this).",
             parameters=types.Schema(type="OBJECT", properties={
                 "provider": types.Schema(type="STRING", description=provider_desc),
             }, required=["provider"]),
@@ -1314,7 +1353,7 @@ _GEMINI_COMPUTE_FMT = {
     "azure": lambda i: f"**{i['name']}**: Size `{i['size']}`, Region `{i['location']}`, State `{i['state']}`",
     "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
 }
-_GEMINI_STORAGE_FN = {"aws": query_aws_s3, "oci": query_oci_buckets}
+_GEMINI_STORAGE_FN = {"aws": query_aws_s3, "oci": query_oci_buckets, "azure": query_azure_storage, "gcp": query_gcp_storage}
 _GEMINI_COST_FN = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost, "gcp": query_gcp_cost}
 _GEMINI_SERVICES_FN = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 _GEMINI_ALL_RESOURCES_FN = {"aws": query_aws_all_resources, "oci": query_oci_all_resources, "azure": query_azure_all_resources, "gcp": query_gcp_all_resources}
@@ -3042,7 +3081,7 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
         "azure": lambda i: f"**{i['name']}**: Size `{i['size']}`, Region `{i['location']}`, State `{i['state']}`",
         "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
     }
-    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
+    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets, "azure": query_azure_storage, "gcp": query_gcp_storage}
     cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost, "gcp": query_gcp_cost}
     services_fn = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 
@@ -3273,7 +3312,7 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
         tasks[task_id]["deliverable"] = {"type": "info", "title": f"💰 Multi-Cloud Spend: ${total_usd:.2f} USD", "url": "#"}
 
     elif wants_storage:
-        target = providers if providers else ["aws", "oci"]
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
         
         async def _run_storage(p):
@@ -3750,7 +3789,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
         "azure": lambda i: f"**{i['name']}**: Size `{i['size']}`, Region `{i['location']}`, State `{i['state']}`",
         "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
     }
-    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
+    storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets, "azure": query_azure_storage, "gcp": query_gcp_storage}
     cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost, "gcp": query_gcp_cost}
     services_fn = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 
@@ -3938,7 +3977,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
 
     # 2. Storage queries
     elif wants_storage and not wants_compute:
-        target = providers if providers else ["aws", "oci"]
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 📦 Querying storage on: {', '.join(p.upper() for p in target)}...")
         
         async def _run_storage_m(p):
