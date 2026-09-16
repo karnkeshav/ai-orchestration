@@ -316,10 +316,18 @@ def query_gcp_instances(project_id=None):
 
 def query_azure_vms():
     try:
-        from azure.identity import DefaultAzureCredential
+        # AzureCliCredential (not DefaultAzureCredential) -- the latter's full
+        # provider chain (env vars, managed identity, shared token cache, ...)
+        # was observed taking 10+ seconds to resolve on this OCI VM, since
+        # ManagedIdentityCredential probes an Azure-only IMDS endpoint that
+        # doesn't exist here before falling through. Going straight to the
+        # CLI credential skips that and uses the owner's own `az login`
+        # session directly -- read-only query, no bearing on agy's separate
+        # create/delete path (which already has its own guardrails).
+        from azure.identity import AzureCliCredential
         from azure.mgmt.compute import ComputeManagementClient
         from azure.mgmt.subscription import SubscriptionClient
-        cred = DefaultAzureCredential()
+        cred = AzureCliCredential()
         sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
         if not sub_id:
             try:
@@ -384,9 +392,10 @@ def query_oci_services():
 
 def query_azure_services():
     try:
-        from azure.identity import DefaultAzureCredential
+        # See query_azure_vms above for why AzureCliCredential over DefaultAzureCredential.
+        from azure.identity import AzureCliCredential
         from azure.mgmt.web import WebSiteManagementClient
-        cred = DefaultAzureCredential()
+        cred = AzureCliCredential()
         sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
         if not sub_id:
             return "Azure services query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
@@ -534,9 +543,10 @@ def query_oci_cost():
 
 def query_azure_cost():
     try:
-        from azure.identity import DefaultAzureCredential
+        # See query_azure_vms above for why AzureCliCredential over DefaultAzureCredential.
+        from azure.identity import AzureCliCredential
         from azure.mgmt.costmanagement import CostManagementClient
-        cred = DefaultAzureCredential()
+        cred = AzureCliCredential()
         sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
         if not sub_id:
             return "Azure cost query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
@@ -564,7 +574,7 @@ def query_azure_cost():
         if "AuthorizationFailed" in msg or "403" in msg:
             return ("Azure Cost Error: Access denied. Assign the 'Cost Management Reader' (or 'Billing Reader') "
                     "role on this subscription to the signed-in identity and retry.")
-        if "DefaultAzureCredential failed" in msg or "InteractiveBrowserCredential" in msg:
+        if "DefaultAzureCredential failed" in msg or "InteractiveBrowserCredential" in msg or "AzureCliCredential" in msg or "CredentialUnavailableError" in msg:
             return "Azure Cost Error: No Azure credentials found. Run `az login` and retry."
         return f"Azure Cost Error: {msg}"
 
@@ -730,10 +740,11 @@ def _fetch_oci_pdf_bytes():
     return obj.data.content
 
 def _fetch_azure_pdf_bytes():
-    from azure.identity import DefaultAzureCredential
+    # See query_azure_vms above for why AzureCliCredential over DefaultAzureCredential.
+    from azure.identity import AzureCliCredential
     from azure.mgmt.storage import StorageManagementClient
     from azure.storage.blob import BlobServiceClient
-    cred = DefaultAzureCredential()
+    cred = AzureCliCredential()
     sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
     mgmt = StorageManagementClient(cred, sub_id)
     # Account/resource-group names match this project's fixed demo storage
