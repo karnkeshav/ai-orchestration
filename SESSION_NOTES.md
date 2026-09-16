@@ -417,3 +417,51 @@ All of the above is applied and verified **only on the local laptop copy** (`C:\
 ### Relationship to Outstanding Next Steps item 7 (brittle keyword routing)
 
 This session's fix directly patches the specific example named in that item ("how many resources are there on gcp" / the Azure equivalent that triggered this session). It does not replace keyword routing with semantic routing — it adds one more well-scoped keyword-triggered branch (`wants_all_resources`) ahead of the branch that was mis-catching it. The broader architectural concern in item 7 (keyword fast-paths can still misroute *other* phrasings the Gemini tier doesn't catch first) remains open.
+
+### UPDATE (later same session): status above is now stale — deployed to production, two more real bugs found and fixed, remaining provider gap closed
+
+The "Status: NOT deployed" section above was accurate at the time it was written but has since been superseded. Recorded here rather than edited in place so the investigation trail stays intact.
+
+#### Live test after first deploy attempt failed — `wants_all_resources` still didn't fire for the user's actual phrasing
+
+User's literal test prompt against the live chatbox, "list all my Azure resources", still returned only the narrow VM+services answer. Root cause: two remaining gaps.
+
+1. **Keyword list required adjacent substrings.** `"all resource"`, `"list resource"` etc. never match real phrasing like "list all **my** Azure resources" — the scope word and "resource" are rarely adjacent. Fixed by splitting into two independent substring checks (`_has_resource_word` + `_has_scope_word`, both present anywhere in the prompt) instead of one combined phrase, in both `try_instant_cloud_query` and `run_mission_pipeline`. Kept a handful of literal standalone phrases ("everything i have", "what do i have") as a second OR-branch since those don't say "resource" at all.
+2. **The Gemini semantic router (tier 3, restored earlier this session) didn't know the new capability existed.** Since the prompt missed the keyword fast-path, it fell through to Gemini, which had no `query_all_resources` tool declaration and picked the two closest tools it did know (`query_compute` + `query_services`) — explaining the exact wrong output the user saw. Added `query_all_resources` to `_gemini_tool_declarations()`, a new `_gemini_exec_query_all_resources()` executor mirroring `_gemini_exec_query_services()`, `_GEMINI_ALL_RESOURCES_FN`, and a `_GEMINI_DISPATCH` entry.
+
+Re-verified live: `"list all my azure resources"` now returns the full 43-resource table via the keyword fast-path alone (no LLM round trip needed), confirmed against the live production `/api/execute` endpoint, not just locally.
+
+#### Deploying to the OCI VM surfaced a second incident: 89 lines of never-committed local edits sitting on the VM
+
+`git pull` on the VM failed with "local changes would be overwritten." Investigation (not blind stash/discard — read the full diff first) found the VM's working tree had uncommitted edits that were byte-for-byte the same content as what this session's earlier `6adc451`/`35b6b0a` commits already contain upstream. Explanation: those two commits' fixes were originally applied to the VM by live-editing over SSH (per this file's own earlier "Deployed to production via SSH — run by the user" notes) but were never `git commit`ed there — the VM's git history stayed frozen at `6b8e374` while its working tree silently drifted ahead.
+
+Resolution, verified safe at each step before acting:
+1. `git stash push -- server.py` (preserve, don't discard)
+2. `git pull` — fast-forwarded cleanly to `b98de21` (which already contains the same fixes via a different commit path)
+3. `git apply --check --reverse` against the stash confirmed it was now **byte-identical / fully redundant** with the post-pull file before touching it further
+4. `git stash drop` was attempted but blocked by Claude Code's classifier ("Irreversible Local Destruction") — left in the stash list, harmless, for the user to drop later if they want (`git stash drop` on the VM)
+
+**Lesson for future sessions**: when applying a fix directly to the VM via live SSH edits (as this file's guardrail section says is sometimes the only option, since Claude Code's own tools are blocked from mutating SSH there), also `git commit` it on the VM immediately afterward — otherwise the next `git pull` from a properly-committed laptop change will conflict, even when the two sides agree.
+
+#### Third gap found via a full manual audit of every provider dict, at the user's request ("are there any other queries or execution related to cloud which we are missing")
+
+Manually checked every `*_fn` dict (`compute_fn`, `services_fn`, `cost_fn`, `storage_fn`, the new `resource_fn`) in both pipelines plus the Gemini tool catalog for missing provider entries. Found one real remaining gap: `storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}` — no Azure or GCP entry, so a dedicated "list my Azure storage accounts" / "GCP buckets" query replied "not implemented" (a graceful degradation, not a wrong-answer bug like the earlier ones, since nothing else caught it as a false positive).
+
+Fixed:
+- Added `query_azure_storage()` (`StorageManagementClient.storage_accounts.list()`)
+- Added `query_gcp_storage()` (Cloud Storage JSON API `GET /storage/v1/b`, same `X-Goog-User-Project` quota-project fix as the resource-inventory function)
+- Wired both into `storage_fn` (both pipelines), `_GEMINI_STORAGE_FN`, and widened the default no-provider-named target list from `["aws", "oci"]` to all 4
+- Fixed two stale Gemini tool-declaration descriptions that could have misled the router: `query_storage`'s said only aws/oci were supported (no longer true), and `query_cost`'s said gcp wasn't supported (was never actually true — `query_gcp_cost` has worked all session)
+
+After this fix, a manual re-check of all five provider dicts confirmed every one has all 4 clouds present. Cloud query/execution coverage (compute, services, cost, storage, full-resource-inventory — everything except create/delete, which is intentionally `agy`'s job, not `server.py`'s) is now symmetric across AWS/OCI/Azure/GCP.
+
+#### Final deployment status: LIVE on production
+
+Three commits landed on `origin/main` and were each pulled + compiled + service-restarted + health-checked on the OCI VM this session:
+- `f86eb43` — full multi-cloud resource inventory (`query_*_all_resources`, `wants_all_resources` routing)
+- `b98de21` — Gemini `query_all_resources` tool + broadened keyword matching (the fix for the "still going in circles after first deploy" report above)
+- `9fa8e46` — Azure/GCP storage listing, closing the last provider gap
+
+All three verified against the live production `/api/execute` endpoint (not just locally) with real multi-second response times and real account data, not simulated. `git status` on the VM is clean at `9fa8e46` except for the one harmless, confirmed-redundant stash entry noted above.
+
+Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) further: two more concrete misses in that category were found and patched this round (adjacent-substring keyword matching, and an LLM router tier not knowing about a newly-added tool). The general architectural concern — new capabilities need to be registered in *both* the keyword fast-path *and* the LLM tool catalog, and it's easy to add one and forget the other, as happened here — remains a standing risk for whoever adds the next new query type.
