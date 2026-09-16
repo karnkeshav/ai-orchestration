@@ -230,7 +230,13 @@ def list_sharepoint_csvs(site_query: str, folder_path: Optional[str] = None, on_
 # Power BI Reports & PBIX Audit
 # --------------------------------------------------------------------------
 
+_pbi_token_cache: Dict[str, Any] = {"token": None, "expires_at": 0.0}
+
 def _powerbi_service_token() -> Optional[str]:
+    now = time.monotonic()
+    if _pbi_token_cache["token"] and now < _pbi_token_cache["expires_at"]:
+        return _pbi_token_cache["token"]
+
     tenant = os.environ.get("MS_TENANT_ID")
     client_id = os.environ.get("MS_CLIENT_ID")
     client_secret = os.environ.get("MS_CLIENT_SECRET")
@@ -244,7 +250,11 @@ def _powerbi_service_token() -> Optional[str]:
             client_credential=client_secret,
         )
         res = app.acquire_token_for_client(scopes=["https://analysis.windows.net/powerbi/api/.default"])
-        return res.get("access_token")
+        token = res.get("access_token")
+        if token:
+            _pbi_token_cache["token"] = token
+            _pbi_token_cache["expires_at"] = now + max(int(res.get("expires_in", 3600)) - 60, 60)
+        return token
     except Exception:
         return None
 
@@ -253,7 +263,7 @@ _pbi_summary_cache: Dict[str, Any] = {"expires_at": 0.0, "result": ""}
 _PBI_SUMMARY_CACHE_TTL = 120.0  # 2 minutes
 
 
-def _fetch_pbi_endpoint(url: str, token: str, timeout: float = 4.0) -> list:
+def _fetch_pbi_endpoint(url: str, token: str, timeout: float = 2.5) -> list:
     try:
         r = httpx.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=timeout)
         if r.status_code == 200:
