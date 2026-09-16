@@ -378,21 +378,27 @@ def list_sharepoint_powerbi_files() -> List[dict]:
             pass
         return res
 
-    with ThreadPoolExecutor(max_workers=4) as pool:
+    with ThreadPoolExecutor(max_workers=8) as pool:
         f_root = pool.submit(_search_drive_pbix, f"{GRAPH_BASE}/sites/root/drive/root/search(q='pbix')", "SharePoint (Root Site)", "Root")
         
-        # Also check all sites found in tenant
+        # Parallel search of all tenant sites
         def _search_tenant_sites():
             res = []
             try:
-                sites_data = _graph_get(f"{GRAPH_BASE}/sites?search=*", token, timeout=6.0)
+                sites_data = _graph_get(f"{GRAPH_BASE}/sites?search=*", token, timeout=4.0)
+                drive_futs = []
                 for s in sites_data.get("value", []):
                     sid = s.get("id")
                     sname = s.get("displayName") or s.get("name") or "SharePoint"
-                    drives = _graph_get(f"{GRAPH_BASE}/sites/{sid}/drives", token, timeout=4.0).get("value", [])
-                    for d in drives:
-                        did = d.get("id")
-                        res.extend(_search_drive_pbix(f"{GRAPH_BASE}/drives/{did}/root/search(q='pbix')", f"SharePoint ({sname})", sname))
+                    try:
+                        drives = _graph_get(f"{GRAPH_BASE}/sites/{sid}/drives", token, timeout=3.0).get("value", [])
+                        for d in drives:
+                            did = d.get("id")
+                            drive_futs.append(pool.submit(_search_drive_pbix, f"{GRAPH_BASE}/drives/{did}/root/search(q='pbix')", f"SharePoint ({sname})", sname))
+                    except Exception:
+                        pass
+                for df in as_completed(drive_futs):
+                    res.extend(df.result())
             except Exception:
                 pass
             return res
