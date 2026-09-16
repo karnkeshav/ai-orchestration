@@ -3106,8 +3106,10 @@
         activePollToken = pollToken;
         let sinceIdx = 0;
         let failedAttempts = 0;
+        let pollCount = 0;
 
         const poll = async () => {
+          pollCount++;
           const isActive = pollToken === activePollToken;
           let resPayload;
           try {
@@ -3117,7 +3119,7 @@
             failedAttempts = 0;
           } catch (err) {
             failedAttempts++;
-            if (failedAttempts < 4) { setTimeout(poll, 1200); return; }
+            if (failedAttempts < 4) { setTimeout(poll, 800); return; }
             if (!isActive) return;
             statusText.innerText = "⚠️ Lost connection to backend — task may still be running.";
             statusText.style.color = "var(--accent-rose)";
@@ -3232,7 +3234,9 @@
             return;
           }
           if (resPayload.status === "NOT_FOUND") return;
-          setTimeout(poll, 1200);
+          // Adaptive polling: fast response for instant tasks (150ms -> 350ms -> 600ms -> 1000ms max)
+          const nextDelay = pollCount <= 1 ? 150 : (pollCount <= 3 ? 350 : (pollCount <= 6 ? 600 : 1000));
+          setTimeout(poll, nextDelay);
         };
         poll();
       } catch (err) {

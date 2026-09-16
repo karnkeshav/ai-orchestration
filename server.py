@@ -4167,12 +4167,22 @@ class AgyWarmPool:
 _agy_session = AgyWarmPool(AGY_POOL_SIZE)
 
 @app.on_event("startup")
-async def _start_agy_reaper():
-    async def _loop():
+async def _on_startup_background_tasks():
+    # 1. Reaper loop for warm session management
+    async def _reaper_loop():
         while True:
             await asyncio.sleep(WARM_REAP_INTERVAL_SECONDS)
             await _agy_session.reap_if_idle()
-    asyncio.create_task(_loop())
+    asyncio.create_task(_reaper_loop())
+
+    # 2. Asynchronously warm up PowerBI & SharePoint cache so first query hits RAM
+    async def _warm_pbi_cache():
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, powerbi_engine.list_powerbi_reports_summary)
+        except Exception:
+            pass
+    asyncio.create_task(_warm_pbi_cache())
 
 async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en"):
     """Hands the raw directive to the Antigravity CLI agent (agy) running in a
