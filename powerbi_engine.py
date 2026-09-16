@@ -378,25 +378,28 @@ def list_sharepoint_powerbi_files() -> List[dict]:
             pass
         return res
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        f_root = pool.submit(_search_drive_pbix, f"{GRAPH_BASE}/sites/root/drive/root/search(q='.pbix')", "SharePoint (Root Site)", "Root")
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_root = pool.submit(_search_drive_pbix, f"{GRAPH_BASE}/sites/root/drive/root/search(q='pbix')", "SharePoint (Root Site)", "Root")
         
-        # Also check Landmark site
-        def _search_landmark():
+        # Also check all sites found in tenant
+        def _search_tenant_sites():
             res = []
             try:
-                sites_data = _graph_get(f"{GRAPH_BASE}/sites", token, params={"search": "landmark"}, timeout=5.0)
+                sites_data = _graph_get(f"{GRAPH_BASE}/sites?search=*", token, timeout=6.0)
                 for s in sites_data.get("value", []):
                     sid = s.get("id")
-                    sname = s.get("displayName") or s.get("name") or "Landmark"
-                    res.extend(_search_drive_pbix(f"{GRAPH_BASE}/sites/{sid}/drive/root/search(q='.pbix')", f"SharePoint ({sname})", sname))
+                    sname = s.get("displayName") or s.get("name") or "SharePoint"
+                    drives = _graph_get(f"{GRAPH_BASE}/sites/{sid}/drives", token, timeout=4.0).get("value", [])
+                    for d in drives:
+                        did = d.get("id")
+                        res.extend(_search_drive_pbix(f"{GRAPH_BASE}/drives/{did}/root/search(q='pbix')", f"SharePoint ({sname})", sname))
             except Exception:
                 pass
             return res
 
-        f_landmark = pool.submit(_search_landmark)
+        f_tenant = pool.submit(_search_tenant_sites)
 
-        for item in f_root.result() + f_landmark.result():
+        for item in f_root.result() + f_tenant.result():
             if item["id"] not in seen_ids:
                 seen_ids.add(item["id"])
                 found.append(item)
@@ -404,9 +407,27 @@ def list_sharepoint_powerbi_files() -> List[dict]:
     return found
 
 
+def _inspect_pbix_metadata(file_path: str) -> dict:
+    meta = {"pages": []}
+    try:
+        if file_path.lower().endswith(".pbix") and os.path.exists(file_path):
+            with zipfile.ZipFile(file_path, "r") as z:
+                if "Report/Layout" in z.namelist():
+                    raw = z.read("Report/Layout").decode("utf-16le", errors="ignore")
+                    layout = json.loads(raw)
+                    meta["pages"] = [s.get("displayName") for s in layout.get("sections", []) if s.get("displayName")]
+    except Exception:
+        pass
+    return meta
+
+
 def list_local_and_onedrive_powerbi_files() -> List[dict]:
     repo_dir = os.path.dirname(os.path.abspath(__file__))
     search_dirs = [
+        os.path.join(repo_dir, "powerbi"),
+        os.path.join(repo_dir, "generated_dashboards"),
+        "/home/ubuntu/ai-orchestration/powerbi",
+        "/home/ubuntu/powerbi",
         "/mnt/c/Users/keysh/OneDrive/Documents/powerbi",
         "/mnt/c/Users/keysh/Documents/powerbi",
         "/mnt/c/Users/keysh/Documents/landmark/powerbi",
@@ -420,13 +441,11 @@ def list_local_and_onedrive_powerbi_files() -> List[dict]:
         r"C:\Users\keysh\OneDrive\Documents",
         r"C:\Users\keysh\Desktop",
         r"C:\Users\keysh\Downloads",
-        os.path.join(repo_dir, "generated_dashboards"),
-        "/home/ubuntu/powerbi",
         "/home/ubuntu/ai-orchestration/generated_dashboards",
     ]
 
     found = []
-    seen_paths = set()
+    seen_names = set()
 
     for base in search_dirs:
         if not os.path.exists(base):
@@ -440,18 +459,20 @@ def list_local_and_onedrive_powerbi_files() -> List[dict]:
                     lower = f.lower()
                     if lower.endswith((".pbix", ".pbip", ".pbit")):
                         full = os.path.join(root, f)
-                        norm = os.path.normcase(os.path.abspath(full))
-                        if norm not in seen_paths:
-                            seen_paths.add(norm)
+                        if f not in seen_names:
+                            seen_names.add(f)
                             sz = round(os.path.getsize(full) / 1024, 1)
                             mtime = time.strftime("%Y-%m-%d %H:%M", time.localtime(os.path.getmtime(full)))
                             ftype = "Power BI Desktop (.pbix)" if lower.endswith(".pbix") else ("Power BI Project (.pbip)" if lower.endswith(".pbip") else "Power BI Template (.pbit)")
+                            meta = _inspect_pbix_metadata(full)
+                            details = f"Pages: {', '.join(meta['pages'])}" if meta.get("pages") else ""
                             found.append({
                                 "name": f,
                                 "path": full,
                                 "size_kb": sz,
                                 "modified": mtime,
                                 "type": ftype,
+                                "details": details,
                                 "source": "Local / OneDrive"
                             })
         except Exception:
@@ -491,7 +512,8 @@ def list_powerbi_reports_summary() -> str:
     if local_files:
         lines.append("### 📁 Local & OneDrive Synced Power BI Files")
         for f in local_files:
-            lines.append(f"• **`{f['name']}`** ({f['size_kb']} KB) — `{f['path']}` *(Last modified: {f['modified']})*")
+            detail_str = f" *({f['details']})*" if f.get("details") else ""
+            lines.append(f"• **`{f['name']}`** ({f['size_kb']} KB){detail_str} — `{f['path']}` *(Last modified: {f['modified']})*")
         lines.append("")
 
     if sharepoint_files:
