@@ -22,6 +22,7 @@ scipy
 tabulate
 Pillow
 azure-mgmt-web
+azure-mgmt-resource
 google-cloud-run
 google-cloud-functions
 google-genai

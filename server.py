@@ -208,6 +208,42 @@ def query_aws_s3():
     except Exception as e:
         return f"S3 Error: {str(e)}"
 
+def query_aws_all_resources():
+    """Full-account inventory via the Resource Groups Tagging API -- the
+    only AWS API that returns arbitrary resource types in one call without
+    standing up Config/an aggregator. Same single-region convention as
+    query_aws_ec2 above (only really complete for us-east-1 resources); it
+    also only surfaces resources that are or were ever tagged, which is the
+    API's own limitation, not something this function can work around."""
+    try:
+        import boto3
+        client = boto3.client("resourcegroupstaggingapi", region_name="us-east-1")
+        results = []
+        token = None
+        while True:
+            kwargs = {"ResourcesPerPage": 100}
+            if token:
+                kwargs["PaginationToken"] = token
+            resp = client.get_resources(**kwargs)
+            for r in resp.get("ResourceTagMappingList", []):
+                arn = r.get("ResourceARN", "")
+                parts = arn.split(":")
+                service = parts[2] if len(parts) > 2 else "N/A"
+                resource_part = parts[5] if len(parts) > 5 else "N/A"
+                res_type, _, name = resource_part.partition("/")
+                results.append({
+                    "name": name or resource_part,
+                    "type": f"{service}:{res_type}" if name else service,
+                    "region": parts[3] if len(parts) > 3 and parts[3] else "global",
+                    "arn": arn,
+                })
+            token = resp.get("PaginationToken")
+            if not token:
+                break
+        return results
+    except Exception as e:
+        return f"AWS Resource Inventory Error: {str(e)}"
+
 def query_oci_instances():
     try:
         import oci
@@ -249,6 +285,36 @@ def query_oci_buckets():
         return [b.name for b in buckets]
     except Exception as e:
         return f"OCI Storage Error: {str(e)}"
+
+def query_oci_all_resources():
+    """Full-tenancy inventory via the Resource Search service -- OCI's
+    equivalent of AWS Resource Groups Tagging API / Azure Resource Manager:
+    one call across every compartment the caller can see, no per-service
+    client needed."""
+    try:
+        import oci
+        config = oci.config.from_file()
+        search_client = oci.resource_search.ResourceSearchClient(config)
+        details = oci.resource_search.models.StructuredSearchDetails(
+            query="query all resources", matching_context_type="NONE"
+        )
+        results = []
+        page = None
+        while True:
+            resp = search_client.search_resources(details, page=page) if page else search_client.search_resources(details)
+            for item in resp.data.items:
+                results.append({
+                    "name": item.display_name or item.identifier,
+                    "type": item.resource_type,
+                    "region": item.availability_domain or "N/A",
+                    "compartment_id": item.compartment_id,
+                })
+            page = resp.headers.get("opc-next-page")
+            if not page:
+                break
+        return results
+    except Exception as e:
+        return f"OCI Resource Inventory Error: {str(e)}"
 
 def _get_gcp_token_and_project(project_id=None):
     import os, json
@@ -313,6 +379,53 @@ def query_gcp_instances(project_id=None):
         return results
     except Exception as e:
         return f"GCP Query Status: {str(e)}"
+
+def query_gcp_all_resources(project_id=None):
+    """Full-project inventory via Cloud Asset Inventory's searchAllResources
+    -- same one-call-across-every-service shape as the AWS/OCI/Azure
+    inventory fns above. Requires the Cloud Asset API enabled on the project
+    and the caller holding roles/cloudasset.viewer (or broader); surfaces as
+    a normal error string here if either isn't set up, same as the other
+    query_gcp_* fns already do for their own API dependencies."""
+    try:
+        import httpx
+        token, project = _get_gcp_token_and_project(project_id)
+        if not token:
+            return "GCP Query Status: No valid credentials found for GCP."
+
+        results = []
+        page_token = None
+        while True:
+            params = {"pageSize": 500}
+            if page_token:
+                params["pageToken"] = page_token
+            r = httpx.get(
+                f"https://cloudasset.googleapis.com/v1/projects/{project}:searchAllResources",
+                # Local user ADC has no quota project set by default, which
+                # sends unrelated-project quota/billing checks to Google's
+                # own fallback project instead of ours -- pin it explicitly
+                # so this doesn't depend on `gcloud auth application-default
+                # set-quota-project` having been run wherever this executes.
+                headers={"Authorization": f"Bearer {token}", "X-Goog-User-Project": project},
+                params=params,
+                timeout=10.0
+            )
+            if r.status_code != 200:
+                return f"GCP Resource Inventory Error: HTTP {r.status_code} - {r.text[:300]}"
+            data = r.json()
+            for res in data.get("results", []):
+                results.append({
+                    "name": res.get("displayName") or res.get("name", "").split("/")[-1],
+                    "type": res.get("assetType", "N/A").split("/")[-1],
+                    "location": res.get("location", "N/A"),
+                    "project": project,
+                })
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+        return results
+    except Exception as e:
+        return f"GCP Resource Inventory Error: {str(e)}"
 
 def query_azure_vms():
     try:
@@ -408,6 +521,47 @@ def query_azure_services():
         return results
     except Exception as e:
         return f"Azure Services Error: {str(e)}"
+
+def query_azure_all_resources():
+    """Full Resource Manager inventory (every resource type in the
+    subscription), not just VMs/App Service. Backs a generic 'list all my
+    Azure resources' query -- the earlier azure fns only covered narrow
+    resource types, so that kind of prompt had no matching handler and fell
+    through to the LLM routing path with nothing to actually call."""
+    try:
+        # See query_azure_vms above for why AzureCliCredential over DefaultAzureCredential.
+        from azure.identity import AzureCliCredential
+        # azure-mgmt-resource >=23 stopped re-exporting this from the
+        # top-level azure.mgmt.resource package -- import from the submodule
+        # directly so this doesn't depend on the installed version's re-export.
+        from azure.mgmt.resource.resources import ResourceManagementClient
+        cred = AzureCliCredential()
+        sub_id = os.environ.get("AZURE_SUBSCRIPTION_ID", "2cfd3004-9c52-42d0-ad18-4c46057c4ffa")
+        if not sub_id:
+            return "Azure query ready (Set AZURE_SUBSCRIPTION_ID or run az login to authenticate)."
+        client = ResourceManagementClient(cred, sub_id)
+        results = []
+        for res in client.resources.list():
+            rg = "N/A"
+            if res.id:
+                m = re.search(r"/resourceGroups/([^/]+)/", res.id, re.IGNORECASE)
+                if m: rg = m.group(1)
+            results.append({
+                "name": res.name,
+                "type": res.type,
+                "location": res.location or "N/A",
+                "resource_group": rg,
+            })
+        for rg in client.resource_groups.list():
+            results.append({
+                "name": rg.name,
+                "type": "Microsoft.Resources/resourceGroups",
+                "location": rg.location or "N/A",
+                "resource_group": rg.name,
+            })
+        return results
+    except Exception as e:
+        return f"Azure Resource Inventory Error: {str(e)}"
 
 def query_gcp_services():
     try:
@@ -2815,8 +2969,13 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
     wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
     wants_services = ("service" in prompt_lower) and not wants_compute
+    wants_all_resources = any(k in prompt_lower for k in (
+        "all resource", "every resource", "list resource", "list my resource",
+        "what resource", "resource inventory", "everything i have", "everything i've",
+        "what do i have", "what have i created", "resource manager",
+    )) and not (wants_cost or wants_storage or wants_compute or wants_services)
 
-    if not (wants_cost or wants_storage or wants_compute or wants_services):
+    if not (wants_cost or wants_storage or wants_compute or wants_services or wants_all_resources):
         return False
 
     loop = asyncio.get_event_loop()
@@ -2840,7 +2999,54 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     tasks[task_id]["logs"].append("[00:01] 🏎️ Recognized instant query — answering directly, no agent needed...")
 
-    if wants_services:
+    resource_fn = {
+        "azure": query_azure_all_resources,
+        "aws": query_aws_all_resources,
+        "oci": query_oci_all_resources,
+        "gcp": query_gcp_all_resources,
+    }
+
+    if wants_all_resources:
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🗂️ Querying full resource inventory on: {', '.join(p.upper() for p in target)}...")
+
+        async def _run_all_resources(p):
+            if p not in resource_fn:
+                return p, f"Full resource inventory not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, resource_fn[p]), timeout=15.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Resource inventory query on {p.upper()} timed out after 15s"
+            except Exception as e:
+                return p, f"Resource inventory error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_all_resources(p) for p in target])
+        rows, errors = [], []
+        for p, result in fetched:
+            if isinstance(result, list):
+                for res in result:
+                    # Field names differ per provider (resource_group / compartment_id /
+                    # project / region) -- normalize to a single "scope" column.
+                    scope = res.get("resource_group") or res.get("compartment_id") or res.get("project") or res.get("region") or "N/A"
+                    location = res.get("location") or res.get("region") or "N/A"
+                    rows.append((p.upper(), res["type"], res["name"], scope, location))
+            else:
+                errors.append(f"{icons.get(p, '☁️')} **{p.upper()}:** {result}")
+        if rows:
+            table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n"
+            table += "\n".join(f"| {p} | {t} | {n} | {rg} | {loc} |" for p, t, n, rg, loc in rows)
+            answer = f"🗂️ **Full Resource Inventory ({len(rows)} found):**\n\n{table}"
+            if errors:
+                answer += "\n\n" + "\n".join(errors)
+        elif errors:
+            answer = "🗂️ **Full Resource Inventory:**\n\n" + "\n".join(errors)
+        else:
+            answer = f"No resources found on {', '.join(p.upper() for p in target)}."
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"🗂️ Resource Inventory: {len(rows)} Found", "url": "#"}
+
+    elif wants_services:
         target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
         
@@ -3449,6 +3655,15 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
     wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
     wants_services = ("service" in prompt_lower) and not wants_compute
+    # Checked ahead of the bare "providers" fallback in the compute branch
+    # below -- without this, a prompt that just names a provider (e.g. "list
+    # all resources of azure") fell into "elif wants_compute or providers"
+    # and silently returned only VMs, no matter what was actually asked.
+    wants_all_resources = any(k in prompt_lower for k in (
+        "all resource", "every resource", "list resource", "list my resource",
+        "what resource", "resource inventory", "everything i have", "everything i've",
+        "what do i have", "what have i created", "resource manager",
+    )) and not (wants_cost or wants_storage or wants_compute or wants_services)
     # Real citation lookup against the O'Reilly Cloud FinOps PDF (uploaded to
     # all four clouds' storage). Checked ahead of the GCP/Azure showcase
     # panels below so a genuine "recommend/best practice" question gets a
@@ -3470,7 +3685,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
         "gcp": lambda i: f"**{i['name']}**: Machine `{i['type']}`, Zone `{i['zone']}`, State `{i['state']}`",
     }
     storage_fn = {"aws": query_aws_s3, "oci": query_oci_buckets}
-    cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost}
+    cost_fn = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_azure_cost, "gcp": query_gcp_cost}
     services_fn = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 
     # 0. Cloud FinOps guide citation — takes priority over the showcase
@@ -3534,11 +3749,62 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
         tasks[task_id]["logs"].append("[00:04] 💎 Mission complete! Execution finished.")
         tasks[task_id]["status"] = "COMPLETED"
         return
+
+    resource_fn = {
+        "azure": query_azure_all_resources,
+        "aws": query_aws_all_resources,
+        "oci": query_oci_all_resources,
+        "gcp": query_gcp_all_resources,
+    }
+
+    # 0.9 Full resource inventory (every resource type, not just VMs) —
+    # checked before the services/cost/storage/compute branches below so a
+    # generic "list all my resources" doesn't get swallowed by "elif
+    # wants_compute or providers", which used to match on the provider name
+    # alone and silently return VMs only.
+    if wants_all_resources:
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
+        tasks[task_id]["logs"].append(f"[00:01] 🗂️ Querying full resource inventory on: {', '.join(p.upper() for p in target)}...")
+
+        async def _run_all_resources_m(p):
+            if p not in resource_fn:
+                return p, f"Full resource inventory not implemented for {p.upper()} yet."
+            try:
+                res = await asyncio.wait_for(loop.run_in_executor(None, resource_fn[p]), timeout=15.0)
+                return p, res
+            except asyncio.TimeoutError:
+                return p, f"Resource inventory query on {p.upper()} timed out after 15s"
+            except Exception as e:
+                return p, f"Resource inventory error on {p.upper()}: {str(e)}"
+
+        fetched = await asyncio.gather(*[_run_all_resources_m(p) for p in target])
+        rows, errors = [], []
+        for p, result in fetched:
+            if isinstance(result, list):
+                for res in result:
+                    scope = res.get("resource_group") or res.get("compartment_id") or res.get("project") or res.get("region") or "N/A"
+                    location = res.get("location") or res.get("region") or "N/A"
+                    rows.append((p.upper(), res["type"], res["name"], scope, location))
+            else:
+                errors.append(f"{icons.get(p, '☁️')} **{p.upper()}:** {result}")
+        if rows:
+            table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n"
+            table += "\n".join(f"| {p} | {t} | {n} | {rg} | {loc} |" for p, t, n, rg, loc in rows)
+            answer = f"🗂️ **Full Resource Inventory ({len(rows)} found):**\n\n{table}"
+            if errors:
+                answer += "\n\n" + "\n".join(errors)
+        elif errors:
+            answer = "🗂️ **Full Resource Inventory:**\n\n" + "\n".join(errors)
+        else:
+            answer = f"No resources found on {', '.join(p.upper() for p in target)}."
+        tasks[task_id]["answer"] = answer
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"🗂️ Resource Inventory: {len(rows)} Found", "url": "#"}
+
     # 1. Managed/serverless "services" queries
-    if wants_services:
+    elif wants_services:
         target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 🧩 Querying managed/serverless services on: {', '.join(p.upper() for p in target)}...")
-        
+
         async def _run_services_m(p):
             try:
                 res = await asyncio.wait_for(loop.run_in_executor(None, services_fn[p]), timeout=10.0)
@@ -3571,9 +3837,9 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
 
     # 1.5 Cost / billing queries
     elif wants_cost:
-        target = providers if providers else ["aws", "oci", "azure"]
+        target = providers if providers else ["aws", "oci", "azure", "gcp"]
         tasks[task_id]["logs"].append(f"[00:01] 💰 Querying cost/billing on: {', '.join(p.upper() for p in target)}...")
-        
+
         async def _run_cost_m(p):
             if p not in cost_fn:
                 return p, f"Cost querying not implemented for {p.upper()} yet."
