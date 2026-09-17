@@ -1358,6 +1358,36 @@ _GEMINI_COST_FN = {"aws": query_aws_cost, "oci": query_oci_cost, "azure": query_
 _GEMINI_SERVICES_FN = {"aws": query_aws_services, "oci": query_oci_services, "azure": query_azure_services, "gcp": query_gcp_services}
 _GEMINI_ALL_RESOURCES_FN = {"aws": query_aws_all_resources, "oci": query_oci_all_resources, "azure": query_azure_all_resources, "gcp": query_gcp_all_resources}
 
+def _format_full_resource_inventory(rows, errors, target):
+    """Renders a full multi-cloud resource inventory as a category summary
+    (Provider + Type, with counts) plus the flat per-resource table tucked
+    into a collapsible <details> block. A flat 100+ row table read as noise;
+    grouping by type first gives a scannable shape, and the detail table
+    stays available for anyone who wants to drill in."""
+    if rows:
+        from collections import Counter
+        counts = Counter((p, t) for p, t, n, rg, loc in rows)
+        summary_table = "| Provider | Resource Category | Count |\n|---|---|---|\n"
+        for (p, t), c in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])):
+            summary_table += f"| {p} | {t} | {c} |\n"
+
+        rows_sorted = sorted(rows, key=lambda r: (r[0], r[1], r[2]))
+        detail_table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n"
+        detail_table += "\n".join(f"| {p} | {t} | {n} | {rg} | {loc} |" for p, t, n, rg, loc in rows_sorted)
+
+        answer = (
+            f"🗂️ **Full Resource Inventory — {len(rows)} resources across {len(set(p for p, *_ in rows))} provider(s)**\n\n"
+            f"{summary_table}\n"
+            f"<details>\n<summary>Show all {len(rows)} resources</summary>\n\n{detail_table}\n\n</details>"
+        )
+        if errors:
+            answer += "\n\n" + "\n".join(errors)
+    elif errors:
+        answer = "🗂️ **Full Resource Inventory:**\n\n" + "\n".join(errors)
+    else:
+        answer = f"No resources found on {', '.join(p.upper() for p in target)}."
+    return answer
+
 def _clean_price_num(val) -> Optional[float]:
     if val is None:
         return None
@@ -3126,16 +3156,7 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
                     rows.append((p.upper(), res["type"], res["name"], scope, location))
             else:
                 errors.append(f"{icons.get(p, '☁️')} **{p.upper()}:** {result}")
-        if rows:
-            table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n"
-            table += "\n".join(f"| {p} | {t} | {n} | {rg} | {loc} |" for p, t, n, rg, loc in rows)
-            answer = f"🗂️ **Full Resource Inventory ({len(rows)} found):**\n\n{table}"
-            if errors:
-                answer += "\n\n" + "\n".join(errors)
-        elif errors:
-            answer = "🗂️ **Full Resource Inventory:**\n\n" + "\n".join(errors)
-        else:
-            answer = f"No resources found on {', '.join(p.upper() for p in target)}."
+        answer = _format_full_resource_inventory(rows, errors, target)
         tasks[task_id]["answer"] = answer
         tasks[task_id]["deliverable"] = {"type": "info", "title": f"🗂️ Resource Inventory: {len(rows)} Found", "url": "#"}
 
@@ -3892,16 +3913,7 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
                     rows.append((p.upper(), res["type"], res["name"], scope, location))
             else:
                 errors.append(f"{icons.get(p, '☁️')} **{p.upper()}:** {result}")
-        if rows:
-            table = "| Provider | Type | Name | Group/Compartment/Project | Location |\n|---|---|---|---|---|\n"
-            table += "\n".join(f"| {p} | {t} | {n} | {rg} | {loc} |" for p, t, n, rg, loc in rows)
-            answer = f"🗂️ **Full Resource Inventory ({len(rows)} found):**\n\n{table}"
-            if errors:
-                answer += "\n\n" + "\n".join(errors)
-        elif errors:
-            answer = "🗂️ **Full Resource Inventory:**\n\n" + "\n".join(errors)
-        else:
-            answer = f"No resources found on {', '.join(p.upper() for p in target)}."
+        answer = _format_full_resource_inventory(rows, errors, target)
         tasks[task_id]["answer"] = answer
         tasks[task_id]["deliverable"] = {"type": "info", "title": f"🗂️ Resource Inventory: {len(rows)} Found", "url": "#"}
 

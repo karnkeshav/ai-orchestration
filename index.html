@@ -475,6 +475,41 @@
       overflow-wrap: break-word;
       word-break: break-word;
       max-width: 100%;
+      font-family: var(--font-mono);
+    }
+
+    #answerBox details {
+      margin: 0.8rem 0 1.2rem;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 0.2rem 1rem;
+    }
+
+    #answerBox summary {
+      cursor: pointer;
+      padding: 0.7rem 0;
+      font-weight: 600;
+      color: #93c5fd;
+      font-family: var(--font-main);
+      list-style: none;
+    }
+
+    #answerBox summary::-webkit-details-marker {
+      display: none;
+    }
+
+    #answerBox summary::before {
+      content: "▸ ";
+      color: var(--accent-cyan);
+    }
+
+    #answerBox details[open] summary::before {
+      content: "▾ ";
+    }
+
+    #answerBox details table {
+      margin-bottom: 1rem;
     }
 
     #answerBox table {
