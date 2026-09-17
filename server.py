@@ -3079,7 +3079,10 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     wants_cost = any(k in prompt_lower for k in ("bill", "billing", "cost", "spend", "invoice", "charge", "expense"))
     wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
     wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
-    wants_services = ("service" in prompt_lower) and not wants_compute
+    # Excludes wants_cost too, not just wants_compute -- "cost by service" and
+    # "which service costs the most" both contain "service" but are cost
+    # questions, not a services-inventory listing request.
+    wants_services = ("service" in prompt_lower) and not wants_compute and not wants_cost
     # "resource(s)" alone isn't a reliable enough signal on its own (a services/
     # cost prompt can casually say "resource" too), so require it alongside a
     # scope word -- checked as two independent substrings, not one adjacent
@@ -3768,7 +3771,10 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     wants_cost = any(k in prompt_lower for k in ("bill", "billing", "cost", "spend", "invoice", "charge", "expense"))
     wants_storage = any(k in prompt_lower for k in ("bucket", "s3", "object storage", "storage"))
     wants_compute = any(k in prompt_lower for k in ("instance", "vm", "server", "ec2"))
-    wants_services = ("service" in prompt_lower) and not wants_compute
+    # Excludes wants_cost too, not just wants_compute -- "cost by service" and
+    # "which service costs the most" both contain "service" but are cost
+    # questions, not a services-inventory listing request.
+    wants_services = ("service" in prompt_lower) and not wants_compute and not wants_cost
     # Checked ahead of the bare "providers" fallback in the compute branch
     # below -- without this, a prompt that just names a provider (e.g. "list
     # all resources of azure") fell into "elif wants_compute or providers"
