@@ -3061,6 +3061,21 @@ _MUTATION_VERBS = (
     "spin up", "spin-up", "tear down", "teardown", "shut down", "shutdown",
 )
 
+# Signals that a cost/billing question wants root-cause investigation, not a
+# single total -- "investigate my AWS cost, check CloudTrail" still contains
+# "cost" and would otherwise be swallowed by the instant fast-path below,
+# which can only ever return a canned single-total answer and never reaches
+# agy or the new azure_cost_by_service/gcp_audit_log_lookup/aws_cloudtrail_lookup-
+# style tools. Any of these forces escalation to agy instead.
+_DEEP_DIVE_SIGNALS = (
+    "investigate", "root cause", "root-cause", "why did", "why is", "why does",
+    "why am i", "audit", "cloudtrail", "activity log", "audit log",
+    "who enabled", "what enabled", "who created", "who turned on",
+    "invoice", "breakdown by", "break down by", "break it down",
+    "which resource", "which service is", "drill down", "drilldown",
+    "root of it", "get to the root",
+)
+
 async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     """Zero-dependency, near-instant path for unambiguous read-only cost/
     compute/storage/service queries: pure local keyword matching straight
@@ -3068,6 +3083,8 @@ async def try_instant_cloud_query(task_id: str, prompt: str) -> bool:
     bootstrap. Runs provider queries concurrently with strict per-cloud timeouts."""
     prompt_lower = prompt.lower()
     if any(v in prompt_lower for v in _MUTATION_VERBS):
+        return False
+    if any(v in prompt_lower for v in _DEEP_DIVE_SIGNALS):
         return False
 
     providers = []
