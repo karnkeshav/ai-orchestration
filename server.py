@@ -4542,9 +4542,20 @@ class AgyWarmSession:
             final_structured = None
             final_status = None
             responded_logged = False
+            # Fallback capture: agy sometimes concludes a turn by calling its own
+            # "finish" tool (name/args carrying the markdown answer directly)
+            # without ever emitting a top-level "result" event with a populated
+            # response/structured_output -- observed live: a real 9-tool-call AWS
+            # cost+CloudTrail investigation produced a full markdown report via a
+            # "finish" tool call, but the turn still ended with final_response
+            # and final_structured both empty, surfacing as "Antigravity agent
+            # produced no output" despite the real answer existing in the stream.
+            finish_markdown = None
+            finish_options = None
 
             async def _read_turn():
                 nonlocal final_response, final_structured, final_status, responded_logged
+                nonlocal finish_markdown, finish_options
                 while True:
                     raw_line = await proc.stdout.readline()
                     if not raw_line:
@@ -4570,6 +4581,9 @@ class AgyWarmSession:
                         elif step_type == "tool":
                             name = step.get("tool_name", "tool")
                             params = (step.get("tool_info") or {}).get("parameters", {})
+                            if name == "finish" and isinstance(params, dict) and params.get("markdown"):
+                                finish_markdown = params.get("markdown")
+                                finish_options = params.get("options")
                             if state == "ACTIVE":
                                 tasks[task_id]["logs"].append(f"🔧 Calling tool: {name}({params})")
                             elif state == "DONE":
@@ -4597,6 +4611,13 @@ class AgyWarmSession:
             except (asyncio.TimeoutError, RuntimeError) as e:
                 await self._kill()
                 raise RuntimeError(f"agy warm session turn failed: {e}")
+
+            if not final_response and not (isinstance(final_structured, dict) and final_structured.get("markdown")) and finish_markdown:
+                final_structured = {"markdown": finish_markdown, "options": finish_options}
+                tasks[task_id]["logs"].append(
+                    "[00:0X] ℹ️ Recovered final answer from the agent's own finish tool call "
+                    "(the turn's result event came back without one)."
+                )
 
             # Drain again now, while it's still unambiguously *this* task's own
             # trailing output (the exact case _drain_stale_output's docstring
