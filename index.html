@@ -3131,6 +3131,7 @@
       pushTechnicalLog(technicalLogs, `Directive received: ${prompt}`);
 
       const execCategory = currentCategory === 'apps' ? 'apps' : (attachedImageData ? 'shopping' : (currentCategory || 'general'));
+      window.conversationHistory = window.conversationHistory || [];
       const payload = {
         prompt: prompt,
         category: execCategory,
@@ -3138,7 +3139,8 @@
         location: "Bangalore",
         github_user: currentGitHubUser || "karnkeshav",
         github_token: currentGitHubToken || localStorage.getItem('aios_github_token') || localStorage.getItem('aiorch_github_token') || undefined,
-        language: currentLang
+        language: currentLang,
+        history: window.conversationHistory.slice(-6)
       };
 
       try {
@@ -3266,6 +3268,14 @@
           }
 
           if (resPayload.status === "COMPLETED") {
+            if (resPayload.answer) {
+              window.conversationHistory = window.conversationHistory || [];
+              window.conversationHistory.push({ role: "user", content: prompt });
+              window.conversationHistory.push({ role: "assistant", content: resPayload.answer });
+              if (window.conversationHistory.length > 10) {
+                window.conversationHistory = window.conversationHistory.slice(-10);
+              }
+            }
             if (isActive) {
               activePollToken = null;
               markMissionAccomplished(progressLogs, statusText);

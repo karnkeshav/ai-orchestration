@@ -287,7 +287,7 @@ Deployment:
 ### Durable Claude Code platform guardrails encountered this session
 
 For future sessions' awareness — these were tested and held firm this session:
-- **SSH to the production VM** (read or mutating) from Claude Code's own tools is blocked ("Credential Exploration" category). All VM-side changes this session were performed by the user or a separate already-connected session, never by Claude Code's own Bash tool.
+- **SSH to the production VM** (read or mutating) from Claude Code's own tools was blocked ("Credential Exploration" category) in this session. All VM-side changes this session were performed by the user or a separate already-connected session, never by Claude Code's own Bash tool. **Superseded 2026-09-21: SSH from Claude Code's tools now works for both reads and writes when the user explicitly authorizes it - see the 2026-09-21 section at the end of this file.**
 - **IAM/permission-policy mutations** (`attach-user-policy`, `update-user` rename, etc.) are blocked regardless of scope ("Modify Shared Resources" / generic block) — confirmed again this session (AWS IAM rename/policy-attach attempts).
 - **Passing a raw API key/secret value inline** in an outbound Claude-Code-initiated request is blocked ("Credential Leakage") — relevant to the Groq model-list lookup above; do that lookup from the VM, not through Claude Code's tools.
 
@@ -465,3 +465,27 @@ Three commits landed on `origin/main` and were each pulled + compiled + service-
 All three verified against the live production `/api/execute` endpoint (not just locally) with real multi-second response times and real account data, not simulated. `git status` on the VM is clean at `9fa8e46` except for the one harmless, confirmed-redundant stash entry noted above.
 
 Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) further: two more concrete misses in that category were found and patched this round (adjacent-substring keyword matching, and an LLM router tier not knowing about a newly-added tool). The general architectural concern — new capabilities need to be registered in *both* the keyword fast-path *and* the LLM tool catalog, and it's easy to add one and forget the other, as happened here — remains a standing risk for whoever adds the next new query type.
+
+---
+
+## 2026-09-21 - OCI Ampere (A1) harvester session; SSH from Claude Code works
+
+### SSH status (supersedes the older "blocked" guardrail notes above)
+- SSH from Claude Code's own tools to the production OCI VM (`ai-orchestration-vm`) **worked this session for both reads and writes**, after the user explicitly said to use it ("you can try using ssh it works"). Treat the earlier "Remote Shell Writes" / "Credential Exploration" block notes as historical. Still act only on explicit user authorization, show the change first, and fall back to handing the user the commands if a call is blocked.
+- Login: user `ubuntu`, key file in the Windows Downloads folder (ask Keshav which one). The IP and key filename are deliberately **not** recorded here because this repo is public.
+- `scp` to the VM also works. The VM's OCI SDK (`/home/ubuntu/.oci_venv`) is a handy fallback for read-only OCI queries when the `oci` MCP server times out (it did this session).
+
+### Harvester state found
+- `oci-arm-harvester.service` was running since the last VM boot (2026-09-16 05:56 UTC): about 3,950 attempts, every one "Host capacity for VM.Standard.A1.Flex is currently full" in the single Hyderabad AD. No A1 instance exists; only the two AMD micro instances (`ai-orchestration-vm`, `sensex-bot`) are running.
+- The old unit had `Restart=always`, so after a successful launch it would have restarted and launched more instances (extra boot volumes would have exceeded the 200 GB Always Free storage limit and been billed on a paid account).
+
+### Changes applied to the VM (backups kept beside the originals)
+- `/home/ubuntu/create_oci_arm_instance.py` replaced (original: `create_oci_arm_instance.py.bak`). New behaviour: rotates all 9 combinations of shape (1 OCPU/6 GB, 2 OCPU/12 GB, 1 OCPU/2 GB) x fault domain (FAULT-DOMAIN-1/2/3); exponential backoff on 429; exits without launching if an A1.Flex instance already exists; exits 0 after success; optional success webhook via the `OCI_HARVESTER_WEBHOOK` env var (not set).
+- `/etc/systemd/system/oci-arm-harvester.service` (original: `.service.bak`): `Restart=on-failure` instead of `always`; added `--tiny-ocpus 1 --tiny-memory 2`. Service reloaded and restarted; first log lines confirmed the three fault domains and per-attempt fault-domain labels.
+- Interval left at 90 s. Idea for later: 45 s once a day of clean logs shows no 429s.
+
+### Account findings (checked via the OCI SDK on the VM and the OCI console)
+- Tenancy was on **Free Tier** (plan type Free Tier, account type Promo, started 2026-06-30). The A1 service limit was **2 OCPU / 12 GB**, i.e. the free-only cap after Oracle's 2026-06-15 change; 4 OCPU / 24 GB is only reportedly kept on paid (PAYG) tenancies.
+- No payment method was attached at first (uploading a card at signup does not upgrade the account). The user then added a card and started the upgrade to a paid account; the console showed "upgrade in progress, email when complete". **Still to verify after Oracle's confirmation email:** plan type is paid, the A1 limit rose, and the harvester still runs. Set a $1 budget alert (deferred by the user).
+- Storage: 147 GB of 200 GB used. An unattached 47 GB boot volume left over from an older `sensex-bot` was **not** deleted (deleting it does not affect capacity odds; confirm it holds nothing needed first). When terminating any surplus instance, also delete its boot volume.
+- Signing in to the OCI console: the "cloud account name" is the tenancy name. Do not enter passwords for the user; they sign in themselves in the automation browser window.

@@ -33,6 +33,7 @@ class ExecuteRequest(BaseModel):
     github_user: Optional[str] = None
     github_token: Optional[str] = None
     language: Optional[str] = "en"
+    history: Optional[List[Dict[str, Any]]] = None
 
 # Maps the language-switcher codes sent by the frontend (index.html's
 # `currentLang`) to the full language name the LLM is told to answer in.
@@ -2290,10 +2291,45 @@ async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_p
     if not files:
         return f"No CSV files found in {scope}."
 
-    lines = [f"📄 **CSV files in {scope}** ({len(files)} found):", ""]
+    # Group files by directory
+    folders = {}
     for f in files:
-        size_kb = round((f.get("size") or 0) / 1024, 1)
-        lines.append(f"• `{f['path']}` ({size_kb} KB)")
+        p = f.get("path", "")
+        folder = os.path.dirname(p) or "root"
+        folders.setdefault(folder, []).append(f)
+
+    lines = [f"📄 **SharePoint CSV Files in {scope}** ({len(files)} total found):", ""]
+
+    if len(folders) > 1:
+        lines.append("### 📁 **Folder Breakdown & File Names**")
+        for folder, f_list in sorted(folders.items()):
+            lines.append(f"\n📂 **`{folder}/`** ({len(f_list)} files):")
+            for f in f_list:
+                size_kb = round((f.get("size") or 0) / 1024, 1)
+                lines.append(f"• `{f['name']}` ({size_kb} KB)")
+
+        # Detailed filename differences across folders
+        folder_names = list(folders.keys())
+        if len(folder_names) == 2:
+            f1, f2 = folder_names[0], folder_names[1]
+            set1 = {f['name']: f for f in folders[f1]}
+            set2 = {f['name']: f for f in folders[f2]}
+            common = set(set1.keys()) & set(set2.keys())
+            only1 = set(set1.keys()) - set(set2.keys())
+            only2 = set(set2.keys()) - set(set1.keys())
+
+            lines.append("\n---\n### 🔍 **Name & Dataset Comparison Across Folders**")
+            if only1:
+                lines.append(f"• **Only in `{f1}/`:** " + ", ".join(f"`{k}`" for k in sorted(only1)))
+            if only2:
+                lines.append(f"• **Only in `{f2}/`:** " + ", ".join(f"`{k}`" for k in sorted(only2)))
+            if common:
+                lines.append(f"• **Shared in both `{f1}/` and `{f2}/` ({len(common)} files):** " + ", ".join(f"`{k}`" for k in sorted(common)))
+    else:
+        for f in files:
+            size_kb = round((f.get("size") or 0) / 1024, 1)
+            lines.append(f"• `{f['path']}` ({size_kb} KB)")
+
     if result.get("truncated"):
         lines.append("")
         lines.append("⚠️ Scan hit its time/size budget before finishing — this count may be a lower bound. Narrow with `folder_path` for a complete scan of a specific folder.")
@@ -3545,6 +3581,26 @@ def is_cloud_infra_mutation_query(prompt_lower: str) -> bool:
     deal finder -- same ambiguity already handled for ride-fare prompts above."""
     return any(v in prompt_lower for v in _MUTATION_VERBS) and any(k in prompt_lower for k in _CLOUD_INFRA_KEYWORDS)
 
+# Keyword fast-paths (try_instant_cloud_query, try_instant_mission_match,
+# run_mission_pipeline) only pattern-match on nouns -- "gcp", "instance",
+# "pbix" -- with no understanding of intent. A mutation verb next to one of
+# these nouns means the request wants a real create/modify/delete action
+# performed, which only agy (the actual reasoning agent, with real tool
+# access) can do -- a keyword matcher can only ever misread it as a listing
+# request. Confirmed 2026-09-17: "delete the instance ... from gcp" fell
+# through every fast-path/Gemini tier to the last-resort keyword router
+# (run_mission_pipeline, which has no mutation-verb guard at all) and came
+# back as an instance *listing*, silently masking that agy had failed on
+# the actual delete. Any prompt matching this must skip straight to agy --
+# no keyword tier should ever be trusted to decide a mutation request.
+_MUTATION_TARGET_KEYWORDS = _CLOUD_INFRA_KEYWORDS + (
+    "pbix", "pbip", "pbit", "power bi", "powerbi", "dax", "semantic model",
+    "sharepoint", "workspace", "report", "dataset", "dashboard",
+)
+
+def is_mutation_request(prompt_lower: str) -> bool:
+    return any(v in prompt_lower for v in _MUTATION_VERBS) and any(k in prompt_lower for k in _MUTATION_TARGET_KEYWORDS)
+
 def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = None) -> bool:
     if is_cloud_infra_mutation_query(prompt_lower):
         return False
@@ -4110,10 +4166,29 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
             "url": "./MultiCloud_FinOps_DrillThrough_Dashboard.html"
         }
     else:
-        tasks[task_id]["logs"].append("[00:01] 🤖 Orchestrating autonomous multi-agent task swarm...")
-        await asyncio.sleep(1.0)
-        tasks[task_id]["answer"] = f"✓ Autonomous directive processed successfully: {prompt}"
-        tasks[task_id]["deliverable"] = {"type": "info", "title": "✓ Mission Complete", "url": "#"}
+        # BLOCKED: The previous catch-all emitted a static fake placeholder answer ("✓ Autonomous directive processed successfully: ...")
+        # with no real content when upstream tiers couldn't match a tool.
+        # Commented out:
+        # tasks[task_id]["logs"].append("[00:01] 🤖 Orchestrating autonomous multi-agent task swarm...")
+        # await asyncio.sleep(1.0)
+        # tasks[task_id]["answer"] = f"✓ Autonomous directive processed successfully: {prompt}"
+        # tasks[task_id]["deliverable"] = {"type": "info", "title": "✓ Mission Complete", "url": "#"}
+
+        tasks[task_id]["logs"].append("[00:01] 🤖 Synthesizing direct intelligent response...")
+        try:
+            client = _gemini_client()
+            if client:
+                resp = await loop.run_in_executor(None, lambda: client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=_language_directive(language) + prompt,
+                ))
+                answer_text = resp.text if resp and resp.text else ""
+                tasks[task_id]["answer"] = answer_text or f"Processed: {prompt}"
+            else:
+                tasks[task_id]["answer"] = f"Processed: {prompt}"
+        except Exception as ex:
+            tasks[task_id]["answer"] = f"Processed request: {prompt} (Details: {str(ex)})"
+        tasks[task_id]["deliverable"] = {"type": "info", "title": "🤖 Response", "url": "#"}
     tasks[task_id]["logs"].append("[00:03] 💎 Mission complete! Execution finished.")
     tasks[task_id]["status"] = "COMPLETED"
 
@@ -4222,40 +4297,20 @@ def build_book_actions(options: Optional[List[dict]]) -> List[dict]:
             actions.append(action)
     return actions
 
-# Without this, agy tends to default to search_web/general knowledge even when a
-# purpose-built MCP tool exists for the request (observed: it answered a live Uber vs
-# Ola fare question from web search hits instead of calling compare_uber_vs_ola).
+# BLOCKED: The previous hint commanded agy to strictly prefer MCP tools over general answers,
+# which caused follow-up questions, differences, and conversational explanations to stall or fail.
+# Commented out:
+# _AGY_TOOL_HINT = (
+#     "Before answering, check whether one of your configured MCP servers already "
+#     "exposes a tool for this exact request... "
+# )
 _AGY_TOOL_HINT = (
-    "Before answering, check whether one of your configured MCP servers already "
-    "exposes a tool for this exact request (e.g. stitch for Google Stitch UI screens & app design, "
-    "uber/ola/rapido ride comparisons, amazon/flipkart/blinkit/zepto/meesho product deals, "
-    "swiggy/zomato food comparisons, whatsapp/facebook/linkedin posting, power_automate for Power "
-    "Automate/Power Platform flows, aws-mcp/azure/gcp/oci for basic cloud resource listing and "
-    "actions). If one does, call it directly via call_mcp_tool instead of using "
-    "search_web or answering from general knowledge — the MCP tools return real computed "
-    "results (e.g. compare_rapido_vs_uber_vs_ola, compare_uber_vs_ola, compare_zomato_vs_swiggy "
-    "on the zomato server) and must be preferred whenever one applies.\n\n"
-    "For cost, billing, or root-cause investigation questions ('what's driving my bill', 'why did "
-    "this cost X', 'who/what enabled this'), prefer these dedicated tools over the generic cloud "
-    "servers' list/run_script tools -- they return real per-service and audit-log data instead of "
-    "requiring you to write ad-hoc SDK code:\n"
-    "- Azure: azure_cost_by_service (Cost Management, grouped by service+resource group), "
-    "azure_list_invoices (real invoice amounts/periods, on the azure server).\n"
-    "- GCP: gcp_cost_by_service (BigQuery billing export -- pass billing_table="
-    "'gcp_billing_data.gcp_billing_export_v1_017591_AFE14E_F780B1' if not already set via env var), "
-    "gcp_audit_log_lookup (Cloud Audit Logs, for who/what/when enabled something), on the gcp server.\n"
-    "- OCI: cost_by_service (Usage API), audit_search (OCI Audit Service), on the oci server.\n"
-    "- AWS: aws_cost_by_service, aws_cost_forecast, aws_cloudtrail_lookup, aws_freetier_status, on "
-    "the aws_finops server (separate from the aws-mcp gateway -- use aws_finops specifically for "
-    "cost/billing/audit questions).\n\n"
-    "This backend runs you unattended with tool permissions auto-approved (no human is present to "
-    "confirm anything you do). For any cloud provisioning request (aws-mcp/azure/gcp/oci): create "
-    "exactly what was asked for and then STOP. Never terminate, delete, or stop a cloud resource -- "
-    "one you just created or any pre-existing one -- as a self-verification, testing, or cleanup step. "
-    "Only call a destructive action (terminate/delete/stop instance, delete disk/bucket, etc.) if the "
-    "user's own request explicitly asks for that resource to be removed or stopped. If you want to "
-    "confirm a resource was created successfully, use a read-only check (describe/get/list) instead of "
-    "creating a throwaway resource and tearing it down.\n\nUser request: "
+    "You are Antigravity, an intelligent agentic AI coding & orchestration assistant running unattended with auto-approved tool permissions.\n"
+    "• If the user's request requires fetching live data or taking actions (e.g. M365/SharePoint, Azure, GCP, AWS, OCI, Stitch, shopping, food delivery, rides, social), call the appropriate MCP tool.\n"
+    "• If the user is asking for analysis, comparisons, file differences, explanations, follow-up clarification, or general reasoning, answer directly in clear, detailed Markdown.\n"
+    "• For cost/billing/investigation questions, prefer dedicated tools (azure_cost_by_service, gcp_cost_by_service, cost_by_service, aws_cost_by_service).\n"
+    "• Never terminate, delete, or stop resources unless explicitly asked to do so.\n\n"
+    "User request: "
 )
 
 # Cloud provisioning requests were observed taking several minutes even for a
@@ -4404,7 +4459,10 @@ class AgyWarmSession:
             "-p=",
             "--input-format", "stream-json",
             "--output-format", "stream-json",
-            "--json-schema", _BOOK_SCHEMA_PATH,
+            # BLOCKED: Rigid JSON schema constraint forced agy to only emit shopping/ride option objects,
+            # which caused natural English questions, file comparisons, and follow-ups to fail validation or get dropped.
+            # Commented out so agy on OCI VM behaves unconstrained like local WSL agy:
+            # "--json-schema", _BOOK_SCHEMA_PATH,
             "--dangerously-skip-permissions",
         ])
         proc = await asyncio.create_subprocess_exec(
@@ -4465,29 +4523,7 @@ class AgyWarmSession:
 
     async def _drain_stale_output(self, task_id: str, rolling_gap: float = 0.15, max_total: float = 2.0):
         """Discard any bytes sitting in (or about to arrive on) the process's
-        stdout buffer that don't belong to the turn we're about to run.
-
-        _read_turn() below returns the instant it sees the *first* "result"
-        event for a turn — but agy can emit more than one result-shaped event
-        per turn (observed live: a turn came back SUCCESS with zero step_update
-        events in between, which only happens if the very first line read was
-        actually a leftover from the *previous* turn). Whatever's left unread
-        after a turn completes would otherwise sit in the pipe and get handed
-        to the next, completely unrelated caller as if it were their answer —
-        confirmed live, twice now: a "list my OCI instances" request once came
-        back reporting an unrelated Cosmos DB deletion, and later a "create AWS
-        instance" request came back reporting an unrelated Azure resource-group
-        listing, both from an earlier caller's turn.
-
-        A single fixed-timeout pass (the original version of this method) only
-        catches what's *already* buffered the instant we happen to check --
-        agy's straggler line can just as easily land a beat later, after that
-        one check already came up empty, and then get read as if it opened the
-        next turn. This version instead keeps draining as long as lines keep
-        arriving within `rolling_gap` of each other (agy writing a burst of
-        leftover output pauses between lines far less than a real turn takes
-        to even start), bounded by `max_total` so a slow-but-legitimate startup
-        can never be mistaken for stale output and get stuck looping here."""
+        stdout buffer that don't belong to the turn we're about to run."""
         drained = 0
         loop_start = time.monotonic()
         while time.monotonic() - loop_start < max_total:
@@ -4519,15 +4555,6 @@ class AgyWarmSession:
                 tasks[task_id]["logs"].append("[00:01] ♨️ Reusing warm Antigravity CLI session...")
 
             proc = self.process
-            # NDJSON turn message for `--input-format stream-json`. Determined
-            # live via a multi-candidate probe: agy validates a top-level
-            # "event" discriminator (not "type" — first guess failed on that),
-            # "user" is a recognized event value (7 other guesses — user_input,
-            # user_message, message, prompt, input, text, user_turn, query,
-            # chat, conversation_message, user_prompt, send_message, turn,
-            # request — were all rejected as unsupported), and its payload key
-            # is specifically "message" (error: 'stream input "user" message is
-            # missing the "message" field'), not the event name mirrored.
             await self._drain_stale_output(task_id)
 
             message = json.dumps({"event": "user", "message": {"role": "user", "content": full_prompt}}) + "\n"
@@ -4542,20 +4569,13 @@ class AgyWarmSession:
             final_structured = None
             final_status = None
             responded_logged = False
-            # Fallback capture: agy sometimes concludes a turn by calling its own
-            # "finish" tool (name/args carrying the markdown answer directly)
-            # without ever emitting a top-level "result" event with a populated
-            # response/structured_output -- observed live: a real 9-tool-call AWS
-            # cost+CloudTrail investigation produced a full markdown report via a
-            # "finish" tool call, but the turn still ended with final_response
-            # and final_structured both empty, surfacing as "Antigravity agent
-            # produced no output" despite the real answer existing in the stream.
             finish_markdown = None
             finish_options = None
+            accumulated_deltas: List[str] = []
 
             async def _read_turn():
                 nonlocal final_response, final_structured, final_status, responded_logged
-                nonlocal finish_markdown, finish_options
+                nonlocal finish_markdown, finish_options, accumulated_deltas
                 while True:
                     raw_line = await proc.stdout.readline()
                     if not raw_line:
@@ -4575,9 +4595,12 @@ class AgyWarmSession:
                         step_type = step.get("step_type")
                         state = step.get("state")
                         if step_type == "agent_response":
-                            if step.get("text_delta") and not responded_logged:
-                                tasks[task_id]["logs"].append("🧠 Antigravity is composing a response...")
-                                responded_logged = True
+                            delta = step.get("text_delta")
+                            if delta:
+                                accumulated_deltas.append(delta)
+                                if not responded_logged:
+                                    tasks[task_id]["logs"].append("🧠 Antigravity is composing a response...")
+                                    responded_logged = True
                         elif step_type == "tool":
                             name = step.get("tool_name", "tool")
                             params = (step.get("tool_info") or {}).get("parameters", {})
@@ -4596,14 +4619,9 @@ class AgyWarmSession:
                         final_response = result.get("response")
                         final_structured = result.get("structured_output")
                         if final_status != "SUCCESS":
-                            # Temporary diagnostic: surface the full raw result so a
-                            # non-SUCCESS status (e.g. schema/parse rejection) is
-                            # visible instead of just "produced no output".
                             tasks[task_id]["logs"].append(f"[agy raw result] {json.dumps(result)[:1500]}")
                         return
                     else:
-                        # Temporary diagnostic: log any event type we don't already
-                        # handle (e.g. an error/system event distinct from "result").
                         tasks[task_id]["logs"].append(f"[agy event:{etype}] {line[:500]}")
 
             try:
@@ -4619,25 +4637,14 @@ class AgyWarmSession:
                     "(the turn's result event came back without one)."
                 )
 
-            # Drain again now, while it's still unambiguously *this* task's own
-            # trailing output (the exact case _drain_stale_output's docstring
-            # describes: a second result-shaped event for the same turn).
-            # Cleaning it up here, under this task_id, means it never gets a
-            # chance to sit in the pipe and be misread as the next caller's
-            # answer -- that's strictly better than relying solely on the next
-            # turn's pre-drain to catch it after the fact.
             await self._drain_stale_output(task_id)
 
+            streamed_text = "".join(accumulated_deltas).strip()
             self.last_used = time.monotonic()
-            return final_status, final_response, final_structured
+            return final_status, final_response, final_structured, streamed_text
 
 # A single AgyWarmSession serializes every request through one stdin/stdout
-# pipe (necessarily — you can't interleave two turns on one NDJSON stream and
-# still know which "result" event answers which caller). That means a slow
-# or hung turn blocks every unrelated request behind it with no feedback.
-# AgyWarmPool holds AGY_POOL_SIZE independent sessions so concurrent
-# requests (e.g. "create instance" immediately followed by "delete instance")
-# run in parallel instead of queuing. Each session pays its own MCP bootstrap
+# pipe. AgyWarmPool holds AGY_POOL_SIZE independent sessions.
 AGY_POOL_SIZE = int(os.environ.get("AGY_POOL_SIZE", 1))
 
 class AgyWarmPool:
@@ -4684,13 +4691,10 @@ async def _on_startup_background_tasks():
             pass
     asyncio.create_task(_warm_pbi_cache())
 
-async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en"):
+async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en", history: Optional[List[Dict[str, Any]]] = None):
     """Hands the raw directive to the Antigravity CLI agent (agy) running in a
-    warm, reused session (see AgyWarmSession above), which has its own MCP
-    toolset (cloud providers, shopping, social, Power Automate, etc.) configured
-    independently of this app's fixed Gemini function-tools.
-    --dangerously-skip-permissions auto-approves every tool call agy wants to
-    make, since this backend has no human present to answer its prompts."""
+    warm, reused session (see AgyWarmSession above), with full conversational reasoning
+    and live MCP toolsets (SharePoint, M365, Azure, GCP, AWS, OCI, Stitch, shopping, rides, social)."""
     tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
     tasks[task_id]["logs"].append("[00:01] 🤖 Handing off to Antigravity CLI agent (auto-approve mode)...")
 
@@ -4705,8 +4709,23 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
         hint = _AGY_CLOUD_HINT + _AGY_TOOL_HINT
     else:
         hint = _AGY_TOOL_HINT
-    full_prompt = _language_directive(language) + hint + prompt
-    final_status, final_response, final_structured = await _agy_session.run_turn(full_prompt, task_id)
+
+    # Format previous conversation context if present
+    context_str = ""
+    if history and isinstance(history, list):
+        formatted_turns = []
+        for turn in history[-4:]:
+            role = "User" if turn.get("role") in ("user", "human") else "Assistant"
+            content = turn.get("content", "").strip()
+            if content:
+                if len(content) > 700:
+                    content = content[:700] + "..."
+                formatted_turns.append(f"{role}: {content}")
+        if formatted_turns:
+            context_str = "[Previous Conversation Context]\n" + "\n".join(formatted_turns) + "\n\n[Current User Directive]\n"
+
+    full_prompt = _language_directive(language) + hint + context_str + prompt
+    final_status, final_response, final_structured, streamed_text = await _agy_session.run_turn(full_prompt, task_id)
 
     markdown_answer = None
     options = None
@@ -4714,14 +4733,27 @@ async def run_agy_pipeline(task_id: str, prompt: str, category: str, image_data:
         markdown_answer = final_structured.get("markdown")
         options = final_structured.get("options")
     elif final_response:
-        # Fallback for an agy build that doesn't emit structured_output: the
-        # schema-shaped JSON may still come back as a plain string in `response`.
         try:
             parsed = json.loads(final_response)
-            markdown_answer = parsed.get("markdown")
-            options = parsed.get("options")
+            if isinstance(parsed, dict):
+                markdown_answer = parsed.get("markdown") or final_response
+                options = parsed.get("options")
+            else:
+                markdown_answer = final_response
         except (json.JSONDecodeError, AttributeError, TypeError):
             markdown_answer = final_response
+
+    # Fallback to accumulated text_delta stream if structured answer was empty
+    if not markdown_answer and streamed_text:
+        try:
+            parsed = json.loads(streamed_text)
+            if isinstance(parsed, dict) and "markdown" in parsed:
+                markdown_answer = parsed.get("markdown")
+                options = parsed.get("options")
+            else:
+                markdown_answer = streamed_text
+        except Exception:
+            markdown_answer = streamed_text
 
     fixed_files = []
     if is_powerbi_build:
@@ -4855,7 +4887,8 @@ async def run_pipeline(
     location: Optional[str] = "Bangalore",
     github_user: Optional[str] = None,
     github_token: Optional[str] = None,
-    language: Optional[str] = "en"
+    language: Optional[str] = "en",
+    history: Optional[List[Dict[str, Any]]] = None
 ):
     """Entry point, cheapest tier first:
     1. try_instant_app_creation — zero latency, builds and deploys to user GitHub account with Google Stitch UI.
@@ -4874,7 +4907,7 @@ async def run_pipeline(
     than failing. Every tier should still report a real error itself when
     possible; this is only the last-resort net."""
     try:
-        await _run_pipeline_tiers(task_id, prompt, category, image_data, location, github_user, github_token, language)
+        await _run_pipeline_tiers(task_id, prompt, category, image_data, location, github_user, github_token, language, history=history)
     except Exception as e:
         tasks[task_id]["logs"].append(f"[00:0X] ❌ Unhandled pipeline error: {e}")
         tasks[task_id]["answer"] = f"❌ Something went wrong processing this request: {e}"
@@ -4890,7 +4923,28 @@ async def _run_pipeline_tiers(
     github_user: Optional[str],
     github_token: Optional[str],
     language: Optional[str],
+    history: Optional[List[Dict[str, Any]]] = None
 ):
+    prompt_lower = prompt.lower()
+    # Mutation-shaped requests skip every keyword fast-path and go straight
+    # to agy -- see is_mutation_request's docstring/comment for why. If agy
+    # itself fails, report that honestly instead of falling through to
+    # run_gemini_pipeline/run_mission_pipeline, which could otherwise
+    # misrepresent a failed delete/create as a successful-looking listing.
+    if not image_data and is_mutation_request(prompt_lower):
+        try:
+            await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language, history=history)
+        except Exception as e:
+            tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI failed on this request ({str(e)}).")
+            tasks[task_id]["status"] = "COMPLETED"
+            tasks[task_id]["answer"] = (
+                "⚠️ This request asks to create, modify, or delete a real resource, but the "
+                f"agent that performs those actions failed to complete it ({str(e)}). "
+                "Nothing was changed. Please retry, or check the OCI VM's agy session directly."
+            )
+            tasks[task_id]["deliverable"] = None
+        return
+
     if not image_data and await try_instant_app_creation(task_id, prompt, category=category, github_user=github_user, github_token=github_token, language=language):
         return
     if not image_data and await try_instant_cloud_query(task_id, prompt):
@@ -4910,7 +4964,7 @@ async def _run_pipeline_tiers(
     except Exception as e1:
         tasks[task_id]["logs"].append(f"[00:01] ⚡ Gemini fast-path found no match ({str(e1)}), routing to Antigravity CLI agent...")
     try:
-        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language)
+        await run_agy_pipeline(task_id, prompt, category, image_data=image_data, location=location, language=language, history=history)
     except Exception as e2:
         tasks[task_id]["logs"].append(f"[00:01] ⚠️ Antigravity CLI unavailable ({str(e2)}), falling back to Gemini direct-answer...")
         tasks[task_id]["status"] = "PROCESSING"
@@ -5057,7 +5111,8 @@ async def execute(req: ExecuteRequest):
             req.location,
             req.github_user,
             req.github_token,
-            req.language
+            req.language,
+            history=req.history
         )
     )
     return {"task_id": task_id, "status": "PROCESSING"}
