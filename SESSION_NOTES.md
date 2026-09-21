@@ -489,3 +489,40 @@ Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) fur
 - No payment method was attached at first (uploading a card at signup does not upgrade the account). The user then added a card and started the upgrade to a paid account; the console showed "upgrade in progress, email when complete". **Still to verify after Oracle's confirmation email:** plan type is paid, the A1 limit rose, and the harvester still runs. Set a $1 budget alert (deferred by the user).
 - Storage: 147 GB of 200 GB used. An unattached 47 GB boot volume left over from an older `sensex-bot` was **not** deleted (deleting it does not affect capacity odds; confirm it holds nothing needed first). When terminating any surplus instance, also delete its boot volume.
 - Signing in to the OCI console: the "cloud account name" is the tenancy name. Do not enter passwords for the user; they sign in themselves in the automation browser window.
+
+---
+
+## 2026-09-21 (Part 2) - Multi-Turn Conversation & Unconstrained agy Parity (Local WSL vs OCI VM)
+
+### 1. Problem & User Report
+- Asking *"how many csv files are there on my sharepoint"* in the web UI (`https://karnkeshav.github.io/ai-orchestration/`) returned 12 files.
+- Asking a natural follow-up immediately afterward (*"what is the difference in the name"*) resulted in a blank/mock status: `"✓ Autonomous directive processed successfully"` with no actual answer.
+- Asking the same question in local WSL CLI (`agy`) responded naturally in full English Markdown, whereas `agy` on the OCI VM produced no answer.
+
+### 2. Root Cause Analysis
+1. **Stateless API:** `index.html` only sent the isolated prompt string to `/api/execute` without prior conversation history.
+2. **Turn 1 Bypassed agy:** Turn 1 was answered instantly by Python fast-path (`try_instant_mission_match`), so `agy` on the VM never saw Turn 1 and had zero memory of the 12 files.
+3. **Rigid `--json-schema` on VM agy:** `AgyWarmSession._spawn()` launched `agy` with `--json-schema agy_book_schema.json` (expecting `{markdown, options}` for shopping/rides). Non-shopping conversational answers were rejected or dropped by schema validation.
+4. **Dropped `text_delta` stream:** In `_read_turn()`, `server.py` logged that `agy` was composing a response but discarded `step["text_delta"]` chunks rather than buffering them.
+5. **Over-restrictive prompt hints:** `_AGY_TOOL_HINT` forced `agy` to strictly call MCP tools, causing it to stall when asked natural comparison/reasoning questions.
+6. **Fake catch-all fallback:** Tier 5 returned static string `"✓ Autonomous directive processed successfully: {prompt}"` masking backend routing failures.
+
+### 3. Changes Applied & Committed (Commit `876c39c`)
+1. **Unconstrained agy (`server.py`):**
+   - Commented out `--json-schema _BOOK_SCHEMA_PATH` in `_spawn()`.
+   - Added `accumulated_deltas: List[str]` to capture and buffer all live `text_delta` streaming events.
+   - Updated `_AGY_TOOL_HINT` to balanced dual-mode instructions (tools for live data, natural Markdown for analysis/reasoning).
+2. **Conversation Context & History:**
+   - Updated `ExecuteRequest` in `server.py` to accept `history: Optional[List[Dict[str, Any]]] = None`.
+   - Propagated `history` through `run_pipeline` and `run_agy_pipeline` to format prior turns into agent context.
+   - Updated `index.html` to maintain `window.conversationHistory` and send recent turns to `/api/execute`.
+3. **Enhanced SharePoint CSV Analysis (`server.py`):**
+   - Enhanced `_gemini_exec_list_sharepoint_csv_files` to automatically structure files by folder (`landmark/data/` vs `landmark/data_filled/`) and output a filename & dataset comparison matrix.
+4. **Real Response Synthesis Fallback:**
+   - Replaced static placeholder in Tier 5 with direct intelligent synthesis via Gemini/agy.
+
+### 4. Deployment Status: LIVE on GitHub & OCI VM
+- Pushed to GitHub repository (`origin/main`, commit `876c39c`) — updating GitHub Pages at `https://karnkeshav.github.io/ai-orchestration/`.
+- Pulled and synced onto OCI VM (`129.225.111.42`) at `/home/ubuntu/ai-orchestration/`.
+- Restarted `ai-studio.service` on OCI VM.
+- Verified live: Turn 1 immediately outputs 12 files with folder breakdown and comparison matrix; Turn 2 receives context and responds intelligently.
