@@ -2366,6 +2366,18 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
         return f"❌ **Power BI generation failed:** {str(e)}"
     except Exception as e:
         return f"❌ **Power BI generation failed:** {str(e)}"
+    # Also create aliases under generated_dashboards/<project_name>/ for persistent clean URLs
+    try:
+        import shutil
+        alias_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_dashboards", result["project_name"])
+        os.makedirs(alias_dir, exist_ok=True)
+        if result.get("pbix_path") and os.path.exists(result["pbix_path"]):
+            shutil.copyfile(result["pbix_path"], os.path.join(alias_dir, f"{result['project_name']}.pbix"))
+            shutil.copyfile(result["pbix_path"], os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_dashboards", f"{result['project_name']}.pbix"))
+        if result.get("zip_path") and os.path.exists(result["zip_path"]):
+            shutil.copyfile(result["zip_path"], os.path.join(alias_dir, f"{result['project_name']}.zip"))
+    except Exception:
+        pass
 
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://ai-orchestration-app.duckdns.org").rstrip("/")
     zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
