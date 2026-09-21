@@ -561,5 +561,21 @@ Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) fur
 3. **Fast-Path Native Execution:** Integrated `_gemini_exec_generate_powerbi_dashboard` into `try_instant_mission_match` and `run_mission_pipeline`. It connects directly to Microsoft Graph, downloads CSVs, profiles data types, auto-builds 13 star-schema relationships, hierarchies, DAX measures, Date dimension, and zips the full `.pbip` Power BI Desktop project with a direct download link.
 4. **Fully-Qualified Download URLs:** Formatted download links with `PUBLIC_BASE_URL` (`https://ai-orchestration-app.duckdns.org/generated_dashboards/...`) for cross-origin downloads from GitHub Pages.
 
+---
+
+## 2026-09-21 (Part 5) - Direct .pbix Deliverable Generation & Dynamic Project Naming
+
+### 1. Requirements
+- Allow users to specify custom names in their prompt (e.g. `name the pbix file as sales.pbix`, `named Sales_Performance`).
+- Deliver a direct, standalone `.pbix` file ready to double-click on Windows in addition to the full `.pbip` project zip.
+
+### 2. Implementation
+1. **Dynamic Project Name Extraction:** Added `extract_powerbi_project_name(prompt)` to parse names from prompts (`name the pbix file as sales.pbix` -> `sales`).
+2. **Dual Deliverable Output:** `powerbi_engine.generate_pbip_project` now outputs both `output_dir/<name>.pbix` and `output_dir/<name>.zip` (`.pbip`).
+3. **Download Links:** Response surfaces both direct links:
+   - `• 📊 Direct Power BI File: [⬇️ Download sales.pbix](...)`
+   - `• 📦 Complete Project (.pbip): [⬇️ Download sales.zip](...)`
+
+
 
 

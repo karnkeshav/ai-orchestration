@@ -2369,10 +2369,23 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
 
     PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://ai-orchestration-app.duckdns.org").rstrip("/")
     zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
-    download_url = f"{PUBLIC_BASE_URL}/{zip_rel}"
+    download_url_zip = f"{PUBLIC_BASE_URL}/{zip_rel}"
+
+    pbix_links_md = ""
+    primary_download_url = download_url_zip
+    if result.get("pbix_path") and os.path.exists(result["pbix_path"]):
+        pbix_rel = os.path.relpath(result["pbix_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
+        download_url_pbix = f"{PUBLIC_BASE_URL}/{pbix_rel}"
+        primary_download_url = download_url_pbix
+        pbix_links_md = (
+            f"• 📊 **Direct Power BI File:** [⬇️ Download `{result['project_name']}.pbix`]({download_url_pbix})\n"
+            f"• 📦 **Complete Project (.pbip):** [⬇️ Download `{result['project_name']}.zip`]({download_url_zip})\n"
+        )
+    else:
+        pbix_links_md = f"• 📦 **Power BI Project (.pbip):** [⬇️ Download `{result['project_name']}.zip`]({download_url_zip})\n"
+
     lines = [
-        f"✅ **Power BI project generated from '{result['site_name']}'** — [⬇️ Download {result['project_name']}.zip]({download_url})",
-        "",
+        f"✅ **Power BI Dashboard generated for `{result['project_name']}` from '{result['site_name']}'**\n\n{pbix_links_md}",
         f"**Tables ({len(result['tables'])}):** {', '.join(result['tables'])}" + (" + Date (auto-built)" if result["date_dimension"] else ""),
     ]
     if result["relationships"]:
@@ -2385,13 +2398,11 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
         if measures:
             lines.append(f"**DAX measures ({t}):** " + ", ".join(measures))
     lines.append(
-        "\n**Next step:** unzip and open the `.pbip` file directly in Power BI Desktop — the data model, "
-        "relationships, measures, and hierarchies are all pre-built. The report opens with a starter page; "
-        "drag fields from the Data pane onto visuals for your drill-down layout, then **File → Save As → .pbix** "
-        "if you need the traditional binary file."
+        "\n**Ready to open:** double-click the `.pbix` file to open directly in Power BI Desktop on Windows, "
+        "or unzip the `.pbip` project for source-control and TMDL data modeling."
     )
     if task_id and task_id in tasks:
-        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI Project: {result['project_name']}", "url": download_url}
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI: {result['project_name']}.pbix", "url": primary_download_url}
     return "\n\n".join(lines)
 
 async def _gemini_exec_find_best_deals(loop, query, category, location):
@@ -3615,6 +3626,15 @@ def extract_sharepoint_folder_path(prompt: str) -> Optional[str]:
         return "landmark/data"
     return None
 
+def extract_powerbi_project_name(prompt: str, default: str = "Landmark_Corporate_Dashboard") -> str:
+    m1 = re.search(r'name\s+(?:the\s+)?(?:pbix|pbip|file|project|dashboard|report|it)?\s*(?:file)?\s*(?:as|has|to|is|=)\s*([\w\-]+)(?:\.pbix|\.pbip)?', prompt, re.IGNORECASE)
+    if m1:
+        return m1.group(1).strip()
+    m2 = re.search(r'(?:named|called)\s+([\w\-]+)(?:\.pbix|\.pbip)?', prompt, re.IGNORECASE)
+    if m2:
+        return m2.group(1).strip()
+    return default
+
 def is_powerbi_dashboard_build_request(prompt_lower: str) -> bool:
     has_pbi = any(k in prompt_lower for k in ("power bi", "powerbi", "pbip", "dashboard"))
     has_build = any(v in prompt_lower for v in ("create", "generate", "build", "make", "construct", "develop"))
@@ -3748,10 +3768,11 @@ async def try_instant_mission_match(task_id: str, prompt: str, category: Optiona
     # Power BI Dashboard Project (.pbip) generation from SharePoint CSVs
     if is_powerbi_dashboard_build_request(prompt_lower):
         tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
-        tasks[task_id]["logs"].append("[00:01] 📊 Recognized Power BI Dashboard generation request — reading SharePoint CSVs & building .pbip project...")
+        tasks[task_id]["logs"].append("[00:01] 📊 Recognized Power BI Dashboard generation request — reading SharePoint CSVs & building dashboard...")
         folder_path = extract_sharepoint_folder_path(prompt)
+        project_name = extract_powerbi_project_name(prompt)
         tasks[task_id]["answer"] = await _gemini_exec_generate_powerbi_dashboard(
-            loop, site_query="", folder_path=folder_path, project_name="Landmark_Corporate_Dashboard", task_id=task_id
+            loop, site_query="", folder_path=folder_path, project_name=project_name, task_id=task_id
         )
         tasks[task_id]["status"] = "COMPLETED"
         return True
@@ -4189,10 +4210,11 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
 
     # 4a. Power BI Dashboard Project (.pbip) generation from SharePoint CSVs
     elif is_powerbi_dashboard_build_request(prompt_lower):
-        tasks[task_id]["logs"].append("[00:01] 📊 Generating Power BI Desktop .pbip project from SharePoint CSV files...")
+        tasks[task_id]["logs"].append("[00:01] 📊 Generating Power BI Desktop dashboard from SharePoint CSV files...")
         folder_path = extract_sharepoint_folder_path(prompt)
+        project_name = extract_powerbi_project_name(prompt)
         tasks[task_id]["answer"] = await _gemini_exec_generate_powerbi_dashboard(
-            loop, site_query="", folder_path=folder_path, project_name="Landmark_Corporate_Dashboard", task_id=task_id
+            loop, site_query="", folder_path=folder_path, project_name=project_name, task_id=task_id
         )
         tasks[task_id]["status"] = "COMPLETED"
         return

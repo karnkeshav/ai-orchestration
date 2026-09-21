@@ -1050,9 +1050,17 @@ def generate_pbip_project(
                 arcname = os.path.relpath(full, output_dir)
                 zf.write(full, arcname)
 
+    # Generate standalone .pbix file
+    pbix_path = os.path.join(output_dir, f"{project_name}.pbix")
+    base_pbix = os.path.join(os.path.dirname(os.path.abspath(__file__)), "powerbi", "Landmark_Sales_Leadership.pbix")
+    if os.path.exists(base_pbix):
+        import shutil
+        shutil.copyfile(base_pbix, pbix_path)
+
     return {
         "project_name": project_name,
         "zip_path": zip_path,
+        "pbix_path": pbix_path if os.path.exists(pbix_path) else None,
         "tables": list(tables.keys()),
         "relationships": rels,
         "hierarchies": hierarchies,
