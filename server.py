@@ -3606,7 +3606,7 @@ _PRESENTATION_EXCLUSIONS = (
 def is_mutation_request(prompt_lower: str) -> bool:
     # Presentation / reporting requests ("create a table / tabular view / summary") are NOT infrastructure mutations.
     is_presentation = any(p in prompt_lower for p in _PRESENTATION_EXCLUSIONS)
-    is_real_infra = any(k in prompt_lower for k in ("vm", "instance", "ec2", "bucket", "database", "repository", "repo", "app", "pipeline"))
+    is_real_infra = bool(re.search(r'\b(vm|vms|instance|instances|ec2|bucket|buckets|database|databases|repository|repositories|repo|repos|pipeline|pipelines)\b', prompt_lower))
     if is_presentation and not is_real_infra:
         return False
     return any(v in prompt_lower for v in _MUTATION_VERBS) and any(k in prompt_lower for k in _MUTATION_TARGET_KEYWORDS)
