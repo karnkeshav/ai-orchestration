@@ -1142,6 +1142,14 @@
             <button type="button" class="quick-chip-btn" data-i18n="chipActionModal" onclick="appendInstruction(t('chipActionModalPrompt'))">➕ + Action Modal</button>
           </div>
 
+          <!-- Quick Modifier Chips for M365 & Power BI -->
+          <div id="m365ChipsContainer" class="quick-chips-wrapper" style="display: none;">
+            <button type="button" class="quick-chip-btn" data-i18n="chipPbixDashboard" onclick="loadPrompt('m365-pbix-dashboard')">📊 + Create sales.pbix Dashboard</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipSharepointCsvs" onclick="loadPrompt('m365-sharepoint-csvs')">📂 + Count SharePoint CSVs</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipPowerbiAudit" onclick="loadPrompt('m365-powerbi-audit')">📈 + Power BI & PBIX Audit</button>
+            <button type="button" class="quick-chip-btn" data-i18n="chipFlowAnomalies" onclick="loadPrompt('m365-flow')">💼 + Power Automate Flow</button>
+          </div>
+
           <textarea id="promptText" class="prompt-textarea" data-i18n-placeholder="promptPlaceholder" placeholder="Ask a question, paste an image (Ctrl+V), or choose a capability from the left..."></textarea>
 
           <div class="prompt-footer">
@@ -1475,8 +1483,10 @@
         { icon: '🔄', title: 'Multi-Cloud DR', desc: 'Automated failover & egress arbitrage', category: 'cloud', key: 'hybrid-dr' },
       ],
       m365: [
-        { icon: '💼', title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', category: 'm365', key: 'm365-flow' },
-        { icon: '📊', title: 'Power BI & PBIX', desc: 'Audit PBIX files, workspaces, & reports', category: 'm365', key: 'm365-powerbi' },
+        { icon: '📊', title: 'Corporate Power BI Dashboard (.pbix)', desc: 'Auto-detect star-schema relationships, DAX measures, Date dimension, & corporate colorful theme', category: 'm365', key: 'm365-pbix-dashboard' },
+        { icon: '📂', title: 'SharePoint CSV Inventory', desc: 'Scan & count CSV datasets across SharePoint sites and folders', category: 'm365', key: 'm365-sharepoint-csvs' },
+        { icon: '📈', title: 'Power BI & PBIX Audit', desc: 'Count and audit PBIX files, reports, and workspaces in Power BI & M365', category: 'm365', key: 'm365-powerbi-audit' },
+        { icon: '💼', title: 'Power Automate & ChatOps', desc: 'Cloud flows, Teams ChatOps, Outlook digests', category: 'm365', key: 'm365-flow' },
       ]
     };
 
@@ -1500,8 +1510,11 @@
       'finops-gcp-active-assist': "Execute Google Cloud FinOps analysis across project.",
       'cloudops-ampere': "Continuously provision an Always-Free OCI Ampere VM.",
       'hybrid-dr': "Architect Multi-Cloud DR pipeline between AWS EKS and OCI.",
-      'm365-flow': "Build a Power Automate flow for cloud spend anomalies.",
-      'm365-powerbi': "How many PBIX files and reports do I have on my Power BI?"
+      'm365-pbix-dashboard': "Use my CSV files from my SharePoint landmark/data_filled/ and create a corporate Power BI dashboard name the pbix file has sales.pbix",
+      'm365-sharepoint-csvs': "How many CSV files are there in my SharePoint?",
+      'm365-powerbi-audit': "How many PBIX files and reports do I have on my Power BI and OneDrive?",
+      'm365-powerbi': "How many PBIX files and reports do I have on my Power BI?",
+      'm365-flow': "Build a Power Automate flow for cloud spend anomalies."
     };
 
     const translations = {
@@ -1545,6 +1558,10 @@
         toastEmptyPrompt: "⚠️ Please enter a directive or attach a picture!",
         toastExecutionCompleted: "💎 Execution completed!",
         toastDone: "💎 Done!",
+        chipPbixDashboard: "📊 + Create sales.pbix Dashboard",
+        chipSharepointCsvs: "📂 + Count SharePoint CSVs",
+        chipPowerbiAudit: "📈 + Power BI & PBIX Audit",
+        chipFlowAnomalies: "💼 + Power Automate Flow",
         chipDarkLight: "✨ + Dark/Light Theme",
         chipDarkLightPrompt: "Add a modern Dark/Light theme toggle switch with glowing accents",
         chipCharts: "📊 + Live Chart.js",
@@ -1996,6 +2013,9 @@
         'finops-gcp-active-assist': { title: 'Quad-Cloud FinOps', desc: 'AWS, OCI, Azure, GCP cost analysis', prompt: "What is the cost of my AWS, OCI, Azure and GCP in a tabular format?" },
         'cloudops-ampere': { title: 'OCI Ampere VM', desc: 'Autonomous Always-Free VM provisioning', prompt: "Continuously provision an Always-Free OCI Ampere VM." },
         'hybrid-dr': { title: 'Multi-Cloud DR', desc: 'Automated failover & egress arbitrage', prompt: "Architect Multi-Cloud DR pipeline between AWS EKS and OCI." },
+        'm365-pbix-dashboard': { title: 'Corporate Power BI Dashboard (.pbix)', desc: 'Auto-detect star-schema relationships, DAX measures, Date dimension, & corporate colorful theme', prompt: "Use my CSV files from my SharePoint landmark/data_filled/ and create a corporate Power BI dashboard name the pbix file has sales.pbix" },
+        'm365-sharepoint-csvs': { title: 'SharePoint CSV Inventory', desc: 'Scan & count CSV datasets across SharePoint sites and folders', prompt: "How many CSV files are there in my SharePoint?" },
+        'm365-powerbi-audit': { title: 'Power BI & PBIX Audit', desc: 'Count and audit PBIX files, reports, and workspaces in Power BI & M365', prompt: "How many PBIX files and reports do I have on my Power BI and OneDrive?" },
         'm365-flow': { title: 'Power Automate', desc: 'Cloud flows, Teams ChatOps, Outlook digests', prompt: "Build a Power Automate flow for cloud spend anomalies." },
         'm365-powerbi': { title: 'Power BI & PBIX', desc: 'Audit PBIX files, workspaces, & reports', prompt: "How many PBIX files and reports do I have on my Power BI?" }
       },
@@ -2368,10 +2388,16 @@
 
       // 6. Handle quick modifier chips
       const quickChips = document.getElementById('quickChipsContainer');
+      const m365Chips = document.getElementById('m365ChipsContainer');
       if (category === 'websites') {
         if (quickChips) quickChips.style.display = 'flex';
+        if (m365Chips) m365Chips.style.display = 'none';
+      } else if (category === 'm365') {
+        if (quickChips) quickChips.style.display = 'none';
+        if (m365Chips) m365Chips.style.display = 'flex';
       } else {
         if (quickChips) quickChips.style.display = 'none';
+        if (m365Chips) m365Chips.style.display = 'none';
       }
 
       // 7. Handle Apps section vs standard sections
