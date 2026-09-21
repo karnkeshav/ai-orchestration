@@ -3598,7 +3598,17 @@ _MUTATION_TARGET_KEYWORDS = _CLOUD_INFRA_KEYWORDS + (
     "sharepoint", "workspace", "report", "dataset", "dashboard",
 )
 
+_PRESENTATION_EXCLUSIONS = (
+    "tabular", "table", "view", "summary", "list", "comparison", "matrix", "chart",
+    "breakdown", "overview", "diff", "difference", "compare"
+)
+
 def is_mutation_request(prompt_lower: str) -> bool:
+    # Presentation / reporting requests ("create a table / tabular view / summary") are NOT infrastructure mutations.
+    is_presentation = any(p in prompt_lower for p in _PRESENTATION_EXCLUSIONS)
+    is_real_infra = any(k in prompt_lower for k in ("vm", "instance", "ec2", "bucket", "database", "repository", "repo", "app", "pipeline"))
+    if is_presentation and not is_real_infra:
+        return False
     return any(v in prompt_lower for v in _MUTATION_VERBS) and any(k in prompt_lower for k in _MUTATION_TARGET_KEYWORDS)
 
 def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = None) -> bool:
@@ -3693,10 +3703,15 @@ def is_powerbi_report_query(prompt_lower: str) -> bool:
 
 def is_sharepoint_file_query(prompt_lower: str) -> bool:
     has_sharepoint = "sharepoint" in prompt_lower
-    has_csv = "csv" in prompt_lower and any(
-        w in prompt_lower for w in ("file", "files", "how many", "count", "list", "audit", "show", "find", "where", "my", "there", "have")
+    has_csv = "csv" in prompt_lower
+    has_query_intent = any(
+        w in prompt_lower for w in (
+            "file", "files", "how many", "count", "list", "audit", "show", "find", "where",
+            "my", "there", "have", "tabular", "table", "diff", "difference", "comparison",
+            "view", "compare", "breakdown", "dataset", "datasets"
+        )
     )
-    return has_sharepoint or has_csv
+    return (has_sharepoint and (has_csv or has_query_intent)) or (has_csv and has_query_intent)
 
 async def try_instant_mission_match(task_id: str, prompt: str, category: Optional[str] = None, location: Optional[str] = "Bangalore", language: Optional[str] = "en") -> bool:
     """Zero-LLM keyword fast-path (same pattern as try_instant_cloud_query)
