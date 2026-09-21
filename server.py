@@ -3667,16 +3667,19 @@ def extract_powerbi_project_name(prompt: str, default: str = "Landmark_Corporate
     m1 = re.search(r'name\s+(?:the\s+)?(?:pbix|pbip|pbis|file|project|dashboard|report|it)?\s*(?:file)?\s*(?:as|has|to|is|=)\s*([\w\-]+)(?:\.[a-zA-Z0-9]+)?', prompt, re.IGNORECASE)
     if m1:
         return m1.group(1).strip()
-    m2 = re.search(r'(?:named|called)\s+([\w\-]+)(?:\.[a-zA-Z0-9]+)?', prompt, re.IGNORECASE)
+    m2 = re.search(r'(?:named|called|with\s+name|with\s+the\s+name)\s+([\w\-]+)(?:\.[a-zA-Z0-9]+)?', prompt, re.IGNORECASE)
     if m2:
         return m2.group(1).strip()
+    m3 = re.search(r'([\w\-]+)\.(?:pbix|pbip|pbis|pbit)', prompt, re.IGNORECASE)
+    if m3:
+        return m3.group(1).strip()
     return default
 
 def is_powerbi_dashboard_build_request(prompt_lower: str) -> bool:
-    has_pbi = any(k in prompt_lower for k in ("power bi", "powerbi", "pbip", "dashboard"))
-    has_build = any(v in prompt_lower for v in ("create", "generate", "build", "make", "construct", "develop"))
+    has_pbi = any(k in prompt_lower for k in ("power bi", "powerbi", "pbip", "pbix", "pbis", "pbit", "dashboard", "report"))
+    has_build = any(v in prompt_lower for v in ("create", "creating", "generate", "generating", "build", "building", "make", "making", "construct", "develop"))
     has_data_source = any(s in prompt_lower for s in ("sharepoint", "csv", "data", "file", "files"))
-    return has_pbi and has_build and has_data_source
+    return (has_pbi and has_build and has_data_source) or (("pbix" in prompt_lower or "pbip" in prompt_lower or "powerbi" in prompt_lower or "power bi" in prompt_lower) and has_build)
 
 def is_mutation_request(prompt_lower: str) -> bool:
     # Power BI Dashboard builds from SharePoint are handled by the native Python TMDL engine
