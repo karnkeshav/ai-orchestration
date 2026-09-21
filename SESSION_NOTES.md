@@ -542,6 +542,24 @@ Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) fur
 ### 3. Solution Applied
 1. **Regex Word-Boundary Matching:** Replaced naive substring checks with regex word boundaries `re.search(r'\b(vm|vms|instance|instances|ec2|bucket|buckets|database|databases|repository|repositories|repo|repos|pipeline|pipelines)\b', prompt_lower)`. This prevents `"repo"` from matching inside `"sharepoint"`.
 2. **`_PRESENTATION_EXCLUSIONS` in `server.py`:** Added presentation keywords (`tabular`, `table`, `view`, `summary`, `list`, `comparison`, `matrix`, `chart`, `breakdown`, `overview`, `diff`, `difference`, `compare`) to `is_mutation_request()`. If a user asks to "create a table / tabular view / summary", it is recognized as a read-only presentation/reporting request unless accompanied by actual infrastructure targets.
-3. **Expanded `is_sharepoint_file_query`:** Added presentation/analysis intent keywords (`tabular`, `table`, `diff`, `difference`, `comparison`, `view`, `compare`, `breakdown`, `dataset`, `datasets`) so prompts asking for tabular views of SharePoint CSVs route straight to the 2.5s instant SharePoint fast-path with zero latency.
+---
+
+## 2026-09-21 (Part 4) - Power BI Dashboard Project (.pbip) Generation & SharePoint Path Extraction
+
+### 1. Problem & User Report
+- Prompt: `"Use my CSV files from my SharePoint landmark/data_filled/ and create a corporate Power BI dashboard"` timed out after 6 minutes with `⚠️ Antigravity CLI failed on this request (agy warm session turn failed: )`.
+
+### 2. Root Cause Analysis
+1. **Mutation Router Escalation:** The prompt contains `"create"` + `"power bi"` / `"dashboard"`, triggering `is_mutation_request(prompt_lower) == True` and escalating directly to `run_agy_pipeline`.
+2. **Missing `sharepoint` MCP Server on OCI VM:** `agy` was prompted to call `sharepoint_read_file`, but `mcp_config.json` on the OCI VM did not register the SharePoint MCP server.
+3. **Hardcoded Windows Path in Hint:** `_AGY_POWERBI_HINT` commanded `agy` to edit local files at `/mnt/c/Users/keysh/Documents/...` which does not exist on the Linux OCI VM.
+4. **Hardcoded Folder Path:** The hint hardcoded `landmark/data/`, overriding the user's specific request for `landmark/data_filled/`.
+
+### 3. Solution Applied
+1. **`is_powerbi_dashboard_build_request` in `server.py`:** Added detection for Power BI project build requests (`power bi`/`pbip`/`dashboard` + build verb + `sharepoint`/`csv`/`data`). Excluded these requests from `is_mutation_request` so they are routed directly to the native Python TMDL engine (`powerbi_engine.generate_pbip_project`).
+2. **Dynamic Folder Path Extraction:** Added `extract_sharepoint_folder_path(prompt)` to dynamically detect folder paths (e.g. `landmark/data_filled`, `landmark/data`).
+3. **Fast-Path Native Execution:** Integrated `_gemini_exec_generate_powerbi_dashboard` into `try_instant_mission_match` and `run_mission_pipeline`. It connects directly to Microsoft Graph, downloads CSVs, profiles data types, auto-builds 13 star-schema relationships, hierarchies, DAX measures, Date dimension, and zips the full `.pbip` Power BI Desktop project with a direct download link.
+4. **Fully-Qualified Download URLs:** Formatted download links with `PUBLIC_BASE_URL` (`https://ai-orchestration-app.duckdns.org/generated_dashboards/...`) for cross-origin downloads from GitHub Pages.
+
 
 

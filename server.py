@@ -2367,11 +2367,13 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
     except Exception as e:
         return f"❌ **Power BI generation failed:** {str(e)}"
 
-    zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/")
+    PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "https://ai-orchestration-app.duckdns.org").rstrip("/")
+    zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
+    download_url = f"{PUBLIC_BASE_URL}/{zip_rel}"
     lines = [
-        f"✅ **Power BI project generated from '{result['site_name']}'** — [Download {result['project_name']}.zip](/{zip_rel})",
+        f"✅ **Power BI project generated from '{result['site_name']}'** — [⬇️ Download {result['project_name']}.zip]({download_url})",
         "",
-        f"**Tables:** {', '.join(result['tables'])}" + (" + Date (auto-built)" if result["date_dimension"] else ""),
+        f"**Tables ({len(result['tables'])}):** {', '.join(result['tables'])}" + (" + Date (auto-built)" if result["date_dimension"] else ""),
     ]
     if result["relationships"]:
         rel_lines = [f"• {r['from_table']}[{r['from_col']}] → {r['to_table']}[{r['to_col']}] ({r['cardinality']})" for r in result["relationships"]]
@@ -2389,7 +2391,7 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
         "if you need the traditional binary file."
     )
     if task_id and task_id in tasks:
-        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI Project: {result['project_name']}", "url": f"/{zip_rel}"}
+        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI Project: {result['project_name']}", "url": download_url}
     return "\n\n".join(lines)
 
 async def _gemini_exec_find_best_deals(loop, query, category, location):
@@ -3603,7 +3605,26 @@ _PRESENTATION_EXCLUSIONS = (
     "breakdown", "overview", "diff", "difference", "compare"
 )
 
+def extract_sharepoint_folder_path(prompt: str) -> Optional[str]:
+    m = re.search(r'([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-]+)*)', prompt)
+    if m:
+        return m.group(1).rstrip('/')
+    if "data_filled" in prompt.lower():
+        return "landmark/data_filled"
+    if "data" in prompt.lower():
+        return "landmark/data"
+    return None
+
+def is_powerbi_dashboard_build_request(prompt_lower: str) -> bool:
+    has_pbi = any(k in prompt_lower for k in ("power bi", "powerbi", "pbip", "dashboard"))
+    has_build = any(v in prompt_lower for v in ("create", "generate", "build", "make", "construct", "develop"))
+    has_data_source = any(s in prompt_lower for s in ("sharepoint", "csv", "data", "file", "files"))
+    return has_pbi and has_build and has_data_source
+
 def is_mutation_request(prompt_lower: str) -> bool:
+    # Power BI Dashboard builds from SharePoint are handled by the native Python TMDL engine
+    if is_powerbi_dashboard_build_request(prompt_lower):
+        return False
     # Presentation / reporting requests ("create a table / tabular view / summary") are NOT infrastructure mutations.
     is_presentation = any(p in prompt_lower for p in _PRESENTATION_EXCLUSIONS)
     is_real_infra = bool(re.search(r'\b(vm|vms|instance|instances|ec2|bucket|buckets|database|databases|repository|repositories|repo|repos|pipeline|pipelines)\b', prompt_lower))
@@ -3723,6 +3744,17 @@ async def try_instant_mission_match(task_id: str, prompt: str, category: Optiona
     no logic is duplicated, only reachability changes."""
     prompt_lower = prompt.lower()
     loop = asyncio.get_event_loop()
+
+    # Power BI Dashboard Project (.pbip) generation from SharePoint CSVs
+    if is_powerbi_dashboard_build_request(prompt_lower):
+        tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+        tasks[task_id]["logs"].append("[00:01] 📊 Recognized Power BI Dashboard generation request — reading SharePoint CSVs & building .pbip project...")
+        folder_path = extract_sharepoint_folder_path(prompt)
+        tasks[task_id]["answer"] = await _gemini_exec_generate_powerbi_dashboard(
+            loop, site_query="", folder_path=folder_path, project_name="Landmark_Corporate_Dashboard", task_id=task_id
+        )
+        tasks[task_id]["status"] = "COMPLETED"
+        return True
 
     # Power BI Reports & PBIX files lookup
     if is_powerbi_report_query(prompt_lower) or (category == "m365" and any(k in prompt_lower for k in ("power bi", "powerbi", "pbix", "pbit", "pbip", "report"))):
@@ -4154,6 +4186,16 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
     # 4. 3D Pixar & Disney Animation Video (Local Hybrid Pipeline)
     elif is_video_mission_query(prompt_lower):
         await run_pixar_video_mission(task_id, prompt, prompt_lower)
+
+    # 4a. Power BI Dashboard Project (.pbip) generation from SharePoint CSVs
+    elif is_powerbi_dashboard_build_request(prompt_lower):
+        tasks[task_id]["logs"].append("[00:01] 📊 Generating Power BI Desktop .pbip project from SharePoint CSV files...")
+        folder_path = extract_sharepoint_folder_path(prompt)
+        tasks[task_id]["answer"] = await _gemini_exec_generate_powerbi_dashboard(
+            loop, site_query="", folder_path=folder_path, project_name="Landmark_Corporate_Dashboard", task_id=task_id
+        )
+        tasks[task_id]["status"] = "COMPLETED"
+        return
 
     # 4b. Power BI & SharePoint report listing
     elif is_powerbi_report_query(prompt_lower) or (category == "m365" and any(k in prompt_lower for k in ("power bi", "powerbi", "pbix", "pbit", "pbip", "report"))):
