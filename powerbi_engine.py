@@ -579,7 +579,7 @@ def _norm(name: str) -> str:
 
 def load_table(filename: str, raw: bytes) -> Tuple[str, pd.DataFrame]:
     table_name = _sanitize_name(re.sub(r"\.csv$", "", filename, flags=re.IGNORECASE))
-    df = pd.read_csv(io.BytesIO(raw))
+    df = pd.read_csv(io.BytesIO(raw), nrows=25000)
     df.columns = [_sanitize_name(c) for c in df.columns]
     return table_name, df
 
@@ -594,8 +594,9 @@ def _infer_dax_type(series: pd.Series) -> str:
     non_null = series.dropna()
     if len(non_null) == 0:
         return "string"
+    sample = non_null.head(500)
     try:
-        parsed = pd.to_datetime(non_null, errors="coerce")
+        parsed = pd.to_datetime(sample, errors="coerce")
         if parsed.notna().mean() > 0.85:
             return "dateTime"
     except Exception:
@@ -702,7 +703,8 @@ def build_date_dimension(tables: Dict[str, pd.DataFrame], profile: Dict[str, dic
         for c, meta in cols.items():
             if meta["is_date"]:
                 date_cols.append((tname, c))
-                parsed = pd.to_datetime(tables[tname][c], errors="coerce").dropna()
+                sample = tables[tname][c].dropna().head(1000)
+                parsed = pd.to_datetime(sample, errors="coerce").dropna()
                 if len(parsed):
                     all_dates.append(parsed)
     if not date_cols or not all_dates:
