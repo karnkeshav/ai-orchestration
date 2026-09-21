@@ -3637,20 +3637,25 @@ _PRESENTATION_EXCLUSIONS = (
 )
 
 def extract_sharepoint_folder_path(prompt: str) -> Optional[str]:
+    p_lower = prompt.lower()
+    if any(k in p_lower for k in ("filled-data", "filled_data", "data-filled", "data_filled", "datafilled", "filleddata")):
+        return "landmark/data_filled"
     m = re.search(r'([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-]+)*)', prompt)
     if m:
-        return m.group(1).rstrip('/')
-    if "data_filled" in prompt.lower():
-        return "landmark/data_filled"
-    if "data" in prompt.lower():
+        path = m.group(1).rstrip('/')
+        path_lower = path.lower()
+        if "filled" in path_lower and "data" in path_lower:
+            return "landmark/data_filled"
+        return path
+    if "data" in p_lower:
         return "landmark/data"
     return None
 
 def extract_powerbi_project_name(prompt: str, default: str = "Landmark_Corporate_Dashboard") -> str:
-    m1 = re.search(r'name\s+(?:the\s+)?(?:pbix|pbip|file|project|dashboard|report|it)?\s*(?:file)?\s*(?:as|has|to|is|=)\s*([\w\-]+)(?:\.pbix|\.pbip)?', prompt, re.IGNORECASE)
+    m1 = re.search(r'name\s+(?:the\s+)?(?:pbix|pbip|pbis|file|project|dashboard|report|it)?\s*(?:file)?\s*(?:as|has|to|is|=)\s*([\w\-]+)(?:\.[a-zA-Z0-9]+)?', prompt, re.IGNORECASE)
     if m1:
         return m1.group(1).strip()
-    m2 = re.search(r'(?:named|called)\s+([\w\-]+)(?:\.pbix|\.pbip)?', prompt, re.IGNORECASE)
+    m2 = re.search(r'(?:named|called)\s+([\w\-]+)(?:\.[a-zA-Z0-9]+)?', prompt, re.IGNORECASE)
     if m2:
         return m2.group(1).strip()
     return default

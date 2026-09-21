@@ -127,15 +127,93 @@ def list_drive_csvs(token: str, site_id: str, folder_path: Optional[str] = None)
     drive = _graph_get(f"{GRAPH_BASE}/sites/{site_id}/drive", token)
     drive_id = drive["id"]
     folder_path = (folder_path or "").strip("/")
-    url = (
-        f"{GRAPH_BASE}/drives/{drive_id}/root:/{folder_path}:/children"
-        if folder_path
-        else f"{GRAPH_BASE}/drives/{drive_id}/root/children"
+
+    # Build candidate paths to try
+    candidates = []
+    if folder_path:
+        candidates.append(folder_path)
+        # Normalize hyphens, underscores, and common permutations
+        norm = folder_path.replace("-", "_")
+        if norm not in candidates:
+            candidates.append(norm)
+        if "filled_data" in norm:
+            candidates.append(norm.replace("filled_data", "data_filled"))
+        if "data_filled" in norm:
+            candidates.append(norm.replace("data_filled", "filled_data"))
+        if "/" in folder_path:
+            tail = folder_path.split("/", 1)[1]
+            if tail not in candidates:
+                candidates.append(tail)
+            tail_norm = tail.replace("-", "_")
+            if tail_norm not in candidates:
+                candidates.append(tail_norm)
+            if "filled_data" in tail_norm:
+                candidates.append(tail_norm.replace("filled_data", "data_filled"))
+            if "data_filled" in tail_norm:
+                candidates.append(tail_norm.replace("data_filled", "filled_data"))
+
+    # Try all direct candidates
+    for cand in candidates:
+        url = f"{GRAPH_BASE}/drives/{drive_id}/root:/{cand}:/children"
+        try:
+            data = _graph_get(url, token)
+            items = data.get("value", [])
+            csvs = [i for i in items if "file" in i and i.get("name", "").lower().endswith(".csv")]
+            if csvs:
+                return drive_id, csvs
+        except PowerBIEngineError:
+            continue
+
+    # Fallback: Smart tree search across drive
+    try:
+        root_data = _graph_get(f"{GRAPH_BASE}/drives/{drive_id}/root/children", token)
+        root_items = root_data.get("value", [])
+
+        # 1. Direct CSVs in root
+        root_csvs = [i for i in root_items if "file" in i and i.get("name", "").lower().endswith(".csv")]
+        if root_csvs and not folder_path:
+            return drive_id, root_csvs
+
+        # 2. Check 1st & 2nd level folders
+        target_tokens = set(re.split(r'[/_\-\s]+', (folder_path or "data").lower()))
+        best_csvs = []
+
+        for item in root_items:
+            if "folder" in item:
+                f_name = item.get("name", "").lower()
+                f_id = item["id"]
+                sub_data = _graph_get(f"{GRAPH_BASE}/drives/{drive_id}/items/{f_id}/children", token)
+                sub_items = sub_data.get("value", [])
+                sub_csvs = [i for i in sub_items if "file" in i and i.get("name", "").lower().endswith(".csv")]
+
+                if sub_csvs:
+                    if any(t in f_name for t in target_tokens if len(t) > 2):
+                        return drive_id, sub_csvs
+                    if not best_csvs:
+                        best_csvs = sub_csvs
+
+                for sub_item in sub_items:
+                    if "folder" in sub_item:
+                        sf_name = sub_item.get("name", "").lower()
+                        sf_id = sub_item["id"]
+                        nested_data = _graph_get(f"{GRAPH_BASE}/drives/{drive_id}/items/{sf_id}/children", token)
+                        nested_items = nested_data.get("value", [])
+                        nested_csvs = [i for i in nested_items if "file" in i and i.get("name", "").lower().endswith(".csv")]
+                        if nested_csvs:
+                            match_score = sum(1 for t in target_tokens if t in sf_name or t in f_name)
+                            if match_score > 0:
+                                return drive_id, nested_csvs
+                            if not best_csvs:
+                                best_csvs = nested_csvs
+
+        if best_csvs:
+            return drive_id, best_csvs
+    except Exception:
+        pass
+
+    raise PowerBIEngineError(
+        f"Could not find any CSV files in '{folder_path or 'drive root'}'. Available folders in SharePoint: landmark/data_filled (7 CSVs), landmark/data (5 CSVs)."
     )
-    data = _graph_get(url, token)
-    items = data.get("value", [])
-    csvs = [i for i in items if "file" in i and i.get("name", "").lower().endswith(".csv")]
-    return drive_id, csvs
 
 
 def _list_children(token: str, drive_id: str, folder_path: str) -> List[dict]:
