@@ -2371,21 +2371,33 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
     zip_rel = os.path.relpath(result["zip_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
     download_url_zip = f"{PUBLIC_BASE_URL}/{zip_rel}"
 
-    pbix_links_md = ""
-    primary_download_url = download_url_zip
+    pbix_links_md = []
+    primary_deliverable_url = download_url_zip
+    primary_title = f"📊 Power BI: {result['project_name']}"
+
+    # 1. Power BI Cloud Service
+    cloud = result.get("powerbi_cloud") or {}
+    if cloud.get("published") and cloud.get("report_url"):
+        pbix_links_md.append(f"• 🚀 **Power BI Cloud (Online):** [🌐 Open `{result['project_name']}` in Power BI Service]({cloud['report_url']}) *(Workspace: `{cloud.get('workspace_name', 'AI-Orchestration')}`)*")
+        primary_deliverable_url = cloud["report_url"]
+        primary_title = f"🌐 Power BI Cloud: {result['project_name']}"
+
+    # 2. Direct PBIX
     if result.get("pbix_path") and os.path.exists(result["pbix_path"]):
         pbix_rel = os.path.relpath(result["pbix_path"], os.path.dirname(os.path.abspath(__file__))).replace(os.sep, "/").lstrip("/")
         download_url_pbix = f"{PUBLIC_BASE_URL}/{pbix_rel}"
-        primary_download_url = download_url_pbix
-        pbix_links_md = (
-            f"• 📊 **Direct Power BI File:** [⬇️ Download `{result['project_name']}.pbix`]({download_url_pbix})\n"
-            f"• 📦 **Complete Project (.pbip):** [⬇️ Download `{result['project_name']}.zip`]({download_url_zip})\n"
-        )
-    else:
-        pbix_links_md = f"• 📦 **Power BI Project (.pbip):** [⬇️ Download `{result['project_name']}.zip`]({download_url_zip})\n"
+        if not cloud.get("published"):
+            primary_deliverable_url = download_url_pbix
+            primary_title = f"📊 Power BI: {result['project_name']}.pbix"
+        pbix_links_md.append(f"• 📊 **Direct Power BI File:** [⬇️ Download `{result['project_name']}.pbix`]({download_url_pbix})")
+
+    # 3. Complete PBIP Project Zip
+    pbix_links_md.append(f"• 📦 **Complete Project (.pbip):** [⬇️ Download `{result['project_name']}.zip`]({download_url_zip})")
+
+    links_block = "\n".join(pbix_links_md)
 
     lines = [
-        f"✅ **Power BI Dashboard generated for `{result['project_name']}` from '{result['site_name']}'**\n\n{pbix_links_md}",
+        f"✅ **Power BI Dashboard generated & pushed for `{result['project_name']}` from '{result['site_name']}'**\n\n{links_block}",
         f"**Tables ({len(result['tables'])}):** {', '.join(result['tables'])}" + (" + Date (auto-built)" if result["date_dimension"] else ""),
     ]
     if result["relationships"]:
@@ -2397,12 +2409,20 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
     for t, measures in result["measures"].items():
         if measures:
             lines.append(f"**DAX measures ({t}):** " + ", ".join(measures))
-    lines.append(
-        "\n**Ready to open:** double-click the `.pbix` file to open directly in Power BI Desktop on Windows, "
-        "or unzip the `.pbip` project for source-control and TMDL data modeling."
-    )
+
+    cloud_status_text = ""
+    if cloud.get("published"):
+        cloud_status_text = (
+            f"\n☁️ **Pushed to Power BI Cloud:** The report and dataset are live in your Power BI Workspace **`{cloud.get('workspace_name')}`** "
+            f"under Entra ID `Keshav@keyshavkarnoutlook.onmicrosoft.com`. When you open Power BI Desktop or `app.powerbi.com`, "
+            f"you will see `{result['project_name']}` under Workspaces / Recent Reports.\n"
+        )
+    else:
+        cloud_status_text = "\n**Ready to open:** double-click the `.pbix` file to open directly in Power BI Desktop on Windows.\n"
+
+    lines.append(cloud_status_text)
     if task_id and task_id in tasks:
-        tasks[task_id]["deliverable"] = {"type": "info", "title": f"📊 Power BI: {result['project_name']}.pbix", "url": primary_download_url}
+        tasks[task_id]["deliverable"] = {"type": "info", "title": primary_title, "url": primary_deliverable_url}
     return "\n\n".join(lines)
 
 async def _gemini_exec_find_best_deals(loop, query, category, location):

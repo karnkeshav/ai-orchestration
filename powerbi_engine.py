@@ -1057,10 +1057,16 @@ def generate_pbip_project(
         import shutil
         shutil.copyfile(base_pbix, pbix_path)
 
+    # Auto-publish to Power BI Cloud Workspace (Service)
+    cloud_result = {}
+    if os.path.exists(pbix_path):
+        cloud_result = publish_pbix_to_powerbi_service(pbix_path, project_name, on_log=on_log)
+
     return {
         "project_name": project_name,
         "zip_path": zip_path,
         "pbix_path": pbix_path if os.path.exists(pbix_path) else None,
+        "powerbi_cloud": cloud_result,
         "tables": list(tables.keys()),
         "relationships": rels,
         "hierarchies": hierarchies,
@@ -1068,3 +1074,122 @@ def generate_pbip_project(
         "measures": {t: [m["name"] for m in ms] for t, ms in table_measures.items()},
         "site_name": site.get("displayName", site_query),
     }
+
+
+# --------------------------------------------------------------------------
+# Power BI Service REST API (Cloud Publishing)
+# --------------------------------------------------------------------------
+
+def _powerbi_service_token() -> Optional[str]:
+    tenant = os.environ.get("MS_TENANT_ID")
+    client_id = os.environ.get("MS_CLIENT_ID")
+    client_secret = os.environ.get("MS_CLIENT_SECRET")
+    if not (tenant and client_id and client_secret):
+        return None
+    try:
+        import msal
+        app = msal.ConfidentialClientApplication(
+            client_id,
+            authority=f"https://login.microsoftonline.com/{tenant}",
+            client_credential=client_secret,
+        )
+        res = app.acquire_token_for_client(scopes=["https://analysis.windows.net/powerbi/api/.default"])
+        return res.get("access_token")
+    except Exception:
+        return None
+
+
+def publish_pbix_to_powerbi_service(
+    pbix_path: str,
+    project_name: str,
+    workspace_name: Optional[str] = None,
+    on_log=None
+) -> Dict[str, Any]:
+    """
+    Publishes a .pbix file directly into the Power BI Service workspace via REST API.
+    Returns dict with webUrl, reportId, datasetId, workspaceName, etc.
+    """
+    def log(msg: str):
+        if on_log:
+            on_log(msg)
+        else:
+            print(msg)
+
+    token = _powerbi_service_token()
+    if not token or not os.path.exists(pbix_path):
+        return {}
+
+    headers = {"Authorization": f"Bearer {token}"}
+
+    try:
+        log("☁️ Connecting to Power BI Service API...")
+        r = httpx.get("https://api.powerbi.com/v1.0/myorg/groups", headers=headers, timeout=15.0)
+        if r.status_code >= 400:
+            return {}
+        groups = r.json().get("value", [])
+        if not groups:
+            return {}
+
+        target_group = None
+        if workspace_name:
+            for g in groups:
+                if g.get("name", "").lower() == workspace_name.lower():
+                    target_group = g
+                    break
+        if not target_group:
+            target_group = groups[0]  # default to primary workspace (e.g. AI-Orchestration)
+
+        group_id = target_group["id"]
+        group_name = target_group.get("name", "Workspace")
+        log(f"☁️ Publishing '{project_name}.pbix' to Power BI Workspace: '{group_name}'...")
+
+        with open(pbix_path, "rb") as f:
+            files = {"file": (f"{project_name}.pbix", f, "application/octet-stream")}
+            params = {"datasetDisplayName": project_name, "nameConflict": "CreateOrOverwrite"}
+            upload_r = httpx.post(
+                f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/imports",
+                headers=headers,
+                params=params,
+                files=files,
+                timeout=90.0,
+            )
+            if upload_r.status_code not in (200, 201, 202):
+                return {}
+
+            import_id = upload_r.json().get("id")
+            if not import_id:
+                return {}
+
+        log("⏳ Synchronizing Power BI Service report...")
+        for _ in range(15):
+            time.sleep(1.5)
+            poll_r = httpx.get(
+                f"https://api.powerbi.com/v1.0/myorg/groups/{group_id}/imports/{import_id}",
+                headers=headers,
+                timeout=10.0,
+            )
+            if poll_r.status_code == 200:
+                data = poll_r.json()
+                if data.get("importState") == "Succeeded":
+                    reports = data.get("reports", [])
+                    datasets = data.get("datasets", [])
+                    report_url = reports[0].get("webUrl") if reports else f"https://app.powerbi.com/groups/{group_id}"
+                    report_id = reports[0].get("id") if reports else None
+                    dataset_id = datasets[0].get("id") if datasets else None
+                    log(f"✅ Power BI report published: {report_url}")
+                    return {
+                        "published": True,
+                        "workspace_id": group_id,
+                        "workspace_name": group_name,
+                        "report_name": project_name,
+                        "report_url": report_url,
+                        "report_id": report_id,
+                        "dataset_id": dataset_id,
+                    }
+                elif data.get("importState") == "Failed":
+                    break
+    except Exception as exc:
+        log(f"⚠️ Power BI Service publish notice: {exc}")
+
+    return {}
+

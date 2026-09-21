@@ -576,6 +576,24 @@ Updates the file's "Outstanding Next Steps" item 7 (brittle keyword routing) fur
    - `• 📊 Direct Power BI File: [⬇️ Download sales.pbix](...)`
    - `• 📦 Complete Project (.pbip): [⬇️ Download sales.zip](...)`
 
+---
 
+## 2026-09-21 (Part 6) - Power BI Service Cloud Publishing (Entra ID / Workspace Integration)
 
+### 1. Requirements & Problem
+- User requested that the generated dashboard be pushed automatically to their Power BI cloud environment so when they open Power BI Desktop or the Power BI Web App under their Entra ID account (`Keshav@keyshavkarnoutlook.onmicrosoft.com`), the report is already there in their workspace.
 
+### 2. Architecture & Implementation
+1. **Power BI REST API Client Credential Auth:**
+   - Acquired access tokens for audience `https://analysis.windows.net/powerbi/api/.default` using MSAL with `MS_TENANT_ID`, `MS_CLIENT_ID`, and `MS_CLIENT_SECRET`.
+2. **Auto-Publish via Imports API:**
+   - Added `publish_pbix_to_powerbi_service()` in `powerbi_engine.py`.
+   - Discovers workspace `AI-Orchestration` (`id: 6a70c915-4c84-4adc-b314-5f8e1775254e`).
+   - Posts the generated `.pbix` to `POST https://api.powerbi.com/v1.0/myorg/groups/{groupId}/imports?datasetDisplayName={name}&nameConflict=CreateOrOverwrite`.
+   - Polls import state until `Succeeded` and extracts live report web URL (`https://app.powerbi.com/groups/{groupId}/reports/{reportId}`).
+3. **Response & Deliverables:**
+   - Response renders direct interactive links:
+     - 🚀 **Power BI Cloud (Online):** `[🌐 Open sales in Power BI Service](https://app.powerbi.com/groups/...)` *(Workspace: `AI-Orchestration`)*
+     - 📊 **Direct Power BI File:** `[⬇️ Download sales.pbix](...)`
+     - 📦 **Complete Project (.pbip):** `[⬇️ Download sales.zip](...)`
+   - Sets primary deliverable to the Power BI Cloud report URL.
