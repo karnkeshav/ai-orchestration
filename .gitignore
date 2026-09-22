@@ -24,3 +24,4 @@ venv/
 
 # Generated Power BI projects (downloaded per-request, not source)
 generated_dashboards/
+generated_resumes/
