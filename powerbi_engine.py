@@ -1088,7 +1088,6 @@ def generate_model_tmdl(table_names: List[str]) -> str:
 
 def generate_report_files(project_name: str, table_names: List[str]) -> Dict[str, str]:
     page_id = "ReportSection1"
-    visual_id = "StarterTable"
     files = {}
 
     files[".platform"] = json.dumps({
@@ -1102,9 +1101,74 @@ def generate_report_files(project_name: str, table_names: List[str]) -> Dict[str
         "datasetReference": {"byPath": {"path": f"../{project_name}.SemanticModel"}},
     }, indent=2)
 
+    # Corporate Executive Palette
+    corporate_theme = {
+        "name": "Corporate_Executive",
+        "dataColors": [
+            "#005FB8",  # Microsoft Corporate Blue
+            "#107C41",  # Excel / Finance Emerald Green
+            "#D83B01",  # Corporate Warm Amber / Coral
+            "#5C2D91",  # Royal Violet
+            "#008272",  # Deep Teal
+            "#0078D7",  # Vibrant Azure
+            "#E81123",  # Executive Crimson
+            "#FFB900",  # Gold / Warning
+            "#38BDF8",  # Cyber Cyan
+            "#4F46E5"   # Modern Indigo
+        ],
+        "background": "#F8FAFC",
+        "foreground": "#0F172A",
+        "tableAccent": "#005FB8",
+        "good": "#107C41",
+        "neutral": "#FFB900",
+        "bad": "#D83B01",
+        "maximum": "#005FB8",
+        "center": "#FFB900",
+        "minimum": "#D83B01",
+        "null": "#CBD5E1",
+        "textClasses": {
+            "callout": {"fontSize": 26, "fontFace": "Segoe UI Semibold", "color": "#005FB8"},
+            "title": {"fontSize": 14, "fontFace": "Segoe UI Semibold", "color": "#0F172A"},
+            "header": {"fontSize": 12, "fontFace": "Segoe UI Semibold", "color": "#1E293B"},
+            "label": {"fontSize": 10, "fontFace": "Segoe UI", "color": "#64748B"}
+        },
+        "visualStyles": {
+            "*": {
+                "*": {
+                    "outspacePane": [{"backgroundColor": {"solid": {"color": "#F8FAFC"}}}],
+                    "dropShadow": [{"show": True, "color": {"solid": {"color": "rgba(0,0,0,0.06)"}}, "position": "Outer", "preset": "BottomRight"}],
+                    "border": [{"show": True, "color": {"solid": {"color": "#E2E8F0"}}, "radius": 8}]
+                }
+            },
+            "card": {
+                "*": {
+                    "background": [{"show": True, "color": {"solid": {"color": "#FFFFFF"}}}],
+                    "border": [{"show": True, "color": {"solid": {"color": "#CBD5E1"}}, "radius": 8}],
+                    "labels": [{"color": {"solid": {"color": "#005FB8"}}, "fontSize": 24}]
+                }
+            },
+            "tableEx": {
+                "*": {
+                    "grid": [{"gridVertical": True, "gridHorizontal": True, "gridVerticalColor": {"solid": {"color": "#E2E8F0"}}, "gridHorizontalColor": {"solid": {"color": "#E2E8F0"}}, "rowPadding": 6}],
+                    "columnHeaders": [{"fontColor": {"solid": {"color": "#FFFFFF"}}, "backColor": {"solid": {"color": "#005FB8"}}, "fontFamily": "Segoe UI Semibold", "fontSize": 11}],
+                    "values": [{"backColorPrimary": {"solid": {"color": "#FFFFFF"}}, "backColorSecondary": {"solid": {"color": "#F1F5F9"}}, "fontColorPrimary": {"solid": {"color": "#0F172A"}}, "fontColorSecondary": {"solid": {"color": "#0F172A"}}}]
+                }
+            }
+        }
+    }
+
+    files["StaticResources/SharedResources/BaseThemes/CorporateExecutive.json"] = json.dumps(corporate_theme, indent=2)
+
     files["definition/report.json"] = json.dumps({
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/1.2.0/schema.json",
-        "themeCollection": {"baseTheme": {"name": "CY24SU10"}},
+        "themeCollection": {
+            "baseTheme": {"name": "CY24SU10"},
+            "customTheme": {
+                "name": "CorporateExecutive",
+                "reportVersionAtImport": "2.128.0",
+                "type": "RegisteredResources"
+            }
+        },
         "layoutOptimization": "None",
     }, indent=2)
 
@@ -1117,16 +1181,17 @@ def generate_report_files(project_name: str, table_names: List[str]) -> Dict[str
     files[f"definition/pages/{page_id}/page.json"] = json.dumps({
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/1.4.0/schema.json",
         "name": page_id,
-        "displayName": "Overview",
+        "displayName": "Executive Dashboard",
         "height": 720,
         "width": 1280,
     }, indent=2)
 
     fact_table = table_names[0] if table_names else "Table1"
+    visual_id = "ExecutiveSummaryTable"
     files[f"definition/pages/{page_id}/visuals/{visual_id}/visual.json"] = json.dumps({
         "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.3.0/schema.json",
         "name": visual_id,
-        "position": {"x": 40, "y": 40, "z": 0, "width": 1200, "height": 600},
+        "position": {"x": 30, "y": 30, "z": 0, "width": 1220, "height": 660},
         "visual": {
             "visualType": "tableEx",
             "query": {
@@ -1135,7 +1200,7 @@ def generate_report_files(project_name: str, table_names: List[str]) -> Dict[str
                         "projections": [
                             {"field": {"Column": {"Expression": {"SourceRef": {"Entity": fact_table}}, "Property": c}},
                              "queryRef": f"{fact_table}.{c}"}
-                            for c in []  # left empty: user drags fields on open; avoids referencing columns we can't verify exist post-load
+                            for c in []
                         ]
                     }
                 }
