@@ -2394,12 +2394,11 @@ def render_visual_studio_sharepoint_card(files: list, folder_path: Optional[str]
     }, indent=2)
 
     prompt_action_scope = scope_display.strip("`'\"")
-    return f"""<div class="vst-container" id="{card_id}">
-  <!-- Top Visual Studio Header -->
+    raw_card_html = f"""<div class="vst-container" id="{card_id}">
   <div class="vst-header">
     <div class="vst-title-group">
       <span class="vst-badge vst-badge-sp">📁 M365 SharePoint</span>
-      <span>Scope: <strong style="color: #38bdf8;">`{scope_display}`</strong></span>
+      <span>Scope: <strong style="color: #38bdf8;">{scope_display}</strong></span>
     </div>
     <div class="vst-tabs">
       <button type="button" class="vst-tab-btn active" data-tab="summary" onclick="switchStudioTab('{card_id}', 'summary')">📊 Summary</button>
@@ -2514,6 +2513,7 @@ def render_visual_studio_sharepoint_card(files: list, folder_path: Optional[str]
     </div>
   </div>
 </div>"""
+    return "\n".join(line.strip() for line in raw_card_html.strip().splitlines())
 
 async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_path=None):
     import powerbi_engine

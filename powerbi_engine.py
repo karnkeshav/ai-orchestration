@@ -643,7 +643,7 @@ def render_visual_studio_powerbi_card(cloud_reports: list, sharepoint_files: lis
         "local_onedrive_files": local_files,
     }, indent=2)
 
-    return f"""<div class="vst-container" id="{card_id}">
+    raw_card_html = f"""<div class="vst-container" id="{card_id}">
   <div class="vst-header">
     <div class="vst-title-group">
       <span class="vst-badge vst-badge-pbi">📊 Power BI & PBIX Hub</span>
@@ -724,6 +724,7 @@ def render_visual_studio_powerbi_card(cloud_reports: list, sharepoint_files: lis
     </div>
   </div>
 </div>"""
+    return "\n".join(line.strip() for line in raw_card_html.strip().splitlines())
 
 def list_powerbi_reports_summary() -> str:
     now = time.monotonic()

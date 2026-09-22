@@ -1713,6 +1713,23 @@
         }
       }
     };
+
+    window.safeRenderAnswer = function(rawAnswer) {
+      if (!rawAnswer) return '';
+      const trimmed = rawAnswer.trim();
+      // If the answer is an HTML component like Visual Studio or a card
+      if (trimmed.startsWith('<div class="vst-container"') || trimmed.startsWith('<div class="') || trimmed.startsWith('<section')) {
+        return trimmed;
+      }
+      if (window.marked) {
+        try {
+          return marked.parse(rawAnswer);
+        } catch (e) {
+          return rawAnswer.replace(/\n/g, '<br>');
+        }
+      }
+      return rawAnswer.replace(/\n/g, '<br>');
+    };
   </script>
 </head>
 <body>
@@ -3845,7 +3862,7 @@
 
           if (payload.status === 'COMPLETED') {
             tailorProgress.style.display = 'none';
-            tailorAnswer.innerHTML = window.marked ? marked.parse(payload.answer || '') : (payload.answer || '');
+            tailorAnswer.innerHTML = safeRenderAnswer(payload.answer || '');
             if (payload.deliverable && payload.deliverable.url && payload.deliverable.url !== '#') {
               downloadLink.href = payload.deliverable.url;
               downloadLink.style.display = 'inline-block';
@@ -4011,7 +4028,7 @@
             });
             if (resPayload.answer) {
               resultSection.style.display = "block";
-              let renderedHtml = window.marked ? marked.parse(resPayload.answer) : resPayload.answer.replace(/\n/g, "<br>");
+              let renderedHtml = safeRenderAnswer(resPayload.answer);
 
               if (resPayload.deliverable && resPayload.deliverable.html) {
                 const del = resPayload.deliverable;
