@@ -3124,7 +3124,8 @@
 
         <!-- Step 5: Deliverables Hub (Download & Application) -->
         <section id="jobsTailorResult" style="display: none; margin-top: 1.5rem; margin-bottom: 2rem;">
-          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--accent-emerald); border-radius: 12px; padding: 1.5rem; backdrop-filter: blur(12px);">
+          <div id="jobsTailorCardSlot" style="display: none;"></div>
+          <div id="jobsDefaultResultWrap" style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--accent-emerald); border-radius: 12px; padding: 1.5rem; backdrop-filter: blur(12px);">
             
             <!-- Result Header Actions -->
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
@@ -4956,7 +4957,7 @@
       const locationVal = document.getElementById('jobsLocationInput') ? document.getElementById('jobsLocationInput').value.trim() : '';
 
       scanProgress.style.display = 'block';
-      progressPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span>🔎 Scanning live postings across LinkedIn, Indeed, Glassdoor, Naukri, and Google Jobs (>60% match)...</span></div>';
+      progressPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span><strong>🔎 Searching online jobs based on your resume...</strong> (Scanning LinkedIn, Naukri, Indeed, Glassdoor, Google Jobs)</span></div>';
       resultsSection.style.display = 'none';
       jobDescSection.style.display = 'none';
       tailorResultSection.style.display = 'none';
@@ -5132,9 +5133,11 @@
       const downloadLink = document.getElementById('resumeDownloadLink');
       const coverLink = document.getElementById('coverLetterDownloadLink');
       const applyPortalLink = document.getElementById('finalApplyPortalLink');
+      const cardSlot = document.getElementById('jobsTailorCardSlot');
+      const defaultWrap = document.getElementById('jobsDefaultResultWrap');
 
       tailorProgress.style.display = 'block';
-      tailorPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span>⚡ Initializing ATS keyword alignment and HR Screener simulation...</span></div>';
+      tailorPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span><strong>⚡ Resume is getting tailored by resume builder as per job description...</strong></span></div>';
       tailorResultSection.style.display = 'none';
 
       // Scroll to progress
@@ -5188,49 +5191,62 @@
             tailorProgress.style.display = 'none';
             
             const deliv = payload.deliverable || {};
-            
-            // 1. Resume Download Link
-            const resumeUrl = deliv.resume_url || deliv.url;
-            if (resumeUrl && resumeUrl !== '#') {
-              downloadLink.href = resumeUrl;
-              downloadLink.style.display = 'inline-flex';
-              downloadLink.setAttribute('download', '');
+            const htmlCard = deliv.html_card || (payload.answer && payload.answer.startsWith('<div class="vst-container"') ? payload.answer : '');
+
+            if (cardSlot && htmlCard) {
+              cardSlot.innerHTML = htmlCard;
+              cardSlot.style.display = 'block';
+              if (defaultWrap) defaultWrap.style.display = 'none';
             } else {
-              downloadLink.style.display = 'none';
+              if (cardSlot) cardSlot.style.display = 'none';
+              if (defaultWrap) defaultWrap.style.display = 'block';
+
+              // 1. Resume Download Link
+              const resumeUrl = deliv.resume_url || deliv.url;
+              if (resumeUrl && resumeUrl !== '#') {
+                downloadLink.href = resumeUrl;
+                downloadLink.style.display = 'inline-flex';
+                downloadLink.setAttribute('download', '');
+              } else {
+                downloadLink.style.display = 'none';
+              }
+
+              // 2. Cover Letter Download Link
+              if (deliv.cover_letter_url) {
+                coverLink.href = deliv.cover_letter_url;
+                coverLink.style.display = 'inline-flex';
+                coverLink.setAttribute('download', '');
+                const coverTabBtn = document.getElementById('tabBtnCover');
+                if (coverTabBtn) coverTabBtn.style.display = 'block';
+              } else {
+                coverLink.style.display = 'none';
+                const coverTabBtn = document.getElementById('tabBtnCover');
+                if (coverTabBtn) coverTabBtn.style.display = 'none';
+              }
+
+              // 3. Final Apply Portal Link
+              if (applyPortalLink) {
+                applyPortalLink.href = deliv.apply_link || selectedJob.apply_link || '#';
+                applyPortalLink.textContent = `🚀 Open Job Application Page (${selectedJob.company}) ↗`;
+              }
+
+              // 4. Fill Preview Tabs
+              const resContent = document.getElementById('jobsTailoredResumeContent');
+              const clContent = document.getElementById('jobsCoverLetterContent');
+              const hrAuditContent = document.getElementById('jobsHrAuditContent');
+              const targetJdContent = document.getElementById('jobsTargetJdContent');
+
+              if (resContent) resContent.textContent = deliv.tailored_resume_text || payload.answer || '';
+              if (clContent) clContent.textContent = deliv.cover_letter_text || 'No cover letter requested.';
+              if (hrAuditContent) hrAuditContent.innerHTML = safeRenderAnswer(deliv.hr_audit || '');
+              if (targetJdContent) targetJdContent.textContent = selectedJob.description || '';
+
+              switchJobDeliverableTab('resume');
             }
 
-            // 2. Cover Letter Download Link
-            if (deliv.cover_letter_url) {
-              coverLink.href = deliv.cover_letter_url;
-              coverLink.style.display = 'inline-flex';
-              coverLink.setAttribute('download', '');
-              document.getElementById('tabBtnCover').style.display = 'block';
-            } else {
-              coverLink.style.display = 'none';
-              document.getElementById('tabBtnCover').style.display = 'none';
-            }
-
-            // 3. Final Apply Portal Link
-            if (applyPortalLink) {
-              applyPortalLink.href = deliv.apply_link || selectedJob.apply_link || '#';
-              applyPortalLink.textContent = `🚀 Open Job Application Page (${selectedJob.company}) ↗`;
-            }
-
-            // 4. Fill Preview Tabs
-            const resContent = document.getElementById('jobsTailoredResumeContent');
-            const clContent = document.getElementById('jobsCoverLetterContent');
-            const hrAuditContent = document.getElementById('jobsHrAuditContent');
-            const targetJdContent = document.getElementById('jobsTargetJdContent');
-
-            if (resContent) resContent.textContent = deliv.tailored_resume_text || payload.answer || '';
-            if (clContent) clContent.textContent = deliv.cover_letter_text || 'No cover letter requested.';
-            if (hrAuditContent) hrAuditContent.innerHTML = safeRenderAnswer(deliv.hr_audit || '');
-            if (targetJdContent) targetJdContent.textContent = selectedJob.description || '';
-
-            switchJobDeliverableTab('resume');
             tailorResultSection.style.display = 'block';
             tailorResultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            showToast('✅ Tailored Resume & Application Suite ready!');
+            showToast('✅ Tailored resume is ready to apply!');
             return;
           }
           if (payload.status === 'NOT_FOUND' || payload.status === 'FAILED') {

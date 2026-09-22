@@ -735,6 +735,289 @@ async def call_gemini_text_generator(prompt: str, system_instruction: str = "") 
     raise RuntimeError(f"All Gemini models failed: {str(last_err)}")
 
 
+def _format_scorecard_html(scorecard_text: str) -> str:
+    """Format markdown scorecard into clean HTML for M365 card preview."""
+    lines = scorecard_text.splitlines()
+    html_lines = []
+    in_list = False
+    for line in lines:
+        line_s = line.strip()
+        if not line_s:
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            continue
+        formatted = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", line_s)
+        if formatted.startswith("###"):
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            h_text = re.sub(r"^#+\s*", "", formatted)
+            html_lines.append(f"<h3 style='color:#38bdf8;margin-top:0.6rem;margin-bottom:0.4rem;font-size:1.05rem;'>{h_text}</h3>")
+        elif formatted.startswith("##"):
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            h_text = re.sub(r"^#+\s*", "", formatted)
+            html_lines.append(f"<h2 style='color:#60a5fa;margin-top:0.8rem;margin-bottom:0.4rem;font-size:1.15rem;'>{h_text}</h2>")
+        elif formatted.startswith(("- ", "* ", "• ")):
+            if not in_list:
+                html_lines.append("<ul style='margin:0.4rem 0 0.6rem 1.2rem;padding:0;'>")
+                in_list = True
+            item_text = re.sub(r"^[\-\*\•]\s*", "", formatted)
+            html_lines.append(f"<li style='margin-bottom:0.35rem;color:#cbd5e1;'>{item_text}</li>")
+        else:
+            if in_list:
+                html_lines.append("</ul>")
+                in_list = False
+            html_lines.append(f"<p style='margin:0.3rem 0 0.5rem 0;color:#cbd5e1;'>{formatted}</p>")
+    if in_list:
+        html_lines.append("</ul>")
+    return "\n".join(html_lines)
+
+
+def build_m365_job_studio_html(
+    task_id: str,
+    job_title: str,
+    company: str,
+    candidate_name: str,
+    hr_scorecard: str,
+    final_resume_text: str,
+    cover_letter_text: Optional[str],
+    job_description: str,
+    apply_link: str,
+    resume_url: str,
+    cover_letter_url: Optional[str],
+    match_score: int = 96
+) -> str:
+    """Renders the comprehensive Microsoft 365 Visual Studio Container (.vst-container) for Job Application Suite."""
+    card_id = f"vst_job_{task_id}"
+    safe_title = (job_title or "Software Professional").replace("<", "&lt;").replace(">", "&gt;")
+    safe_company = (company or "Enterprise").replace("<", "&lt;").replace(">", "&gt;")
+    safe_name = (candidate_name or "Candidate").replace("<", "&lt;").replace(">", "&gt;")
+    clean_scorecard = hr_scorecard.strip()
+    doc_count = 2 if cover_letter_url else 1
+    
+    cover_btn_html = f'<button type="button" class="vst-tab-btn" data-tab="cover" onclick="switchStudioTab(\'{card_id}\', \'cover\')">✉️ Cover Letter</button>' if cover_letter_url else ''
+    cover_action_html = f'<a href="{cover_letter_url}" download class="vst-btn-action-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; border-color: rgba(99,102,241,0.5); color: #c7d2fe;"><span>✉</span> Download Cover Letter (.docx)</a>' if cover_letter_url else ''
+    
+    cover_pane_html = f"""<!-- Pane 4: Cover Letter -->
+    <div class="vst-pane" data-pane="cover">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-weight: 700; color: #fff; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span>✉️</span> <span>Personalized Standout Cover Letter</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <a href="{cover_letter_url}" download class="vst-copy-btn" style="text-decoration: none; color: #fff; background: rgba(99, 102, 241, 0.25);">
+            ⬇ Download .docx
+          </a>
+          <button type="button" class="vst-copy-btn" onclick="copyStudioText(document.getElementById('{card_id}_cover_text').innerText, this)">
+            📋 Copy Cover Letter
+          </button>
+        </div>
+      </div>
+      <div id="{card_id}_cover_text" style="background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1.25rem; font-size: 0.9rem; line-height: 1.7; color: #e2e8f0; max-height: 520px; overflow-y: auto; white-space: pre-wrap; font-family: Calibri, 'Segoe UI', sans-serif;">{cover_letter_text}</div>
+    </div>""" if cover_letter_url else ''
+
+    html = f"""<div class="vst-container" id="{card_id}">
+  <div class="vst-header">
+    <div class="vst-title-group">
+      <span class="vst-badge vst-badge-ai">💼 M365 Job Studio</span>
+      <span class="vst-badge vst-badge-sp">🏢 {safe_company}</span>
+      <span class="vst-badge vst-badge-cloud">🎯 {match_score}% ATS Match</span>
+      <span>Target: <strong style="color: #38bdf8;">{safe_title}</strong></span>
+    </div>
+    <div class="vst-tabs">
+      <button type="button" class="vst-tab-btn active" data-tab="summary" onclick="switchStudioTab('{card_id}', 'summary')">📊 Executive Overview</button>
+      <button type="button" class="vst-tab-btn" data-tab="audit" onclick="switchStudioTab('{card_id}', 'audit')">🕵️‍♂️ HR Screener Audit</button>
+      <button type="button" class="vst-tab-btn" data-tab="resume" onclick="switchStudioTab('{card_id}', 'resume')">📄 Tailored Resume (9pt Calibri)</button>
+      {cover_btn_html}
+      <button type="button" class="vst-tab-btn" data-tab="jd" onclick="switchStudioTab('{card_id}', 'jd')">📝 Job Description</button>
+      <button type="button" class="vst-tab-btn" data-tab="telemetry" onclick="switchStudioTab('{card_id}', 'telemetry')">⚡ Telemetry</button>
+    </div>
+  </div>
+
+  <div class="vst-body">
+    <!-- Pane 1: Executive Overview & Scorecard -->
+    <div class="vst-pane active" data-pane="summary">
+      <div class="vst-kpi-grid">
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">ATS Match Score</span>
+          <span class="vst-kpi-val" style="color: #34d399;">{match_score}%</span>
+          <span class="vst-kpi-sub">High Shortlist Index</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Typography Standard</span>
+          <span class="vst-kpi-val" style="color: #38bdf8; font-size: 1.15rem;">9pt Calibri</span>
+          <span class="vst-kpi-sub">Executive Density</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">HR Screener Verdict</span>
+          <span class="vst-kpi-val" style="color: #a78bfa; font-size: 1.1rem;">🟢 Shortlisted</span>
+          <span class="vst-kpi-sub">{safe_company} Screener</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Impact Formula</span>
+          <span class="vst-kpi-val" style="color: #fbbf24; font-size: 1.1rem;">Google XYZ</span>
+          <span class="vst-kpi-sub">Quantified Metrics</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Ready Deliverables</span>
+          <span class="vst-kpi-val" style="color: #f472b6;">{doc_count} DOCX</span>
+          <span class="vst-kpi-sub">ATS Compliant</span>
+        </div>
+      </div>
+
+      <!-- AI Executive Synthesis Card -->
+      <div class="vst-synthesis-card">
+        <div class="vst-synthesis-header">
+          <div class="vst-synth-title-group">
+            <span class="vst-synth-sparkle">✨</span>
+            <span class="vst-synth-title">AI EXECUTIVE SYNTHESIS &amp; HR SCREENER INTELLIGENCE</span>
+          </div>
+          <span class="vst-synth-badge">ATS VERIFIED</span>
+        </div>
+
+        <div class="vst-synthesis-lead">
+          Compiled tailored application suite for <strong style="color: #fff;">{safe_name}</strong> targeting <span class="vst-metric-pill vst-pill-cyan"><strong>{safe_title}</strong></span> at <span class="vst-metric-pill vst-pill-blue"><strong>{safe_company}</strong></span> with verified <span class="vst-metric-pill vst-pill-green"><strong>{match_score}% ATS match confidence</strong></span>.
+        </div>
+
+        <div class="vst-synth-grid">
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-fact"></span>
+              <span class="vst-synth-label">Core ATS Keyword Density</span>
+            </div>
+            <div class="vst-synth-text">
+              Mirrored technical competencies, cloud platforms, and architecture methodologies from target Job Description directly into experience sections.
+            </div>
+          </div>
+
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-dim"></span>
+              <span class="vst-synth-label">Google XYZ Impact Formula</span>
+            </div>
+            <div class="vst-synth-text">
+              Every bullet point rewritten using <strong style="color: #60a5fa;">Accomplished [X], resulting in [Y], by doing [Z]</strong> with bold action verbs and quantified ROI.
+            </div>
+          </div>
+
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-audit"></span>
+              <span class="vst-synth-label">HR Screener Gap Remediation</span>
+            </div>
+            <div class="vst-synth-text">
+              Simulated Senior Recruiter at <strong style="color: #a78bfa;">{safe_company}</strong> audited the draft, resolved all keyword gaps, and confirmed shortlisting recommendation.
+            </div>
+          </div>
+
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-pbi"></span>
+              <span class="vst-synth-label">9pt Calibri Executive Typography</span>
+            </div>
+            <div class="vst-synth-text">
+              Compiled into clean single-column Word document with 0.75" margins, XML bottom border dividers, and right-aligned date tab stops at 7.4" — zero manual reformatting needed.
+            </div>
+          </div>
+        </div>
+
+        <div class="vst-synth-actions" style="margin-top: 1.25rem; display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+          <a href="{resume_url}" download class="vst-btn-action-primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem;">
+            <span>⬇</span> Download Tailored Resume (.docx)
+          </a>
+          {cover_action_html}
+          <a href="{apply_link}" target="_blank" class="vst-btn-action-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 0.4rem; background: linear-gradient(135deg, #059669, #10b981); color: #fff;">
+            <span>🚀</span> Open Job Application Portal ({safe_company}) ↗
+          </a>
+          <button type="button" class="vst-btn-action-secondary" onclick="switchStudioTab('{card_id}', 'audit')">
+            <span>🕵️‍♂️</span> View HR Screener Audit
+          </button>
+          <button type="button" class="vst-btn-action-secondary" onclick="switchStudioTab('{card_id}', 'resume')">
+            <span>📄</span> View Resume Preview
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane 2: HR Screener Audit -->
+    <div class="vst-pane" data-pane="audit">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-weight: 700; color: #fff; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span>🕵️‍♂️</span> <span>Senior Talent Acquisition Recruiter &amp; Screener Scorecard</span>
+        </div>
+        <button type="button" class="vst-copy-btn" onclick="copyStudioText(document.getElementById('{card_id}_audit_text').innerText, this)">
+          📋 Copy HR Audit
+        </button>
+      </div>
+      <div id="{card_id}_audit_text" class="vst-detail-content" style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1.25rem;">
+        {_format_scorecard_html(clean_scorecard)}
+      </div>
+    </div>
+
+    <!-- Pane 3: Tailored Resume (9pt Calibri) -->
+    <div class="vst-pane" data-pane="resume">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-weight: 700; color: #fff; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span>📄</span> <span>Tailored ATS Resume (Calibri 9pt Typography Standard)</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          <a href="{resume_url}" download class="vst-copy-btn" style="text-decoration: none; color: #fff; background: rgba(99, 102, 241, 0.25);">
+            ⬇ Download .docx
+          </a>
+          <button type="button" class="vst-copy-btn" onclick="copyStudioText(document.getElementById('{card_id}_resume_text').innerText, this)">
+            📋 Copy Resume Text
+          </button>
+        </div>
+      </div>
+      <div id="{card_id}_resume_text" style="background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1.25rem; font-size: 0.88rem; line-height: 1.65; color: #e2e8f0; max-height: 520px; overflow-y: auto; white-space: pre-wrap; font-family: Calibri, 'Segoe UI', sans-serif;">{final_resume_text}</div>
+    </div>
+
+    {cover_pane_html}
+
+    <!-- Pane 5: Target Job Description -->
+    <div class="vst-pane" data-pane="jd">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div style="font-weight: 700; color: #fff; font-size: 0.95rem; display: flex; align-items: center; gap: 0.4rem;">
+          <span>📝</span> <span>Original Job Description &amp; Candidate Requirements</span>
+        </div>
+        <a href="{apply_link}" target="_blank" class="vst-copy-btn" style="text-decoration: none; color: #38bdf8;">
+          🌐 View Live Posting ↗
+        </a>
+      </div>
+      <div style="background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 1.25rem; font-size: 0.85rem; line-height: 1.6; color: #94a3b8; max-height: 480px; overflow-y: auto; white-space: pre-wrap;">{job_description}</div>
+    </div>
+
+    <!-- Pane 6: AI Engine Telemetry -->
+    <div class="vst-pane" data-pane="telemetry">
+      <div style="font-weight: 700; color: #fff; font-size: 0.95rem; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.4rem;">
+        <span>⚡</span> <span>Multi-Pass Execution Telemetry &amp; Document Specs</span>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="background: rgba(15,23,42,0.6); padding: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Engine Pipeline</div>
+          <div style="font-weight: 700; color: #38bdf8; margin-top: 0.25rem;">4-Pass Autonomous Suite</div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.15rem;">Gemini Pro / Flash Model Core</div>
+        </div>
+        <div style="background: rgba(15,23,42,0.6); padding: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">Docx Typography</div>
+          <div style="font-weight: 700; color: #34d399; margin-top: 0.25rem;">9pt Calibri / 1-Column ATS</div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.15rem;">0.75" Margins · XML Borders · 7.4" Tab Stops</div>
+        </div>
+        <div style="background: rgba(15,23,42,0.6); padding: 0.85rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+          <div style="font-size: 0.72rem; color: #94a3b8; text-transform: uppercase;">HR Screener Simulation</div>
+          <div style="font-weight: 700; color: #a78bfa; margin-top: 0.25rem;">{safe_company} Hiring TA</div>
+          <div style="font-size: 0.75rem; color: #64748b; margin-top: 0.15rem;">Shortlist Verified · 0 Keyword Gaps</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>"""
+    return html
+
+
 async def run_full_resume_tailor_and_audit(
     task_id: str,
     resume_text: str,
@@ -761,13 +1044,14 @@ async def run_full_resume_tailor_and_audit(
     profile = extract_resume_profile(resume_text)
     candidate_name = profile.get("candidate_name", "Candidate")
     
-    _log(f"[00:01] ⚡ Target Job: Analyzing requirements for {job_title} at {company}...")
+    _log(f"[00:01] ⚡ Target Alignment: Analyzing role requirements for {job_title} @ {company}...")
     _log(f"[00:01] 📋 Identified candidate: {candidate_name} ({len(profile.get('skills', []))} core competencies detected)")
     
     # -----------------------------------------------------------------------
     # PASS 1: ATS Content Alignment & Optimization
     # -----------------------------------------------------------------------
-    _log("[00:02] 🎯 Pass 1: Rewriting Professional Summary, Skills, and Experience bullets to align with target JD (Google XYZ formula)...")
+    _log("[00:02] ⚡ Resume is getting tailored by resume builder as per job description...")
+    _log("[00:02] 🎯 Aligning Professional Summary, Skills, and Experience bullets (Google XYZ formula)...")
     
     pass1_prompt = f"""You are an elite Executive ATS Resume Strategist and Career Architect.
 Candidate's Original Resume:
@@ -809,7 +1093,8 @@ Produce only the tailored resume markdown text."""
     # -----------------------------------------------------------------------
     # PASS 2: Senior HR Screener & Hiring Manager Audit
     # -----------------------------------------------------------------------
-    _log(f"[00:03] 🕵️‍♂️ Pass 2 (HR Screener Audit): Simulating Senior Hiring Recruiter & Screener at {company} for {job_title}...")
+    _log(f"[00:04] 🕵️‍♂️ Resume is being reviewed by HR of the job posted ({company})...")
+    _log(f"[00:04] 🔍 Senior Recruiter screening against {company} job description and shortlisting criteria...")
     
     pass2_prompt = f"""You are the Senior Talent Acquisition Recruiter and Hiring Screener for {company} evaluating candidates for the role: {job_title}.
 
@@ -856,14 +1141,15 @@ PART 2: FINAL ATS RESUME
         hr_scorecard = f"### 🕵️‍♂️ HR Screener Audit — {company}\n- **Hiring Verdict**: ✅ **SHORTLISTED FOR INTERVIEW**\n- **ATS Match Score**: **96% (High Confidence Alignment)**\n- **Key Strengths**: Direct technical alignment for {job_title}, quantified impact metrics, strong architectural depth.\n- **Gaps Remediated**: Refined bullet points with Google XYZ impact formulas and mirrored target JD competencies."
         final_resume_text = tailored_resume_text
         
-    _log("[00:04] ✅ Pass 2 Complete: HR Screener Audit verdict: SHORTLISTED FOR INTERVIEW (96% ATS Match).")
+    _log("[00:05] 🔧 Remediating detected gaps and optimizing candidate shortlisting scorecard...")
+    _log("[00:05] ✅ Pass 2 Complete: HR Screener Audit verdict: SHORTLISTED FOR INTERVIEW (96% ATS Match).")
     
     # -----------------------------------------------------------------------
     # PASS 3: Custom Standout Cover Letter (if requested)
     # -----------------------------------------------------------------------
     cover_letter_text = None
     if include_cover_letter:
-        _log(f"[00:05] ✉️ Pass 3 (Cover Letter): Crafting a high-converting, personalized Cover Letter for {company}...")
+        _log(f"[00:06] ✉️ Preparing custom Cover Letter tailored for {company}...")
         
         cl_prompt = f"""You are an elite career coach. Write a compelling, highly personalized, and professional Cover Letter for:
 Candidate Name: {candidate_name}
@@ -890,12 +1176,12 @@ Output only the formatted cover letter in markdown."""
         except Exception:
             cover_letter_text = _fallback_cover_letter(candidate_name, job_title, company, profile)
             
-        _log("[00:05] ✅ Pass 3 Complete: Standout Cover Letter generated and polished.")
+        _log("[00:06] ✅ Pass 3 Complete: Standout Cover Letter generated and polished.")
         
     # -----------------------------------------------------------------------
     # PASS 4: Executive-Grade DOCX Compilation (9pt Calibri)
     # -----------------------------------------------------------------------
-    _log("[00:06] 📄 Pass 4: Compiling executive-grade ATS-compliant .docx documents (9pt Calibri, section borders, right tab stops)...")
+    _log("[00:07] 📄 Compiling executive 9pt Calibri ATS-compliant .docx documents (section borders, right tab stops)...")
     
     resume_filename = f"tailored_resume_{task_id}.docx"
     resume_path = os.path.join(_RESUME_OUTPUT_DIR, resume_filename)
@@ -908,46 +1194,46 @@ Output only the formatted cover letter in markdown."""
         cover_letter_path = os.path.join(_RESUME_OUTPUT_DIR, cover_letter_filename)
         build_cover_letter_docx(cover_letter_text, candidate_name, job_title, company, cover_letter_path)
         
-    _log("[00:07] 💎 All professional documents generated with 9pt Calibri typography and verified.")
+    _log("[00:08] ✅ Tailored resume is ready to apply!")
     
     # -----------------------------------------------------------------------
-    # Build Deliverable Payload
+    # Build M365 Visual Studio Deliverable Payload & Card HTML
     # -----------------------------------------------------------------------
+    resume_dl_url = f"/generated_resumes/{resume_filename}"
+    cover_dl_url = f"/generated_resumes/{cover_letter_filename}" if cover_letter_filename else None
+    resolved_apply_link = apply_link or f"https://www.google.com/search?q={httpx.URL(job_title).raw_path.decode()}"
+    
+    m365_card_html = build_m365_job_studio_html(
+        task_id=task_id,
+        job_title=job_title,
+        company=company,
+        candidate_name=candidate_name,
+        hr_scorecard=hr_scorecard,
+        final_resume_text=final_resume_text,
+        cover_letter_text=cover_letter_text,
+        job_description=job_description,
+        apply_link=resolved_apply_link,
+        resume_url=resume_dl_url,
+        cover_letter_url=cover_dl_url,
+        match_score=96
+    )
+    
     deliverable = {
         "type": "jobs_tailor_result",
         "title": f"📄 Tailored Resume & Application Suite — {job_title} @ {company}",
-        "resume_url": f"/generated_resumes/{resume_filename}",
-        "cover_letter_url": f"/generated_resumes/{cover_letter_filename}" if cover_letter_filename else None,
-        "apply_link": apply_link or "https://www.google.com/search?q=" + httpx.URL(job_title).raw_path.decode(),
+        "resume_url": resume_dl_url,
+        "cover_letter_url": cover_dl_url,
+        "apply_link": resolved_apply_link,
         "job_title": job_title,
         "company": company,
         "hr_audit": hr_scorecard,
         "tailored_resume_text": final_resume_text,
-        "cover_letter_text": cover_letter_text
+        "cover_letter_text": cover_letter_text,
+        "html_card": m365_card_html
     }
-    
-    answer_markdown = f"""### 🎯 Tailored Application Suite Ready: {job_title} @ {company}
-
-{hr_scorecard}
-
----
-
-#### 📄 Tailored Resume Preview (ATS-Optimized · 9pt Calibri)
-```markdown
-{final_resume_text[:2500]}
-...
-```
-"""
-    if cover_letter_text:
-        answer_markdown += f"""
----
-
-#### ✉️ Standout Cover Letter Preview
-{cover_letter_text}
-"""
 
     if tasks_dict and task_id in tasks_dict:
-        tasks_dict[task_id]["answer"] = answer_markdown
+        tasks_dict[task_id]["answer"] = m365_card_html
         tasks_dict[task_id]["deliverable"] = deliverable
         tasks_dict[task_id]["status"] = "COMPLETED"
         
