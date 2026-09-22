@@ -1277,6 +1277,12 @@ def generate_pbip_project(
     if os.path.exists(base_pbix):
         import shutil
         shutil.copyfile(base_pbix, pbix_path)
+        for pdir in ["/mnt/c/Users/keysh/OneDrive/Documents/powerbi", "/mnt/c/Users/keysh/Documents/powerbi", r"C:\Users\keysh\OneDrive\Documents\powerbi", r"C:\Users\keysh\Documents\powerbi"]:
+            if os.path.exists(pdir):
+                try:
+                    shutil.copyfile(pbix_path, os.path.join(pdir, f"{project_name}.pbix"))
+                except Exception:
+                    pass
 
     # Auto-publish to Power BI Cloud Workspace (Service)
     cloud_result = {}

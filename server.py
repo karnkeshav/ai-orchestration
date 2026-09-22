@@ -2715,6 +2715,12 @@ async def _gemini_exec_generate_powerbi_dashboard(loop, site_query, folder_path=
         if result.get("pbix_path") and os.path.exists(result["pbix_path"]):
             shutil.copyfile(result["pbix_path"], os.path.join(alias_dir, f"{result['project_name']}.pbix"))
             shutil.copyfile(result["pbix_path"], os.path.join(os.path.dirname(os.path.abspath(__file__)), "generated_dashboards", f"{result['project_name']}.pbix"))
+            for pdir in ["/mnt/c/Users/keysh/OneDrive/Documents/powerbi", "/mnt/c/Users/keysh/Documents/powerbi", r"C:\Users\keysh\OneDrive\Documents\powerbi", r"C:\Users\keysh\Documents\powerbi"]:
+                if os.path.exists(pdir):
+                    try:
+                        shutil.copyfile(result["pbix_path"], os.path.join(pdir, f"{result['project_name']}.pbix"))
+                    except Exception:
+                        pass
         if result.get("zip_path") and os.path.exists(result["zip_path"]):
             shutil.copyfile(result["zip_path"], os.path.join(alias_dir, f"{result['project_name']}.zip"))
     except Exception:
