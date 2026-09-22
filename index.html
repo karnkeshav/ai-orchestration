@@ -695,6 +695,387 @@
       background: rgba(99, 102, 241, 0.1);
     }
 
+    /* Timer & Stopwatch Widget */
+    .timer-widget-card {
+      background: linear-gradient(145deg, rgba(19, 29, 53, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(16px);
+      transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .timer-glow-pulse {
+      animation: timerPulse 1.5s ease-in-out;
+    }
+
+    @keyframes timerPulse {
+      0% { box-shadow: 0 0 0 rgba(99, 102, 241, 0); border-color: rgba(99, 102, 241, 0.3); }
+      50% { box-shadow: 0 0 35px rgba(6, 182, 212, 0.8); border-color: var(--accent-cyan); transform: scale(1.01); }
+      100% { box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.5); border-color: rgba(99, 102, 241, 0.3); transform: scale(1); }
+    }
+
+    .timer-widget-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding-bottom: 1.25rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      margin-bottom: 1.5rem;
+    }
+
+    .timer-badge-icon {
+      font-size: 1.5rem;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      width: 42px;
+      height: 42px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+    }
+
+    .timer-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -0.01em;
+    }
+
+    .timer-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .timer-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .timer-modes {
+      display: flex;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .timer-mode-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 0.45rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .timer-mode-btn.active {
+      background: var(--accent-indigo);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+    }
+
+    .timer-power-btn {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      padding: 0.45rem 0.85rem;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .timer-power-btn:hover {
+      background: rgba(239, 68, 68, 0.25);
+      border-color: rgba(239, 68, 68, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .timer-widget-body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .timer-display-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+      margin: 0.5rem 0;
+    }
+
+    .timer-ring-wrapper {
+      position: relative;
+      width: 180px;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .timer-ring-svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+    }
+
+    .timer-ring-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.06);
+      stroke-width: 8;
+    }
+
+    .timer-ring-progress {
+      fill: none;
+      stroke: url(#timerGrad);
+      stroke-width: 8;
+      stroke-linecap: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 0;
+      transition: stroke-dashoffset 0.3s ease;
+    }
+
+    .timer-digital-readout {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .timer-time-text {
+      font-family: var(--font-mono);
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      text-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+    }
+
+    .timer-mode-sub {
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-top: 2px;
+    }
+
+    .timer-presets-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.45rem;
+    }
+
+    .timer-preset-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-family: var(--font-main);
+    }
+
+    .timer-preset-btn:hover {
+      background: rgba(99, 102, 241, 0.15);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #fff;
+    }
+
+    .timer-preset-btn.active {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: var(--accent-indigo);
+      color: #a5b4fc;
+    }
+
+    .timer-controls-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .timer-btn-primary {
+      padding: 0.65rem 1.6rem;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border-radius: 10px;
+    }
+
+    .timer-btn-secondary {
+      padding: 0.65rem 1.25rem;
+      font-size: 0.88rem;
+      border-radius: 10px;
+    }
+
+    .timer-sound-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 0.65rem 0.95rem;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .timer-sound-btn:hover {
+      border-color: var(--accent-amber);
+      color: #fde68a;
+    }
+
+    /* Top Navbar Timer Button */
+    .timer-nav-btn {
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #e0e7ff;
+      padding: 0.45rem 0.85rem;
+      border-radius: 100px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      font-family: var(--font-main);
+    }
+
+    .timer-nav-btn:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.18);
+      color: #fff;
+    }
+
+    .timer-nav-btn.off {
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .timer-live-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      background: var(--accent-indigo);
+      color: #fff;
+      padding: 2px 6px;
+      border-radius: 100px;
+      font-weight: 700;
+    }
+
+    /* Sidebar Timer Badge */
+    .sidebar-timer-badge {
+      font-size: 0.68rem;
+      padding: 2px 6px;
+      border-radius: 100px;
+      font-weight: 800;
+      margin-left: auto;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .sidebar-timer-badge.off {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    /* Floating Restore Pill */
+    .timer-restore-pill {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
+      color: #fff;
+      padding: 0.65rem 1.25rem;
+      border-radius: 100px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
+      cursor: pointer;
+      z-index: 999;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.25s ease;
+      animation: timerFloat 2.2s infinite ease-in-out;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .timer-restore-pill:hover {
+      transform: translateY(-3px) scale(1.04);
+      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.65);
+    }
+
+    @keyframes timerFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-5px); }
+    }
+
+    /* Stopwatch Laps */
+    .stopwatch-laps {
+      width: 100%;
+      max-width: 380px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 0.75rem;
+      max-height: 140px;
+      overflow-y: auto;
+    }
+
+    .stopwatch-laps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .stopwatch-lap-item {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      padding: 3px 6px;
+      border-radius: 4px;
+    }
+
+    .stopwatch-lap-item:nth-child(even) {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
     /* Sidebar Sub-Panel & GitHub Repos */
     .sidebar-sub-panel {
       background: rgba(15, 23, 42, 0.85);
@@ -1073,20 +1454,26 @@
       <span id="backendBadge"><span class="status-dot"></span> <span data-i18n="statusOnline">OCI Always-Free Cloud Online</span></span>
       <span>AWS • Azure • GCP • OCI</span>
     </div>
-    <div class="lang-switcher" id="langSwitcher">
-      <button class="lang-btn" id="langBtn" onclick="toggleLangMenu()">
-        🌐 <span id="langBtnLabel">EN</span>
+    <div style="display: flex; align-items: center; gap: 0.65rem;">
+      <button id="headerTimerToggle" class="timer-nav-btn" onclick="toggleTimerWidget()" title="Toggle Focus Timer">
+        ⏱️ <span id="headerTimerLabel" data-i18n="navTimer">Timer</span>
+        <span id="headerTimerLive" class="timer-live-badge" style="display:none;"></span>
       </button>
-      <div class="lang-menu" id="langMenu">
-        <button class="lang-option active" data-lang="en" onclick="setLanguage('en')">English</button>
-        <button class="lang-option" data-lang="hi" onclick="setLanguage('hi')">हिन्दी</button>
-        <button class="lang-option" data-lang="es" onclick="setLanguage('es')">Español</button>
-        <button class="lang-option" data-lang="te" onclick="setLanguage('te')">తెలుగు</button>
-        <button class="lang-option" data-lang="kn" onclick="setLanguage('kn')">ಕನ್ನಡ</button>
-        <button class="lang-option" data-lang="bn" onclick="setLanguage('bn')">বাংলা</button>
-        <button class="lang-option" data-lang="fr" onclick="setLanguage('fr')">Français</button>
-        <button class="lang-option" data-lang="de" onclick="setLanguage('de')">Deutsch</button>
-        <button class="lang-option" data-lang="mai" onclick="setLanguage('mai')">मैथिली</button>
+      <div class="lang-switcher" id="langSwitcher">
+        <button class="lang-btn" id="langBtn" onclick="toggleLangMenu()">
+          🌐 <span id="langBtnLabel">EN</span>
+        </button>
+        <div class="lang-menu" id="langMenu">
+          <button class="lang-option active" data-lang="en" onclick="setLanguage('en')">English</button>
+          <button class="lang-option" data-lang="hi" onclick="setLanguage('hi')">हिन्दी</button>
+          <button class="lang-option" data-lang="es" onclick="setLanguage('es')">Español</button>
+          <button class="lang-option" data-lang="te" onclick="setLanguage('te')">తెలుగు</button>
+          <button class="lang-option" data-lang="kn" onclick="setLanguage('kn')">ಕನ್ನಡ</button>
+          <button class="lang-option" data-lang="bn" onclick="setLanguage('bn')">বাংলা</button>
+          <button class="lang-option" data-lang="fr" onclick="setLanguage('fr')">Français</button>
+          <button class="lang-option" data-lang="de" onclick="setLanguage('de')">Deutsch</button>
+          <button class="lang-option" data-lang="mai" onclick="setLanguage('mai')">मैथिली</button>
+        </div>
       </div>
     </div>
     <button class="hamburger-btn" id="hamburgerBtn">☰</button>
@@ -1107,6 +1494,9 @@
       <button class="nav-item" data-i18n="navM365" onclick="filterCapabilities('m365', this)">💼 M365</button>
       <button class="nav-item" data-i18n="navJobs" onclick="filterCapabilities('jobs', this)">🎯 Jobs</button>
       <button class="nav-item" id="navActivity" data-i18n="navActivity" onclick="showActivity(this)">📋 Activity</button>
+      <button class="nav-item timer-toggle-nav" id="sidebarTimerToggle" onclick="toggleTimerWidget(this)">
+        ⏱️ <span data-i18n="navTimer">Timer</span> <span id="sidebarTimerBadge" class="sidebar-timer-badge">ON</span>
+      </button>
     </aside>
 
     <!-- Main Content Area -->
@@ -1295,6 +1685,87 @@
         <div class="section-title"><span data-i18n="activityTitle">📋 Activity</span> <span style="font-size: 0.75rem; font-weight: 400; color: var(--text-muted); text-transform: none;" data-i18n="activitySubtitle">— raw backend log, for debugging</span></div>
         <div id="technicalConsole">
           <div class="console-logs" id="technicalLogs"></div>
+        </div>
+      </section>
+
+      <!-- Separate Timer Widget Section below Activity on Homescreen -->
+      <section id="timerWidgetSection" class="timer-widget-card" style="display: block;">
+        <div class="timer-widget-header">
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="timer-badge-icon">⏱️</span>
+            <div>
+              <div class="timer-title" data-i18n="timerTitle">⏱️ Focus &amp; Productivity Timer</div>
+              <div class="timer-subtitle" data-i18n="timerSubtitle">— Countdown, Stopwatch &amp; Pomodoro Tracker</div>
+            </div>
+          </div>
+          <div class="timer-header-actions">
+            <div class="timer-modes">
+              <button type="button" class="timer-mode-btn active" id="btnModeCountdown" onclick="setTimerMode('countdown')">⏳ Countdown</button>
+              <button type="button" class="timer-mode-btn" id="btnModePomodoro" onclick="setTimerMode('pomodoro')">🍅 Pomodoro</button>
+              <button type="button" class="timer-mode-btn" id="btnModeStopwatch" onclick="setTimerMode('stopwatch')">⚡ Stopwatch</button>
+            </div>
+            <button type="button" class="timer-power-btn" onclick="turnOffTimerWidget()" title="Turn off and hide widget from homepage" data-i18n="timerTurnOff">
+              ⏻ Turn Off
+            </button>
+          </div>
+        </div>
+
+        <div class="timer-widget-body">
+          <div class="timer-display-container">
+            <div class="timer-ring-wrapper">
+              <svg class="timer-ring-svg" viewBox="0 0 160 160">
+                <defs>
+                  <linearGradient id="timerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#6366f1" />
+                    <stop offset="100%" stop-color="#06b6d4" />
+                  </linearGradient>
+                </defs>
+                <circle class="timer-ring-bg" cx="80" cy="80" r="70"></circle>
+                <circle id="timerProgressRing" class="timer-ring-progress" cx="80" cy="80" r="70"></circle>
+              </svg>
+              <div class="timer-digital-readout">
+                <div id="timerDisplay" class="timer-time-text">25:00</div>
+                <div id="timerModeLabel" class="timer-mode-sub">COUNTDOWN</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Presets for Countdown / Pomodoro -->
+          <div id="timerPresetsContainer" class="timer-presets-row">
+            <button type="button" class="timer-preset-btn" onclick="setPresetMinutes(5)">5m</button>
+            <button type="button" class="timer-preset-btn" onclick="setPresetMinutes(10)">10m</button>
+            <button type="button" class="timer-preset-btn" onclick="setPresetMinutes(15)">15m</button>
+            <button type="button" class="timer-preset-btn active" onclick="setPresetMinutes(25)">25m</button>
+            <button type="button" class="timer-preset-btn" onclick="setPresetMinutes(45)">45m</button>
+            <button type="button" class="timer-preset-btn" onclick="setPresetMinutes(60)">60m</button>
+            <button type="button" class="timer-preset-btn" onclick="addTimerMinutes(1)">+1m</button>
+            <button type="button" class="timer-preset-btn" onclick="addTimerMinutes(5)">+5m</button>
+          </div>
+
+          <!-- Main Controls (Start, Pause, Reset, Sound Toggle) -->
+          <div class="timer-controls-row">
+            <button type="button" id="btnTimerStart" class="btn-action timer-btn-primary" onclick="startTimer()">
+              ▶ Start
+            </button>
+            <button type="button" id="btnTimerPause" class="btn-secondary timer-btn-secondary" style="display:none;" onclick="pauseTimer()">
+              ⏸ Pause
+            </button>
+            <button type="button" id="btnTimerReset" class="btn-secondary timer-btn-secondary" onclick="resetTimer()">
+              🔄 Reset
+            </button>
+            <button type="button" id="btnTimerSound" class="timer-sound-btn" onclick="toggleTimerSound()" title="Toggle chime sound">
+              🔔 Chime: On
+            </button>
+          </div>
+
+          <!-- Stopwatch Laps container (shown only in stopwatch mode) -->
+          <div id="stopwatchLapsContainer" class="stopwatch-laps" style="display: none;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.4rem;">
+              <span style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted);">⏱️ LAPS</span>
+              <button type="button" class="timer-preset-btn" onclick="recordStopwatchLap()">+ Lap</button>
+            </div>
+            <div id="stopwatchLapsList" class="stopwatch-laps-list"></div>
+          </div>
         </div>
       </section>
 
@@ -1572,7 +2043,14 @@
         chipHeroRedesignPrompt: "Redesign hero section with Google Stitch Glassmorphism and animated badges",
         chipActionModal: "➕ + Action Modal",
         chipActionModalPrompt: "Add interactive transaction modal form with instant submission feedback",
-        toastCustomizationAdded: "✓ Customization added to directive"
+        toastCustomizationAdded: "✓ Customization added to directive",
+        navTimer: "⏱️ Timer",
+        timerTitle: "⏱️ Focus & Productivity Timer",
+        timerSubtitle: "— Countdown, Stopwatch & Pomodoro Tracker",
+        timerTurnOff: "⏻ Turn Off",
+        timerShow: "⏱️ Show Timer",
+        toastTimerOff: "⏱️ Timer widget turned off. Click Timer in top bar or sidebar to bring it back.",
+        toastTimerOn: "⏱️ Timer widget restored to homescreen!"
       },
       hi: {
         badgeCloudEngine: "क्लाउड इंजन",
@@ -1624,7 +2102,14 @@
         chipHeroRedesignPrompt: "Google Stitch ग्लासमॉर्फिज्म और एनिमेटेड बैज के साथ हीरो सेक्शन को रीडिज़ाइन करें",
         chipActionModal: "➕ + एक्शन मोडल",
         chipActionModalPrompt: "इंस्टेंट सबमिशन फीडबैक के साथ इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ें",
-        toastCustomizationAdded: "✓ निर्देश में कस्टमाइज़ेशन जोड़ा गया"
+        toastCustomizationAdded: "✓ निर्देश में कस्टमाइज़ेशन जोड़ा गया",
+        navTimer: "⏱️ टाइमर",
+        timerTitle: "⏱️ फोकस और प्रोडक्टिविटी टाइमर",
+        timerSubtitle: "— काउंटडाउन, स्टॉपवॉच और पोमोडोरो ट्रैकर",
+        timerTurnOff: "⏻ बंद करें",
+        timerShow: "⏱️ टाइमर दिखाएं",
+        toastTimerOff: "⏱️ टाइमर विजेट बंद किया गया। वापस लाने के लिए टाइमर पर क्लिक करें।",
+        toastTimerOn: "⏱️ टाइमर विजेट होमस्क्रीन पर बहाल किया गया!"
       },
       es: {
         badgeCloudEngine: "Motor Cloud",
@@ -1676,7 +2161,14 @@
         chipHeroRedesignPrompt: "Rediseña la sección hero con Glassmorphism de Google Stitch y insignias animadas",
         chipActionModal: "➕ + Modal de Acción",
         chipActionModalPrompt: "Agrega un formulario modal de transacción interactivo con retroalimentación instantánea",
-        toastCustomizationAdded: "✓ Personalización agregada a la directiva"
+        toastCustomizationAdded: "✓ Personalización agregada a la directiva",
+        navTimer: "⏱️ Temporizador",
+        timerTitle: "⏱️ Temporizador de Enfoque y Productividad",
+        timerSubtitle: "— Cuenta regresiva, cronómetro y Pomodoro",
+        timerTurnOff: "⏻ Apagar",
+        timerShow: "⏱️ Mostrar Temporizador",
+        toastTimerOff: "⏱️ Temporizador apagado. Haz clic en Temporizador para restaurarlo.",
+        toastTimerOn: "⏱️ ¡Temporizador restaurado en la pantalla principal!"
       },
       te: {
         badgeCloudEngine: "క్లౌడ్ ఇంజిన్",
@@ -1728,7 +2220,14 @@
         chipHeroRedesignPrompt: "Google Stitch గ్లాస్‌మార్ఫిజం మరియు యానిమేటెడ్ బ్యాడ్జీలతో హీరో సెక్షన్‌ను రీడిజైన్ చేయండి",
         chipActionModal: "➕ + యాక్షన్ మోడల్",
         chipActionModalPrompt: "తక్షణ సమర్పణ ఫీడ్‌బ్యాక్‌తో ఇంటరాక్టివ్ ట్రాన్సాక్షన్ మోడల్ ఫారమ్‌ను జోడించండి",
-        toastCustomizationAdded: "✓ నిర్దేశానికి అనుకూలీకరణ జోడించబడింది"
+        toastCustomizationAdded: "✓ నిర్దేశానికి అనుకూలీకరణ జోడించబడింది",
+        navTimer: "⏱️ టైమర్",
+        timerTitle: "⏱️ ఫోకస్ మరియు ఉత్పాదకత టైమర్",
+        timerSubtitle: "— కౌంట్‌డౌన్, స్టాప్‌వాచ్ మరియు పోమోడోరో",
+        timerTurnOff: "⏻ ఆఫ్ చేయండి",
+        timerShow: "⏱️ టైమర్ చూపించు",
+        toastTimerOff: "⏱️ టైమర్ విడ్జెట్ ఆఫ్ చేయబడింది.",
+        toastTimerOn: "⏱️ టైమర్ విడ్జెట్ పునరుద్ధరించబడింది!"
       },
       kn: {
         badgeCloudEngine: "ಕ್ಲೌಡ್ ಎಂಜಿನ್",
@@ -1780,7 +2279,14 @@
         chipHeroRedesignPrompt: "Google Stitch ಗ್ಲಾಸ್‌ಮಾರ್ಫಿಸಂ ಮತ್ತು ಆನಿಮೇಟೆಡ್ ಬ್ಯಾಡ್ಜ್‌ಗಳೊಂದಿಗೆ ಹೀರೋ ವಿಭಾಗವನ್ನು ಮರುವಿನ್ಯಾಸಗೊಳಿಸಿ",
         chipActionModal: "➕ + ಆಕ್ಷನ್ ಮೋಡಲ್",
         chipActionModalPrompt: "ತಕ್ಷಣದ ಸಲ್ಲಿಕೆ ಪ್ರತಿಕ್ರಿಯೆಯೊಂದಿಗೆ ಇಂಟರಾಕ್ಟಿವ್ ಟ್ರಾನ್ಸಾಕ್ಷನ್ ಮೋಡಲ್ ಫಾರ್ಮ್ ಸೇರಿಸಿ",
-        toastCustomizationAdded: "✓ ನಿರ್ದೇಶನಕ್ಕೆ ಕಸ್ಟಮೈಸೇಶನ್ ಸೇರಿಸಲಾಗಿದೆ"
+        toastCustomizationAdded: "✓ ನಿರ್ದೇಶನಕ್ಕೆ ಕಸ್ಟಮೈಸೇಶನ್ ಸೇರಿಸಲಾಗಿದೆ",
+        navTimer: "⏱️ ಟೈಮರ್",
+        timerTitle: "⏱️ ಫೋಕಸ್ ಮತ್ತು ಉತ್ಪಾದಕತೆ ಟೈಮರ್",
+        timerSubtitle: "— ಕೌಂಟ್‌ಡೌನ್, ಸ್ಟಾಪ್‌ವಾಚ್ ಮತ್ತು ಪೊಮೊಡೊರೊ",
+        timerTurnOff: "⏻ ಆಫ್ ಮಾಡಿ",
+        timerShow: "⏱️ ಟೈಮರ್ ತೋರಿಸಿ",
+        toastTimerOff: "⏱️ ಟೈಮರ್ ವಿಜೆಟ್ ಆಫ್ ಮಾಡಲಾಗಿದೆ.",
+        toastTimerOn: "⏱️ ಟೈಮರ್ ವಿಜೆಟ್ ಮರುಸ್ಥಾಪಿಸಲಾಗಿದೆ!"
       },
       bn: {
         badgeCloudEngine: "ক্লাউড ইঞ্জিন",
@@ -1832,7 +2338,14 @@
         chipHeroRedesignPrompt: "Google Stitch গ্লাসমরফিজম এবং অ্যানিমেটেড ব্যাজ সহ হিরো সেকশন রিডিজাইন করুন",
         chipActionModal: "➕ + অ্যাকশন মোডাল",
         chipActionModalPrompt: "তাৎক্ষণিক সাবমিশন ফিডব্যাক সহ ইন্টারেক্টিভ ট্রানজ্যাকশন মোডাল ফর্ম যোগ করুন",
-        toastCustomizationAdded: "✓ নির্দেশে কাস্টমাইজেশন যোগ করা হয়েছে"
+        toastCustomizationAdded: "✓ নির্দেশে কাস্টমাইজেশন যোগ করা হয়েছে",
+        navTimer: "⏱️ টাইমার",
+        timerTitle: "⏱️ ফোকাস ও প্রোডাক্টিভিটি টাইমার",
+        timerSubtitle: "— কাউন্টডাউন, স্টপওয়াচ এবং পোমোডোরো",
+        timerTurnOff: "⏻ বন্ধ করুন",
+        timerShow: "⏱️ টাইমার দেখান",
+        toastTimerOff: "⏱️ টাইমার উইজেট বন্ধ করা হয়েছে।",
+        toastTimerOn: "⏱️ টাইমার উইজেট পুনরুদ্ধার করা হয়েছে!"
       },
       fr: {
         badgeCloudEngine: "Moteur Cloud",
@@ -1884,7 +2397,14 @@
         chipHeroRedesignPrompt: "Repenser la section hero avec le Glassmorphism de Google Stitch et des badges animés",
         chipActionModal: "➕ + Modal d'Action",
         chipActionModalPrompt: "Ajouter un formulaire modal de transaction interactif avec retour instantané",
-        toastCustomizationAdded: "✓ Personnalisation ajoutée à la directive"
+        toastCustomizationAdded: "✓ Personnalisation ajoutée à la directive",
+        navTimer: "⏱️ Minuteur",
+        timerTitle: "⏱️ Minuteur de Concentration & Productivité",
+        timerSubtitle: "— Compte à rebours, chronomètre et Pomodoro",
+        timerTurnOff: "⏻ Éteindre",
+        timerShow: "⏱️ Afficher le Minuteur",
+        toastTimerOff: "⏱️ Widget minuteur désactivé.",
+        toastTimerOn: "⏱️ Widget minuteur restauré !"
       },
       de: {
         badgeCloudEngine: "Cloud-Engine",
@@ -1936,7 +2456,14 @@
         chipHeroRedesignPrompt: "Gestalten Sie den Hero-Bereich mit Google Stitch Glassmorphism und animierten Abzeichen neu",
         chipActionModal: "➕ + Aktions-Modal",
         chipActionModalPrompt: "Fügen Sie ein interaktives Transaktions-Modal-Formular mit sofortigem Feedback hinzu",
-        toastCustomizationAdded: "✓ Anpassung zur Direktive hinzugefügt"
+        toastCustomizationAdded: "✓ Anpassung zur Direktive hinzugefügt",
+        navTimer: "⏱️ Timer",
+        timerTitle: "⏱️ Fokus- & Produktivitäts-Timer",
+        timerSubtitle: "— Countdown, Stoppuhr & Pomodoro",
+        timerTurnOff: "⏻ Ausschalten",
+        timerShow: "⏱️ Timer Anzeigen",
+        toastTimerOff: "⏱️ Timer-Widget ausgeschaltet.",
+        toastTimerOn: "⏱️ Timer-Widget wiederhergestellt!"
       },
       mai: {
         badgeCloudEngine: "क्लाउड इंजन",
@@ -1988,7 +2515,14 @@
         chipHeroRedesignPrompt: "Google Stitch ग्लासमोर्फिज्म आ एनिमेटेड बैज संग हीरो सेक्शन केँ पुनः डिजाइन करु",
         chipActionModal: "➕ + एक्शन मोडल",
         chipActionModalPrompt: "त्वरित सबमिशन फीडबैक संग इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ू",
-        toastCustomizationAdded: "✓ निर्देश मे अनुकूलन जोड़ल गेल"
+        toastCustomizationAdded: "✓ निर्देश मे अनुकूलन जोड़ल गेल",
+        navTimer: "⏱️ टाइमर",
+        timerTitle: "⏱️ फोकस आ उत्पादकता टाइमर",
+        timerSubtitle: "— काउंटडाउन, स्टॉपवॉच आ पोमोडोरो",
+        timerTurnOff: "⏻ बन्द करु",
+        timerShow: "⏱️ टाइमर देखाउ",
+        toastTimerOff: "⏱️ टाइमर विजेट बन्द कएल गेल।",
+        toastTimerOn: "⏱️ टाइमर विजेट होमस्क्रीन पर पुनर्स्थापित कएल गेल!"
       }
     };
 
@@ -2415,12 +2949,17 @@
         if (commandHub) commandHub.style.display = 'none';
         if (appsContainer) appsContainer.style.display = 'none';
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
+        if (activitySection) activitySection.style.display = 'none';
+        const timerSection = document.getElementById('timerWidgetSection');
+        if (timerSection) timerSection.style.display = 'none';
       } else if (category === 'apps') {
         // Show ready4launch.onrender.com directly
         if (heroSection) heroSection.style.display = 'none';
         if (commandHub) commandHub.style.display = 'none';
         if (capabilitiesSection) capabilitiesSection.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
+        const timerSection = document.getElementById('timerWidgetSection');
+        if (timerSection) timerSection.style.display = 'none';
         if (appsContainer) appsContainer.style.display = 'block';
 
         const frame = document.getElementById('ready4launchFrame');
@@ -2443,6 +2982,7 @@
           if (capabilitiesSection) capabilitiesSection.style.display = 'block';
           renderCards(category);
         }
+        if (typeof updateTimerWidgetVisibility === 'function') updateTimerWidgetVisibility();
       }
     }
 
@@ -2548,6 +3088,7 @@
       // Show the Activity tab, hide capabilities
       document.getElementById('capabilitiesSection').style.display = 'none';
       document.getElementById('activitySection').style.display = 'block';
+      if (typeof updateTimerWidgetVisibility === 'function') updateTimerWidgetVisibility();
     }
 
     let currentGitHubUser = localStorage.getItem('aios_github_user') || localStorage.getItem('aiorch_github_user') || 'karnkeshav';
@@ -3568,13 +4109,359 @@
       }
     };
 
+    // ==========================================
+    // ⏱️ Focus, Countdown & Stopwatch Timer Engine
+    // ==========================================
+    let isTimerWidgetEnabled = localStorage.getItem('aios_timer_enabled') !== '0';
+    let timerMode = 'countdown'; // 'countdown' | 'pomodoro' | 'stopwatch'
+    let timerDuration = 25 * 60; // in seconds
+    let timerSecondsLeft = 25 * 60;
+    let timerRunning = false;
+    let timerInterval = null;
+    let timerEndTime = null;
+    let isTimerSoundEnabled = true;
+    let pomodoroPhase = 'focus'; // 'focus' | 'break' | 'longbreak'
+    let pomodoroRounds = 0;
+
+    // Stopwatch specific
+    let stopwatchStartTime = 0;
+    let stopwatchElapsedTime = 0;
+    let stopwatchLaps = [];
+
+    function initTimerWidget() {
+      updateTimerWidgetVisibility();
+      renderTimerDisplay();
+    }
+
+    function updateTimerWidgetVisibility() {
+      const section = document.getElementById('timerWidgetSection');
+      const restorePill = document.getElementById('timerRestorePill');
+      const headerBtn = document.getElementById('headerTimerToggle');
+      const sidebarBadge = document.getElementById('sidebarTimerBadge');
+
+      if (section) {
+        section.style.display = isTimerWidgetEnabled ? 'block' : 'none';
+      }
+      if (restorePill) {
+        restorePill.style.display = isTimerWidgetEnabled ? 'none' : 'flex';
+      }
+      if (headerBtn) {
+        if (isTimerWidgetEnabled) {
+          headerBtn.classList.remove('off');
+          headerBtn.title = "Timer Widget Active (Click to focus / toggle)";
+        } else {
+          headerBtn.classList.add('off');
+          headerBtn.title = "Timer Widget Hidden (Click to restore)";
+        }
+      }
+      if (sidebarBadge) {
+        if (isTimerWidgetEnabled) {
+          sidebarBadge.textContent = "ON";
+          sidebarBadge.classList.remove('off');
+        } else {
+          sidebarBadge.textContent = "OFF";
+          sidebarBadge.classList.add('off');
+        }
+      }
+    }
+
+    function turnOffTimerWidget() {
+      isTimerWidgetEnabled = false;
+      localStorage.setItem('aios_timer_enabled', '0');
+      updateTimerWidgetVisibility();
+      showToast(t('toastTimerOff') || "⏱️ Timer widget turned off. Click Timer in navbar or sidebar to bring it back anytime.");
+    }
+
+    function restoreTimerWidget(scrollIntoView = true) {
+      isTimerWidgetEnabled = true;
+      localStorage.setItem('aios_timer_enabled', '1');
+      updateTimerWidgetVisibility();
+      const section = document.getElementById('timerWidgetSection');
+      if (section) {
+        if (scrollIntoView) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        section.classList.remove('timer-glow-pulse');
+        void section.offsetWidth; // force DOM reflow
+        section.classList.add('timer-glow-pulse');
+      }
+      showToast(t('toastTimerOn') || "⏱️ Timer widget restored to homescreen!");
+    }
+
+    function toggleTimerWidget(btn) {
+      if (!isTimerWidgetEnabled) {
+        restoreTimerWidget(true);
+      } else {
+        const section = document.getElementById('timerWidgetSection');
+        if (section) {
+          section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          section.classList.remove('timer-glow-pulse');
+          void section.offsetWidth;
+          section.classList.add('timer-glow-pulse');
+        }
+      }
+    }
+
+    function setTimerMode(mode) {
+      timerMode = mode;
+      pauseTimer();
+
+      document.querySelectorAll('.timer-mode-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btnMode${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const presetsRow = document.getElementById('timerPresetsContainer');
+      const lapsContainer = document.getElementById('stopwatchLapsContainer');
+      const modeLabel = document.getElementById('timerModeLabel');
+
+      if (mode === 'countdown') {
+        if (presetsRow) presetsRow.style.display = 'flex';
+        if (lapsContainer) lapsContainer.style.display = 'none';
+        if (modeLabel) modeLabel.textContent = "COUNTDOWN";
+        timerDuration = 25 * 60;
+        timerSecondsLeft = timerDuration;
+      } else if (mode === 'pomodoro') {
+        if (presetsRow) presetsRow.style.display = 'flex';
+        if (lapsContainer) lapsContainer.style.display = 'none';
+        pomodoroPhase = 'focus';
+        if (modeLabel) modeLabel.textContent = "POMODORO FOCUS";
+        timerDuration = 25 * 60;
+        timerSecondsLeft = timerDuration;
+      } else if (mode === 'stopwatch') {
+        if (presetsRow) presetsRow.style.display = 'none';
+        if (lapsContainer) lapsContainer.style.display = 'block';
+        if (modeLabel) modeLabel.textContent = "STOPWATCH";
+        stopwatchElapsedTime = 0;
+        stopwatchLaps = [];
+        renderStopwatchLaps();
+      }
+
+      renderTimerDisplay();
+    }
+
+    function setPresetMinutes(mins) {
+      if (timerMode === 'stopwatch') return;
+      pauseTimer();
+      timerDuration = mins * 60;
+      timerSecondsLeft = timerDuration;
+
+      document.querySelectorAll('.timer-preset-btn').forEach(b => b.classList.remove('active'));
+      if (window.event && window.event.target && window.event.target.classList) {
+        window.event.target.classList.add('active');
+      }
+
+      renderTimerDisplay();
+    }
+
+    function addTimerMinutes(mins) {
+      if (timerMode === 'stopwatch') return;
+      timerDuration += mins * 60;
+      timerSecondsLeft += mins * 60;
+      renderTimerDisplay();
+    }
+
+    function startTimer() {
+      if (timerRunning) return;
+      timerRunning = true;
+      const btnStart = document.getElementById('btnTimerStart');
+      const btnPause = document.getElementById('btnTimerPause');
+      if (btnStart) btnStart.style.display = 'none';
+      if (btnPause) btnPause.style.display = 'inline-block';
+
+      if (timerMode === 'stopwatch') {
+        stopwatchStartTime = Date.now() - stopwatchElapsedTime;
+        timerInterval = setInterval(() => {
+          stopwatchElapsedTime = Date.now() - stopwatchStartTime;
+          renderTimerDisplay();
+        }, 50);
+      } else {
+        timerEndTime = Date.now() + (timerSecondsLeft * 1000);
+        timerInterval = setInterval(() => {
+          const remaining = Math.max(0, Math.round((timerEndTime - Date.now()) / 1000));
+          timerSecondsLeft = remaining;
+          renderTimerDisplay();
+
+          if (remaining <= 0) {
+            clearInterval(timerInterval);
+            timerRunning = false;
+            if (btnStart) btnStart.style.display = 'inline-block';
+            if (btnPause) btnPause.style.display = 'none';
+            playTimerChime();
+            handleTimerCompletion();
+          }
+        }, 250);
+      }
+    }
+
+    function pauseTimer() {
+      if (!timerRunning) return;
+      timerRunning = false;
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+      const btnStart = document.getElementById('btnTimerStart');
+      const btnPause = document.getElementById('btnTimerPause');
+      if (btnStart) btnStart.style.display = 'inline-block';
+      if (btnPause) btnPause.style.display = 'none';
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      if (timerMode === 'stopwatch') {
+        stopwatchElapsedTime = 0;
+        stopwatchLaps = [];
+        renderStopwatchLaps();
+      } else if (timerMode === 'pomodoro') {
+        pomodoroPhase = 'focus';
+        timerDuration = 25 * 60;
+        timerSecondsLeft = timerDuration;
+        const modeLabel = document.getElementById('timerModeLabel');
+        if (modeLabel) modeLabel.textContent = "POMODORO FOCUS";
+      } else {
+        timerSecondsLeft = timerDuration;
+      }
+      renderTimerDisplay();
+    }
+
+    function handleTimerCompletion() {
+      if (timerMode === 'pomodoro') {
+        if (pomodoroPhase === 'focus') {
+          pomodoroRounds++;
+          if (pomodoroRounds % 4 === 0) {
+            pomodoroPhase = 'longbreak';
+            timerDuration = 15 * 60;
+            timerSecondsLeft = timerDuration;
+            const modeLabel = document.getElementById('timerModeLabel');
+            if (modeLabel) modeLabel.textContent = "LONG BREAK (15m)";
+            showToast("🎉 Pomodoro Focus Round Complete! Take a 15-minute Long Break.");
+          } else {
+            pomodoroPhase = 'break';
+            timerDuration = 5 * 60;
+            timerSecondsLeft = timerDuration;
+            const modeLabel = document.getElementById('timerModeLabel');
+            if (modeLabel) modeLabel.textContent = "SHORT BREAK (5m)";
+            showToast("🎉 Pomodoro Focus Round Complete! Take a 5-minute Short Break.");
+          }
+        } else {
+          pomodoroPhase = 'focus';
+          timerDuration = 25 * 60;
+          timerSecondsLeft = timerDuration;
+          const modeLabel = document.getElementById('timerModeLabel');
+          if (modeLabel) modeLabel.textContent = `POMODORO FOCUS (Round ${pomodoroRounds + 1})`;
+          showToast("⚡ Break over! Ready for next Pomodoro Focus round?");
+        }
+      } else {
+        showToast("🎉 Timer completed!");
+      }
+      renderTimerDisplay();
+    }
+
+    function recordStopwatchLap() {
+      if (timerMode !== 'stopwatch') return;
+      const lapTime = formatStopwatchTime(stopwatchElapsedTime);
+      stopwatchLaps.unshift({ num: stopwatchLaps.length + 1, time: lapTime });
+      renderStopwatchLaps();
+    }
+
+    function renderStopwatchLaps() {
+      const container = document.getElementById('stopwatchLapsList');
+      if (!container) return;
+      if (stopwatchLaps.length === 0) {
+        container.innerHTML = `<div style="font-size:0.75rem; color:var(--text-dim); text-align:center; padding:4px;">No laps recorded yet</div>`;
+        return;
+      }
+      container.innerHTML = stopwatchLaps.map(l => `
+        <div class="stopwatch-lap-item">
+          <span>Lap ${l.num}</span>
+          <span style="color:#fff; font-weight:700;">${l.time}</span>
+        </div>
+      `).join('');
+    }
+
+    function formatStopwatchTime(ms) {
+      const totalSecs = Math.floor(ms / 1000);
+      const m = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      const hundredths = Math.floor((ms % 1000) / 10);
+      return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(hundredths).padStart(2, '0')}`;
+    }
+
+    function renderTimerDisplay() {
+      const displayEl = document.getElementById('timerDisplay');
+      const ringEl = document.getElementById('timerProgressRing');
+      const headerLive = document.getElementById('headerTimerLive');
+
+      if (timerMode === 'stopwatch') {
+        const formatted = formatStopwatchTime(stopwatchElapsedTime);
+        if (displayEl) displayEl.textContent = formatted;
+        if (ringEl) ringEl.style.strokeDashoffset = '0';
+        if (headerLive) {
+          headerLive.textContent = timerRunning ? formatted : '';
+          headerLive.style.display = timerRunning ? 'inline-block' : 'none';
+        }
+      } else {
+        const m = Math.floor(timerSecondsLeft / 60);
+        const s = timerSecondsLeft % 60;
+        const formatted = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        if (displayEl) displayEl.textContent = formatted;
+
+        const ratio = timerDuration > 0 ? (timerSecondsLeft / timerDuration) : 0;
+        const offset = 440 * (1 - ratio);
+        if (ringEl) ringEl.style.strokeDashoffset = `${offset}`;
+
+        if (headerLive) {
+          headerLive.textContent = timerRunning ? formatted : '';
+          headerLive.style.display = timerRunning ? 'inline-block' : 'none';
+        }
+      }
+    }
+
+    function toggleTimerSound() {
+      isTimerSoundEnabled = !isTimerSoundEnabled;
+      const btn = document.getElementById('btnTimerSound');
+      if (btn) {
+        btn.textContent = isTimerSoundEnabled ? "🔔 Chime: On" : "🔕 Chime: Off";
+      }
+    }
+
+    function playTimerChime() {
+      if (!isTimerSoundEnabled) return;
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const now = ctx.currentTime;
+        const tones = [659.25, 830.61, 987.77, 1318.51];
+        tones.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.14);
+          gain.gain.setValueAtTime(0, now + idx * 0.14);
+          gain.gain.linearRampToValueAtTime(0.25, now + idx * 0.14 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.14 + 0.38);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now + idx * 0.14);
+          osc.stop(now + idx * 0.14 + 0.4);
+        });
+      } catch (e) {}
+    }
+
     // Initialize
     setLanguage(currentLang);
     initGitHubSession();
+    initTimerWidget();
     checkBackendHealth();
     setInterval(checkBackendHealth, 10000);
     filterCapabilities('all', document.getElementById('navAllBtn'));
   </script>
+
+  <!-- Floating Restore Pill (Appears when widget is turned off) -->
+  <div id="timerRestorePill" class="timer-restore-pill" style="display: none;" onclick="restoreTimerWidget()">
+    ⏱️ <span data-i18n="timerShow">Show Timer</span>
+  </div>
 
 </body>
 </html>
