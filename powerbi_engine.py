@@ -681,20 +681,43 @@ def render_visual_studio_powerbi_card(cloud_reports: list, sharepoint_files: lis
         </div>
       </div>
 
-      <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 1.1rem;">
-        <div style="font-weight: 700; color: #f8fafc; font-size: 0.92rem; margin-bottom: 0.4rem;">
-          💡 <span>Power BI Environment Status</span>
+      <div class="vst-synthesis-card">
+        <div class="vst-synthesis-header">
+          <div class="vst-synth-title-group">
+            <span class="vst-synth-sparkle">✨</span>
+            <span class="vst-synth-title">AI EXECUTIVE SYNTHESIS & REPORT TOPOLOGY</span>
+          </div>
+          <span class="vst-synth-badge">LIVE INVENTORY</span>
         </div>
-        <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.6;">
-          Indexed <strong>{total_count} report assets</strong> across your enterprise ecosystem.
-          You can create new corporate PBIX dashboards directly from your SharePoint CSV datasets with 1-click automated modeling.
+        <div class="vst-synthesis-lead">
+          Indexed <span class="vst-metric-pill vst-pill-cyan"><strong>{total_count} Power BI & PBIX report assets</strong></span> across <span class="vst-metric-pill vst-pill-blue"><strong>{len(cloud_reports)} Cloud Workspaces</strong></span>, <span class="vst-metric-pill vst-pill-green"><strong>{len(sharepoint_files)} SharePoint Libraries</strong></span>, and Desktop/OneDrive environments.
         </div>
-        <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem;">
-          <button type="button" class="btn-action" onclick="sendStudioPrompt('create powerbi pbix file named sales.pbix using the csv files in landmark/data_filled')" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
-            🚀 Create New Sales PBIX Dashboard
+        <div class="vst-synth-grid">
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-pbi"></span>
+              <span class="vst-synth-label">Cloud Fabric & Workspace Health</span>
+            </div>
+            <div class="vst-synth-text">
+              Connected to Microsoft 365 Power BI Service tenant. {len(cloud_reports)} report definitions synchronized with direct web endpoints.
+            </div>
+          </div>
+          <div class="vst-synth-item">
+            <div class="vst-synth-item-header">
+              <span class="vst-synth-dot vst-dot-dim"></span>
+              <span class="vst-synth-label">PBIX Generation Pipeline</span>
+            </div>
+            <div class="vst-synth-text">
+              Automated compiler ready to ingest SharePoint CSV partitions and synthesize professional star-schema PBIX dashboards.
+            </div>
+          </div>
+        </div>
+        <div class="vst-synth-actions">
+          <button type="button" class="vst-btn-action-primary" onclick="sendStudioPrompt('create powerbi pbix file named sales.pbix using the csv files in landmark/data_filled')">
+            <span>🚀</span> Create New Sales PBIX Dashboard
           </button>
-          <button type="button" class="btn-secondary" onclick="switchStudioTab('{card_id}', 'grid')" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
-            📋 View All Reports
+          <button type="button" class="vst-btn-action-secondary" onclick="switchStudioTab('{card_id}', 'grid')">
+            <span>📋</span> View All Reports ({total_count})
           </button>
         </div>
       </div>

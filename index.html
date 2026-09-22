@@ -1464,21 +1464,22 @@
     /* KPI Grid */
     .vst-kpi-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.25rem;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1.15rem;
     }
 
     .vst-kpi-card {
       background: rgba(30, 41, 59, 0.5);
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 10px;
-      padding: 1rem;
+      padding: 0.85rem 1rem;
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
+      gap: 0.3rem;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }
 
     .vst-kpi-card::before {
@@ -1498,15 +1499,411 @@
     }
 
     .vst-kpi-val {
-      font-size: 1.4rem;
+      font-size: 1.35rem;
       font-weight: 800;
       color: #f8fafc;
       letter-spacing: -0.02em;
     }
 
     .vst-kpi-sub {
-      font-size: 0.76rem;
+      font-size: 0.74rem;
       color: #38bdf8;
+    }
+
+    /* Modern Folder & Dataset Topology Matrix */
+    .vst-folder-section {
+      margin-bottom: 1.15rem;
+    }
+
+    .vst-section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .vst-section-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #cbd5e1;
+    }
+
+    .vst-section-count {
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: #94a3b8;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+    }
+
+    .vst-folders-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .vst-folder-card {
+      background: rgba(15, 23, 42, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 0.95rem 1.1rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    }
+
+    .vst-folder-card:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+
+    .vst-folder-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .vst-folder-title-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .vst-folder-icon {
+      font-size: 1.1rem;
+    }
+
+    .vst-folder-path {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.86rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .vst-folder-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .vst-folder-badge {
+      background: rgba(99, 102, 241, 0.2);
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      padding: 0.15rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+    }
+
+    .vst-folder-size {
+      color: #34d399;
+      font-weight: 700;
+      font-size: 0.78rem;
+      font-family: ui-monospace, monospace;
+    }
+
+    .vst-folder-chips-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.65rem;
+    }
+
+    .vst-dataset-chip {
+      background: rgba(30, 41, 59, 0.55);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 0.65rem 0.8rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      transition: all 0.2s ease;
+    }
+
+    .vst-dataset-chip:hover {
+      transform: translateY(-2px);
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(30, 41, 59, 0.85);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .vst-chip-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .vst-chip-name {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: #f8fafc;
+      word-break: break-all;
+    }
+
+    .vst-chip-size {
+      font-size: 0.72rem;
+      color: #38bdf8;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+    }
+
+    .vst-chip-footer {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      margin-top: 0.2rem;
+    }
+
+    .vst-chip-bar {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .vst-chip-pct {
+      font-size: 0.68rem;
+      color: #94a3b8;
+      width: 34px;
+      text-align: right;
+    }
+
+    .vst-chip-copy {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      border-radius: 4px;
+      padding: 0.12rem 0.35rem;
+      font-size: 0.68rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .vst-chip-copy:hover {
+      background: rgba(99, 102, 241, 0.3);
+      border-color: #818cf8;
+      color: #ffffff;
+    }
+
+    /* AI Executive Synthesis Card & Modern Typography */
+    .vst-synthesis-card {
+      background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.85) 100%);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-left: 4px solid #6366f1;
+      border-radius: 12px;
+      padding: 1.25rem 1.4rem;
+      margin-top: 1.15rem;
+      box-shadow: 0 8px 24px -6px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+
+    .vst-synthesis-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.85rem;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .vst-synth-title-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .vst-synth-sparkle {
+      font-size: 1.05rem;
+    }
+
+    .vst-synth-title {
+      font-size: 0.82rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: linear-gradient(90deg, #c7d2fe, #38bdf8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .vst-synth-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(56, 189, 248, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      padding: 0.18rem 0.5rem;
+      border-radius: 4px;
+    }
+
+    .vst-synthesis-lead {
+      font-size: 0.88rem;
+      color: #e2e8f0;
+      line-height: 1.65;
+      margin-bottom: 1rem;
+    }
+
+    .vst-metric-pill {
+      display: inline-block;
+      padding: 0.12rem 0.5rem;
+      border-radius: 5px;
+      font-weight: 600;
+      font-size: 0.84rem;
+      vertical-align: baseline;
+    }
+
+    .vst-pill-blue {
+      background: rgba(59, 130, 246, 0.18);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.35);
+    }
+
+    .vst-pill-cyan {
+      background: rgba(6, 182, 212, 0.18);
+      color: #67e8f9;
+      border: 1px solid rgba(6, 182, 212, 0.35);
+    }
+
+    .vst-pill-green {
+      background: rgba(16, 185, 129, 0.18);
+      color: #6ee7b7;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+    }
+
+    .vst-code-pill {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 4px;
+      padding: 0.12rem 0.45rem;
+      color: #38bdf8;
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
+
+    .vst-synth-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.15rem;
+    }
+
+    .vst-synth-item {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .vst-synth-item-header {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+
+    .vst-synth-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .vst-dot-fact {
+      background: #ef4444;
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+    }
+
+    .vst-dot-dim {
+      background: #3b82f6;
+      box-shadow: 0 0 6px rgba(59, 130, 246, 0.6);
+    }
+
+    .vst-dot-audit {
+      background: #f59e0b;
+      box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+    }
+
+    .vst-dot-pbi {
+      background: #fbbf24;
+      box-shadow: 0 0 6px rgba(251, 191, 36, 0.6);
+    }
+
+    .vst-synth-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #94a3b8;
+    }
+
+    .vst-synth-text {
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      line-height: 1.5;
+    }
+
+    .vst-synth-actions {
+      display: flex;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+      margin-top: 0.6rem;
+    }
+
+    .vst-btn-action-primary {
+      background: linear-gradient(135deg, #4f46e5 0%, #06b6d4 100%);
+      color: #ffffff;
+      border: none;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 0.55rem 1.15rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);
+    }
+
+    .vst-btn-action-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(79, 70, 229, 0.6);
+    }
+
+    .vst-btn-action-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: #cbd5e1;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      font-weight: 600;
+      font-size: 0.82rem;
+      padding: 0.55rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      transition: all 0.15s ease;
+    }
+
+    .vst-btn-action-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.25);
     }
 
     /* Data Grid */
