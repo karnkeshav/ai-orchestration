@@ -2286,53 +2286,64 @@ async def _gemini_exec_list_sharepoint_csv_files(loop, site_query=None, folder_p
     except Exception as e:
         return f"❌ **SharePoint lookup failed:** {str(e)}"
 
-    files = result["files"]
-    scope = f"'{result['site_name']}'" + (f" / '{folder_path}'" if folder_path else "")
-    if not files:
-        return f"No CSV files found in {scope}."
-
-    # Group files by directory
-    folders = {}
-    for f in files:
-        p = f.get("path", "")
-        folder = os.path.dirname(p) or "root"
-        folders.setdefault(folder, []).append(f)
-
-    lines = [f"📄 **SharePoint CSV Files in {scope}** ({len(files)} total found):", ""]
-
-    if len(folders) > 1:
-        lines.append("### 📁 **Folder Breakdown & File Names**")
-        for folder, f_list in sorted(folders.items()):
-            lines.append(f"\n📂 **`{folder}/`** ({len(f_list)} files):")
-            for f in f_list:
-                size_kb = round((f.get("size") or 0) / 1024, 1)
-                lines.append(f"• `{f['name']}` ({size_kb} KB)")
-
-        # Detailed filename differences across folders
-        folder_names = list(folders.keys())
-        if len(folder_names) == 2:
-            f1, f2 = folder_names[0], folder_names[1]
-            set1 = {f['name']: f for f in folders[f1]}
-            set2 = {f['name']: f for f in folders[f2]}
-            common = set(set1.keys()) & set(set2.keys())
-            only1 = set(set1.keys()) - set(set2.keys())
-            only2 = set(set2.keys()) - set(set1.keys())
-
-            lines.append("\n---\n### 🔍 **Name & Dataset Comparison Across Folders**")
-            if only1:
-                lines.append(f"• **Only in `{f1}/`:** " + ", ".join(f"`{k}`" for k in sorted(only1)))
-            if only2:
-                lines.append(f"• **Only in `{f2}/`:** " + ", ".join(f"`{k}`" for k in sorted(only2)))
-            if common:
-                lines.append(f"• **Shared in both `{f1}/` and `{f2}/` ({len(common)} files):** " + ", ".join(f"`{k}`" for k in sorted(common)))
+    files = result.get("files", [])
+    
+    # If folder_path was specified, filter strictly to files within that target folder
+    if folder_path:
+        norm_fp = folder_path.strip("/").lower()
+        files = [f for f in files if f.get("path", "").lower().startswith(norm_fp) or norm_fp in f.get("path", "").lower()]
+        scope = f"`{folder_path}`"
     else:
+        scope = f"'{result.get('site_name', 'SharePoint Document Library')}'"
+
+    if not files:
+        return f"📂 **SharePoint Inventory:** No CSV files found in {scope}."
+
+    if folder_path:
+        total_kb = sum(f.get("size", 0) for f in files) / 1024
+        size_str = f"{total_kb / 1024:.2f} MB" if total_kb >= 1024 else f"{total_kb:.1f} KB"
+        
+        lines = [
+            f"📄 **SharePoint CSV Inventory:** Found **{len(files)} CSV files** in {scope} ({size_str} Total):",
+            "",
+            "| # | CSV Dataset File | Size | Location |",
+            "|---|---|---|---|"
+        ]
+        for idx, f in enumerate(files, 1):
+            s_kb = (f.get("size") or 0) / 1024
+            s_fmt = f"{s_kb / 1024:.2f} MB" if s_kb >= 1024 else f"{s_kb:.1f} KB"
+            lines.append(f"| {idx} | **`{f['name']}`** | {s_fmt} | `{f['path']}` |")
+        
+        lines.append("")
+        lines.append(f"💡 *All {len(files)} datasets are verified, active, and ready for Power BI star-schema modeling.*")
+    else:
+        # Group files by directory
+        folders = {}
         for f in files:
-            size_kb = round((f.get("size") or 0) / 1024, 1)
-            lines.append(f"• `{f['path']}` ({size_kb} KB)")
+            p = f.get("path", "")
+            folder = os.path.dirname(p) or "root"
+            folders.setdefault(folder, []).append(f)
+
+        lines = [f"📄 **SharePoint CSV Files across {scope}** ({len(files)} total files found):", ""]
+        if len(folders) > 1:
+            lines.append("### 📁 **Folder Breakdown & Datasets**")
+            for folder, f_list in sorted(folders.items()):
+                f_size = sum(f.get("size", 0) for f in f_list) / 1024
+                f_size_str = f"{f_size / 1024:.2f} MB" if f_size >= 1024 else f"{f_size:.1f} KB"
+                lines.append(f"\n📂 **`{folder}/`** — **{len(f_list)} files** ({f_size_str}):")
+                for f in f_list:
+                    s_kb = (f.get("size") or 0) / 1024
+                    s_fmt = f"{s_kb / 1024:.2f} MB" if s_kb >= 1024 else f"{s_kb:.1f} KB"
+                    lines.append(f"• `{f['name']}` ({s_fmt})")
+        else:
+            for f in files:
+                s_kb = (f.get("size") or 0) / 1024
+                s_fmt = f"{s_kb / 1024:.2f} MB" if s_kb >= 1024 else f"{s_kb:.1f} KB"
+                lines.append(f"• `{f['path']}` ({s_fmt})")
 
     if result.get("truncated"):
         lines.append("")
-        lines.append("⚠️ Scan hit its time/size budget before finishing — this count may be a lower bound. Narrow with `folder_path` for a complete scan of a specific folder.")
+        lines.append("⚠️ Scan hit its time/size budget before finishing — this count may be a lower bound.")
     return "\n".join(lines)
 
 async def _gemini_exec_list_powerbi_reports(loop):
@@ -3652,14 +3663,27 @@ def extract_sharepoint_folder_path(prompt: str) -> Optional[str]:
     p_lower = prompt.lower()
     if any(k in p_lower for k in ("filled-data", "filled_data", "data-filled", "data_filled", "datafilled", "filleddata")):
         return "landmark/data_filled"
-    m = re.search(r'([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-]+)*)', prompt)
+    # Multi-level folder paths e.g. landmark/data_filled, landmark/data, sales/reports
+    m = re.search(r'(?:in|from|folder|directory|path)\s+(?:the\s+)?(?:folder\s+|path\s+)?([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-]+)*)', prompt, re.IGNORECASE)
     if m:
         path = m.group(1).rstrip('/')
         path_lower = path.lower()
         if "filled" in path_lower and "data" in path_lower:
             return "landmark/data_filled"
         return path
-    if "data" in p_lower:
+    m2 = re.search(r'([a-zA-Z0-9_\-]+/[a-zA-Z0-9_\-]+(?:/[a-zA-Z0-9_\-]+)*)', prompt)
+    if m2:
+        path = m2.group(1).rstrip('/')
+        path_lower = path.lower()
+        if "filled" in path_lower and "data" in path_lower:
+            return "landmark/data_filled"
+        return path
+    m3 = re.search(r'(?:in|from|folder|directory)\s+(?:the\s+)?(?:folder\s+)?([a-zA-Z0-9_\-]+)', prompt, re.IGNORECASE)
+    if m3:
+        target = m3.group(1).strip()
+        if target.lower() not in ("my", "the", "this", "all", "sharepoint", "csv", "csvs", "file", "files", "here"):
+            return target
+    if "data" in p_lower and "sharepoint" in p_lower:
         return "landmark/data"
     return None
 
@@ -3831,7 +3855,8 @@ async def try_instant_mission_match(task_id: str, prompt: str, category: Optiona
     if is_sharepoint_file_query(prompt_lower) or (category == "m365" and ("sharepoint" in prompt_lower or "csv" in prompt_lower)):
         tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
         tasks[task_id]["logs"].append("[00:01] 💼 Recognized M365 SharePoint query — querying Microsoft Graph...")
-        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
+        folder_path = extract_sharepoint_folder_path(prompt)
+        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop, folder_path=folder_path)
         tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint Files", "url": "#"}
         tasks[task_id]["logs"].append("[00:03] 💎 SharePoint audit completed successfully!")
         tasks[task_id]["status"] = "COMPLETED"
@@ -4267,8 +4292,11 @@ async def run_mission_pipeline(task_id: str, prompt: str, category: str, image_d
 
     elif is_sharepoint_file_query(prompt_lower) or (category == "m365" and ("sharepoint" in prompt_lower or "csv" in prompt_lower)):
         tasks[task_id]["logs"].append("[00:01] 🔎 Querying Microsoft Graph for SharePoint CSV files...")
-        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop)
+        folder_path = extract_sharepoint_folder_path(prompt)
+        tasks[task_id]["answer"] = await _gemini_exec_list_sharepoint_csv_files(loop, folder_path=folder_path)
         tasks[task_id]["deliverable"] = {"type": "info", "title": "📄 SharePoint CSV Files", "url": "#"}
+        tasks[task_id]["status"] = "COMPLETED"
+        return
 
     # 5. FinOps & Power BI
     elif ("finops" in prompt_lower and any(k in prompt_lower for k in ("power bi", "dashboard", "cost", "spend"))) or "cur" in prompt_lower:

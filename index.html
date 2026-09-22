@@ -955,93 +955,36 @@
       color: #fde68a;
     }
 
-    /* Top Navbar Timer Button */
-    .timer-nav-btn {
-      background: rgba(99, 102, 241, 0.12);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      color: #e0e7ff;
-      padding: 0.45rem 0.85rem;
+    /* Live Digital Clock Navbar Widget (Secret Task Timer Trigger) */
+    .live-clock-pill {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #e2e8f0;
+      padding: 0.42rem 0.85rem;
       border-radius: 100px;
-      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
       font-weight: 700;
+      letter-spacing: 0.04em;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s ease;
-      font-family: var(--font-main);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      user-select: none;
     }
 
-    .timer-nav-btn:hover {
-      border-color: var(--accent-cyan);
-      background: rgba(6, 182, 212, 0.18);
-      color: #fff;
+    .live-clock-pill:hover {
+      background: rgba(99, 102, 241, 0.18);
+      border-color: rgba(99, 102, 241, 0.5);
+      color: #ffffff;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.35);
+      transform: translateY(-1px);
     }
 
-    .timer-nav-btn.off {
-      background: rgba(255, 255, 255, 0.04);
-      border-color: var(--border-color);
-      color: var(--text-muted);
-    }
-
-    .timer-live-badge {
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-      background: var(--accent-indigo);
-      color: #fff;
-      padding: 2px 6px;
-      border-radius: 100px;
-      font-weight: 700;
-    }
-
-    /* Sidebar Timer Badge */
-    .sidebar-timer-badge {
-      font-size: 0.68rem;
-      padding: 2px 6px;
-      border-radius: 100px;
-      font-weight: 800;
-      margin-left: auto;
-      background: rgba(16, 185, 129, 0.2);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.4);
-    }
-
-    .sidebar-timer-badge.off {
-      background: rgba(239, 68, 68, 0.15);
-      color: #f87171;
-      border-color: rgba(239, 68, 68, 0.3);
-    }
-
-    /* Floating Restore Pill */
-    .timer-restore-pill {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: linear-gradient(135deg, var(--accent-indigo), var(--accent-cyan));
-      color: #fff;
-      padding: 0.65rem 1.25rem;
-      border-radius: 100px;
-      font-size: 0.85rem;
-      font-weight: 700;
-      box-shadow: 0 8px 24px rgba(99, 102, 241, 0.45);
-      cursor: pointer;
-      z-index: 999;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      transition: all 0.25s ease;
-      animation: timerFloat 2.2s infinite ease-in-out;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .timer-restore-pill:hover {
-      transform: translateY(-3px) scale(1.04);
-      box-shadow: 0 12px 30px rgba(99, 102, 241, 0.65);
-    }
-
-    @keyframes timerFloat {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-5px); }
+    .live-clock-pill:active {
+      transform: translateY(0);
     }
 
     /* Stopwatch Laps */
@@ -1455,10 +1398,9 @@
       <span>AWS • Azure • GCP • OCI</span>
     </div>
     <div style="display: flex; align-items: center; gap: 0.65rem;">
-      <button id="headerTimerToggle" class="timer-nav-btn" onclick="toggleTimerWidget()" title="Toggle Focus Timer">
-        ⏱️ <span id="headerTimerLabel" data-i18n="navTimer">Timer</span>
-        <span id="headerTimerLive" class="timer-live-badge" style="display:none;"></span>
-      </button>
+      <div id="liveClockWidget" class="live-clock-pill" onclick="toggleSecretTaskTimer()" title="Click to view Task Execution Timer">
+        🕒 <span id="liveClockTime">--:--:--</span>
+      </div>
       <div class="lang-switcher" id="langSwitcher">
         <button class="lang-btn" id="langBtn" onclick="toggleLangMenu()">
           🌐 <span id="langBtnLabel">EN</span>
@@ -1494,9 +1436,6 @@
       <button class="nav-item" data-i18n="navM365" onclick="filterCapabilities('m365', this)">💼 M365</button>
       <button class="nav-item" data-i18n="navJobs" onclick="filterCapabilities('jobs', this)">🎯 Jobs</button>
       <button class="nav-item" id="navActivity" data-i18n="navActivity" onclick="showActivity(this)">📋 Activity</button>
-      <button class="nav-item timer-toggle-nav" id="sidebarTimerToggle" onclick="toggleTimerWidget(this)">
-        ⏱️ <span data-i18n="navTimer">Timer</span> <span id="sidebarTimerBadge" class="sidebar-timer-badge">ON</span>
-      </button>
     </aside>
 
     <!-- Main Content Area -->
@@ -1689,12 +1628,12 @@
       </section>
 
       <!-- Separate Timer Widget Section below Activity on Homescreen -->
-      <section id="timerWidgetSection" class="timer-widget-card" style="display: block;">
+      <section id="timerWidgetSection" class="timer-widget-card" style="display: none;">
         <div class="timer-widget-header">
           <div style="display: flex; align-items: center; gap: 0.75rem;">
             <span class="timer-badge-icon">⏱️</span>
             <div>
-              <div class="timer-title" data-i18n="timerTitle">⏱️ Focus &amp; Productivity Timer</div>
+              <div class="timer-title" data-i18n="timerTitle">⏱️ Focus &amp; Task Execution Timer</div>
               <div class="timer-subtitle" data-i18n="timerSubtitle">— Countdown, Stopwatch &amp; Pomodoro Tracker</div>
             </div>
           </div>
@@ -1704,8 +1643,8 @@
               <button type="button" class="timer-mode-btn" id="btnModePomodoro" onclick="setTimerMode('pomodoro')">🍅 Pomodoro</button>
               <button type="button" class="timer-mode-btn" id="btnModeStopwatch" onclick="setTimerMode('stopwatch')">⚡ Stopwatch</button>
             </div>
-            <button type="button" class="timer-power-btn" onclick="turnOffTimerWidget()" title="Turn off and hide widget from homepage" data-i18n="timerTurnOff">
-              ⏻ Turn Off
+            <button type="button" class="timer-power-btn" onclick="turnOffTimerWidget()" title="Close and hide timer widget" data-i18n="timerTurnOff">
+              ✕ Close
             </button>
           </div>
         </div>
@@ -2045,12 +1984,12 @@
         chipActionModalPrompt: "Add interactive transaction modal form with instant submission feedback",
         toastCustomizationAdded: "✓ Customization added to directive",
         navTimer: "⏱️ Timer",
-        timerTitle: "⏱️ Focus & Productivity Timer",
+        timerTitle: "⏱️ Focus & Task Execution Timer",
         timerSubtitle: "— Countdown, Stopwatch & Pomodoro Tracker",
-        timerTurnOff: "⏻ Turn Off",
+        timerTurnOff: "✕ Close",
         timerShow: "⏱️ Show Timer",
-        toastTimerOff: "⏱️ Timer widget turned off. Click Timer in top bar or sidebar to bring it back.",
-        toastTimerOn: "⏱️ Timer widget restored to homescreen!"
+        toastTimerOff: "⏱️ Task timer closed. Click the live clock or press Alt+T to open anytime.",
+        toastTimerOn: "⏱️ Task Execution Timer displayed below Activity."
       },
       hi: {
         badgeCloudEngine: "क्लाउड इंजन",
@@ -2104,12 +2043,12 @@
         chipActionModalPrompt: "इंस्टेंट सबमिशन फीडबैक के साथ इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ें",
         toastCustomizationAdded: "✓ निर्देश में कस्टमाइज़ेशन जोड़ा गया",
         navTimer: "⏱️ टाइमर",
-        timerTitle: "⏱️ फोकस और प्रोडक्टिविटी टाइमर",
+        timerTitle: "⏱️ टास्क निष्पादन और फोकस टाइमर",
         timerSubtitle: "— काउंटडाउन, स्टॉपवॉच और पोमोडोरो ट्रैकर",
-        timerTurnOff: "⏻ बंद करें",
+        timerTurnOff: "✕ बंद करें",
         timerShow: "⏱️ टाइमर दिखाएं",
-        toastTimerOff: "⏱️ टाइमर विजेट बंद किया गया। वापस लाने के लिए टाइमर पर क्लिक करें।",
-        toastTimerOn: "⏱️ टाइमर विजेट होमस्क्रीन पर बहाल किया गया!"
+        toastTimerOff: "⏱️ टास्क टाइमर बंद किया गया। खोलने के लिए घड़ी पर क्लिक करें या Alt+T दबाएं।",
+        toastTimerOn: "⏱️ टास्क निष्पादन टाइमर गतिविधि के नीचे प्रदर्शित हुआ!"
       },
       es: {
         badgeCloudEngine: "Motor Cloud",
@@ -2163,12 +2102,12 @@
         chipActionModalPrompt: "Agrega un formulario modal de transacción interactivo con retroalimentación instantánea",
         toastCustomizationAdded: "✓ Personalización agregada a la directiva",
         navTimer: "⏱️ Temporizador",
-        timerTitle: "⏱️ Temporizador de Enfoque y Productividad",
+        timerTitle: "⏱️ Temporizador de Ejecución de Tareas y Enfoque",
         timerSubtitle: "— Cuenta regresiva, cronómetro y Pomodoro",
-        timerTurnOff: "⏻ Apagar",
+        timerTurnOff: "✕ Cerrar",
         timerShow: "⏱️ Mostrar Temporizador",
-        toastTimerOff: "⏱️ Temporizador apagado. Haz clic en Temporizador para restaurarlo.",
-        toastTimerOn: "⏱️ ¡Temporizador restaurado en la pantalla principal!"
+        toastTimerOff: "⏱️ Temporizador cerrado. Haz clic en el reloj o presiona Alt+T para abrirlo.",
+        toastTimerOn: "⏱️ Temporizador de ejecución mostrado debajo de Actividad."
       },
       te: {
         badgeCloudEngine: "క్లౌడ్ ఇంజిన్",
@@ -2222,12 +2161,12 @@
         chipActionModalPrompt: "తక్షణ సమర్పణ ఫీడ్‌బ్యాక్‌తో ఇంటరాక్టివ్ ట్రాన్సాక్షన్ మోడల్ ఫారమ్‌ను జోడించండి",
         toastCustomizationAdded: "✓ నిర్దేశానికి అనుకూలీకరణ జోడించబడింది",
         navTimer: "⏱️ టైమర్",
-        timerTitle: "⏱️ ఫోకస్ మరియు ఉత్పాదకత టైమర్",
+        timerTitle: "⏱️ టాస్క్ ఎగ్జిక్యూషన్ మరియు ఫోకస్ టైమర్",
         timerSubtitle: "— కౌంట్‌డౌన్, స్టాప్‌వాచ్ మరియు పోమోడోరో",
-        timerTurnOff: "⏻ ఆఫ్ చేయండి",
+        timerTurnOff: "✕ మూసివేయి",
         timerShow: "⏱️ టైమర్ చూపించు",
-        toastTimerOff: "⏱️ టైమర్ విడ్జెట్ ఆఫ్ చేయబడింది.",
-        toastTimerOn: "⏱️ టైమర్ విడ్జెట్ పునరుద్ధరించబడింది!"
+        toastTimerOff: "⏱️ టాస్క్ టైమర్ దాచబడింది. తెరవడానికి గడియారాన్ని క్లిక్ చేయండి లేదా Alt+T నొక్కండి.",
+        toastTimerOn: "⏱️ టాస్క్ ఎగ్జిక్యూషన్ టైమర్ యాక్టివిటీ క్రింద ప్రదర్శించబడింది."
       },
       kn: {
         badgeCloudEngine: "ಕ್ಲೌಡ್ ಎಂಜಿನ್",
@@ -2281,12 +2220,12 @@
         chipActionModalPrompt: "ತಕ್ಷಣದ ಸಲ್ಲಿಕೆ ಪ್ರತಿಕ್ರಿಯೆಯೊಂದಿಗೆ ಇಂಟರಾಕ್ಟಿವ್ ಟ್ರಾನ್ಸಾಕ್ಷನ್ ಮೋಡಲ್ ಫಾರ್ಮ್ ಸೇರಿಸಿ",
         toastCustomizationAdded: "✓ ನಿರ್ದೇಶನಕ್ಕೆ ಕಸ್ಟಮೈಸೇಶನ್ ಸೇರಿಸಲಾಗಿದೆ",
         navTimer: "⏱️ ಟೈಮರ್",
-        timerTitle: "⏱️ ಫೋಕಸ್ ಮತ್ತು ಉತ್ಪಾದಕತೆ ಟೈಮರ್",
+        timerTitle: "⏱️ ಟಾಸ್ಕ್ ಎಕ್ಸಿಕ್ಯೂಶನ್ ಮತ್ತು ಫೋಕಸ್ ಟೈಮರ್",
         timerSubtitle: "— ಕೌಂಟ್‌ಡೌನ್, ಸ್ಟಾಪ್‌ವಾಚ್ ಮತ್ತು ಪೊಮೊಡೊರೊ",
-        timerTurnOff: "⏻ ಆಫ್ ಮಾಡಿ",
+        timerTurnOff: "✕ ಮುಚ್ಚಿ",
         timerShow: "⏱️ ಟೈಮರ್ ತೋರಿಸಿ",
-        toastTimerOff: "⏱️ ಟೈಮರ್ ವಿಜೆಟ್ ಆಫ್ ಮಾಡಲಾಗಿದೆ.",
-        toastTimerOn: "⏱️ ಟೈಮರ್ ವಿಜೆಟ್ ಮರುಸ್ಥಾಪಿಸಲಾಗಿದೆ!"
+        toastTimerOff: "⏱️ ಟಾಸ್ಕ್ ಟೈಮರ್ ಮರೆಮಾಡಲಾಗಿದೆ. ತೆರೆಯಲು ಗಡಿಯಾರವನ್ನು ಕ್ಲಿಕ್ ಮಾಡಿ ಅಥವಾ Alt+T ಒತ್ತಿರಿ.",
+        toastTimerOn: "⏱️ ಟಾಸ್ಕ್ ಎಕ್ಸಿಕ್ಯೂಶನ್ ಟೈಮರ್ ಚಟುವಟಿಕೆಯ ಕೆಳಗೆ ಪ್ರದರ್ಶಿಸಲಾಗಿದೆ."
       },
       bn: {
         badgeCloudEngine: "ক্লাউড ইঞ্জিন",
@@ -2340,12 +2279,12 @@
         chipActionModalPrompt: "তাৎক্ষণিক সাবমিশন ফিডব্যাক সহ ইন্টারেক্টিভ ট্রানজ্যাকশন মোডাল ফর্ম যোগ করুন",
         toastCustomizationAdded: "✓ নির্দেশে কাস্টমাইজেশন যোগ করা হয়েছে",
         navTimer: "⏱️ টাইমার",
-        timerTitle: "⏱️ ফোকাস ও প্রোডাক্টিভিটি টাইমার",
+        timerTitle: "⏱️ টাস্ক এক্সিকিউশন ও ফোকাস টাইমার",
         timerSubtitle: "— কাউন্টডাউন, স্টপওয়াচ এবং পোমোডোরো",
-        timerTurnOff: "⏻ বন্ধ করুন",
+        timerTurnOff: "✕ বন্ধ করুন",
         timerShow: "⏱️ টাইমার দেখান",
-        toastTimerOff: "⏱️ টাইমার উইজেট বন্ধ করা হয়েছে।",
-        toastTimerOn: "⏱️ টাইমার উইজেট পুনরুদ্ধার করা হয়েছে!"
+        toastTimerOff: "⏱️ টাস্ক টাইমার লুকানো হয়েছে। খুলতে ঘড়িতে ক্লিক করুন বা Alt+T চাপুন।",
+        toastTimerOn: "⏱️ অ্যাক্টিভিটির নিচে টাস্ক এক্সিকিউশন টাইমার প্রদর্শিত হয়েছে।"
       },
       fr: {
         badgeCloudEngine: "Moteur Cloud",
@@ -2399,12 +2338,12 @@
         chipActionModalPrompt: "Ajouter un formulaire modal de transaction interactif avec retour instantané",
         toastCustomizationAdded: "✓ Personnalisation ajoutée à la directive",
         navTimer: "⏱️ Minuteur",
-        timerTitle: "⏱️ Minuteur de Concentration & Productivité",
+        timerTitle: "⏱️ Minuteur d'Exécution de Tâches & Concentration",
         timerSubtitle: "— Compte à rebours, chronomètre et Pomodoro",
-        timerTurnOff: "⏻ Éteindre",
+        timerTurnOff: "✕ Fermer",
         timerShow: "⏱️ Afficher le Minuteur",
-        toastTimerOff: "⏱️ Widget minuteur désactivé.",
-        toastTimerOn: "⏱️ Widget minuteur restauré !"
+        toastTimerOff: "⏱️ Minuteur masqué. Cliquez sur l'horloge ou appuyez sur Alt+T pour l'ouvrir.",
+        toastTimerOn: "⏱️ Minuteur d'exécution affiché sous Activité."
       },
       de: {
         badgeCloudEngine: "Cloud-Engine",
@@ -2458,12 +2397,12 @@
         chipActionModalPrompt: "Fügen Sie ein interaktives Transaktions-Modal-Formular mit sofortigem Feedback hinzu",
         toastCustomizationAdded: "✓ Anpassung zur Direktive hinzugefügt",
         navTimer: "⏱️ Timer",
-        timerTitle: "⏱️ Fokus- & Produktivitäts-Timer",
+        timerTitle: "⏱️ Aufgaben- & Fokus-Timer",
         timerSubtitle: "— Countdown, Stoppuhr & Pomodoro",
-        timerTurnOff: "⏻ Ausschalten",
+        timerTurnOff: "✕ Schließen",
         timerShow: "⏱️ Timer Anzeigen",
-        toastTimerOff: "⏱️ Timer-Widget ausgeschaltet.",
-        toastTimerOn: "⏱️ Timer-Widget wiederhergestellt!"
+        toastTimerOff: "⏱️ Aufgaben-Timer ausgeblendet. Klicken Sie auf die Uhr oder drücken Sie Alt+T.",
+        toastTimerOn: "⏱️ Aufgaben-Timer unter Aktivität angezeigt."
       },
       mai: {
         badgeCloudEngine: "क्लाउड इंजन",
@@ -2517,12 +2456,12 @@
         chipActionModalPrompt: "त्वरित सबमिशन फीडबैक संग इंटरैक्टिव ट्रांजैक्शन मोडल फॉर्म जोड़ू",
         toastCustomizationAdded: "✓ निर्देश मे अनुकूलन जोड़ल गेल",
         navTimer: "⏱️ टाइमर",
-        timerTitle: "⏱️ फोकस आ उत्पादकता टाइमर",
+        timerTitle: "⏱️ टास्क निष्पादन आ फोकस टाइमर",
         timerSubtitle: "— काउंटडाउन, स्टॉपवॉच आ पोमोडोरो",
-        timerTurnOff: "⏻ बन्द करु",
+        timerTurnOff: "✕ बन्द करु",
         timerShow: "⏱️ टाइमर देखाउ",
-        toastTimerOff: "⏱️ टाइमर विजेट बन्द कएल गेल।",
-        toastTimerOn: "⏱️ टाइमर विजेट होमस्क्रीन पर पुनर्स्थापित कएल गेल!"
+        toastTimerOff: "⏱️ टास्क टाइमर बन्द कएल गेल। खोलय लेल घड़ी पर क्लिक करु वा Alt+T दबाउ।",
+        toastTimerOn: "⏱️ टास्क निष्पादन टाइमर गतिविधि केर नीचाँ प्रदर्शित भेल!"
       }
     };
 
@@ -4110,9 +4049,19 @@
     };
 
     // ==========================================
+    // 🕒 Live Navbar Digital Clock & Secret Task Timer Engine
+    // ==========================================
+    function updateLiveClock() {
+      const clockEl = document.getElementById('liveClockTime');
+      if (!clockEl) return;
+      const now = new Date();
+      clockEl.textContent = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // ==========================================
     // ⏱️ Focus, Countdown & Stopwatch Timer Engine
     // ==========================================
-    let isTimerWidgetEnabled = localStorage.getItem('aios_timer_enabled') !== '0';
+    let isTimerWidgetEnabled = localStorage.getItem('aios_timer_enabled') === '1';
     let timerMode = 'countdown'; // 'countdown' | 'pomodoro' | 'stopwatch'
     let timerDuration = 25 * 60; // in seconds
     let timerSecondsLeft = 25 * 60;
@@ -4129,39 +4078,16 @@
     let stopwatchLaps = [];
 
     function initTimerWidget() {
+      updateLiveClock();
+      setInterval(updateLiveClock, 1000);
       updateTimerWidgetVisibility();
       renderTimerDisplay();
     }
 
     function updateTimerWidgetVisibility() {
       const section = document.getElementById('timerWidgetSection');
-      const restorePill = document.getElementById('timerRestorePill');
-      const headerBtn = document.getElementById('headerTimerToggle');
-      const sidebarBadge = document.getElementById('sidebarTimerBadge');
-
       if (section) {
         section.style.display = isTimerWidgetEnabled ? 'block' : 'none';
-      }
-      if (restorePill) {
-        restorePill.style.display = isTimerWidgetEnabled ? 'none' : 'flex';
-      }
-      if (headerBtn) {
-        if (isTimerWidgetEnabled) {
-          headerBtn.classList.remove('off');
-          headerBtn.title = "Timer Widget Active (Click to focus / toggle)";
-        } else {
-          headerBtn.classList.add('off');
-          headerBtn.title = "Timer Widget Hidden (Click to restore)";
-        }
-      }
-      if (sidebarBadge) {
-        if (isTimerWidgetEnabled) {
-          sidebarBadge.textContent = "ON";
-          sidebarBadge.classList.remove('off');
-        } else {
-          sidebarBadge.textContent = "OFF";
-          sidebarBadge.classList.add('off');
-        }
       }
     }
 
@@ -4169,7 +4095,7 @@
       isTimerWidgetEnabled = false;
       localStorage.setItem('aios_timer_enabled', '0');
       updateTimerWidgetVisibility();
-      showToast(t('toastTimerOff') || "⏱️ Timer widget turned off. Click Timer in navbar or sidebar to bring it back anytime.");
+      showToast(t('toastTimerOff') || "⏱️ Task timer closed. Click the live clock or press Alt+T to open anytime.");
     }
 
     function restoreTimerWidget(scrollIntoView = true) {
@@ -4185,10 +4111,10 @@
         void section.offsetWidth; // force DOM reflow
         section.classList.add('timer-glow-pulse');
       }
-      showToast(t('toastTimerOn') || "⏱️ Timer widget restored to homescreen!");
+      showToast(t('toastTimerOn') || "⏱️ Task Execution Timer displayed below Activity.");
     }
 
-    function toggleTimerWidget(btn) {
+    function toggleSecretTaskTimer() {
       if (!isTimerWidgetEnabled) {
         restoreTimerWidget(true);
       } else {
@@ -4201,6 +4127,19 @@
         }
       }
     }
+    const toggleTimerWidget = toggleSecretTaskTimer;
+
+    // Discrete Global Keyboard Shortcut: Alt+T or Ctrl+Shift+T
+    document.addEventListener('keydown', (e) => {
+      if ((e.altKey && (e.key === 't' || e.key === 'T')) ||
+          (e.ctrlKey && e.shiftKey && (e.key === 't' || e.key === 'T'))) {
+        const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea') {
+          e.preventDefault();
+          toggleSecretTaskTimer();
+        }
+      }
+    });
 
     function setTimerMode(mode) {
       timerMode = mode;
@@ -4390,16 +4329,11 @@
     function renderTimerDisplay() {
       const displayEl = document.getElementById('timerDisplay');
       const ringEl = document.getElementById('timerProgressRing');
-      const headerLive = document.getElementById('headerTimerLive');
 
       if (timerMode === 'stopwatch') {
         const formatted = formatStopwatchTime(stopwatchElapsedTime);
         if (displayEl) displayEl.textContent = formatted;
         if (ringEl) ringEl.style.strokeDashoffset = '0';
-        if (headerLive) {
-          headerLive.textContent = timerRunning ? formatted : '';
-          headerLive.style.display = timerRunning ? 'inline-block' : 'none';
-        }
       } else {
         const m = Math.floor(timerSecondsLeft / 60);
         const s = timerSecondsLeft % 60;
@@ -4409,11 +4343,6 @@
         const ratio = timerDuration > 0 ? (timerSecondsLeft / timerDuration) : 0;
         const offset = 440 * (1 - ratio);
         if (ringEl) ringEl.style.strokeDashoffset = `${offset}`;
-
-        if (headerLive) {
-          headerLive.textContent = timerRunning ? formatted : '';
-          headerLive.style.display = timerRunning ? 'inline-block' : 'none';
-        }
       }
     }
 
@@ -4457,11 +4386,6 @@
     setInterval(checkBackendHealth, 10000);
     filterCapabilities('all', document.getElementById('navAllBtn'));
   </script>
-
-  <!-- Floating Restore Pill (Appears when widget is turned off) -->
-  <div id="timerRestorePill" class="timer-restore-pill" style="display: none;" onclick="restoreTimerWidget()">
-    ⏱️ <span data-i18n="timerShow">Show Timer</span>
-  </div>
 
 </body>
 </html>
