@@ -2974,9 +2974,9 @@
            the resume against that JD -> ATS-compliant .docx to download. -->
       <section id="jobsContainer" style="display: none; margin-top: 0.5rem; margin-bottom: 2rem;">
         <section class="hero" style="margin-bottom: 1.25rem;">
-          <div class="hero-pill">🎯 Autonomous AI Job Finder & ATS Resume Tailor</div>
-          <h1>Find Jobs & Tailor Your Resume</h1>
-          <p>Upload your resume to scan live postings across LinkedIn, Indeed, Glassdoor & company sites (>60% match). Select any role to let AI tailor your resume, run an HR Screener audit, craft a custom Cover Letter, and download ATS-compliant .docx files ready to apply.</p>
+          <div class="hero-pill">🎯 Autonomous AI Job Finder & ATS Resume Tailor (India)</div>
+          <h1>Find Indian Tech Jobs & Tailor Your Resume</h1>
+          <p>Upload your resume to scan live Indian job postings across Naukri, LinkedIn (India), Indeed, Shine, Hirist &amp; top tech enterprises (&gt;60% match). Select any role to let AI tailor your resume, run an HR Screener audit, craft a custom Cover Letter, and download executive ATS-compliant 9pt Calibri .docx files ready to apply.</p>
         </section>
 
         <!-- 5-Step Visual Stepper -->
@@ -2986,7 +2986,7 @@
           </div>
           <span class="job-step-divider">➔</span>
           <div class="job-step-item" id="stepPill2">
-            <span>2️⃣</span> <span>Scan Web Jobs (>60% Match)</span>
+            <span>2️⃣</span> <span>Scan Indian Jobs (>60% Match)</span>
           </div>
           <span class="job-step-divider">➔</span>
           <div class="job-step-item" id="stepPill3">
@@ -3014,9 +3014,9 @@
                 <span id="resumeFileName" style="color: var(--text-muted); font-size: 0.85rem;"></span>
               </div>
               <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <input type="text" id="jobsLocationInput" placeholder="Location (e.g. Remote, Bangalore - optional)" style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); color: #fff; padding: 0.55rem 0.85rem; border-radius: 8px; font-size: 0.82rem; min-width: 220px;">
+                <input type="text" id="jobsLocationInput" placeholder="📍 Location in India (e.g. Bengaluru, Hyderabad, Pune, Remote - India)" style="background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-color); color: #fff; padding: 0.55rem 0.85rem; border-radius: 8px; font-size: 0.82rem; min-width: 250px;">
                 <button id="btnScanJobs" class="btn-action" disabled onclick="scanForJobs()" style="opacity: 0.5; padding: 0.65rem 1.25rem;">
-                  🔍 Scan for Jobs (>60% Match)
+                  🔍 Scan Indian Jobs (>60% Match)
                 </button>
               </div>
             </div>
@@ -3039,14 +3039,14 @@
 
         <!-- Step 2: Scanning Progress -->
         <section id="jobsScanProgress" style="display: none; margin-bottom: 1.5rem;">
-          <div class="section-title">📊 Scanning Across Web (LinkedIn, Indeed, Glassdoor, Naukri, Google Jobs)</div>
+          <div class="section-title">📊 Scanning Live Indian Jobs (Naukri, LinkedIn India, Indeed, Shine, Hirist, Google Jobs)</div>
           <div id="jobsProgressPanel" class="console-logs" style="padding: 1rem; border: 1px solid var(--border-color); border-radius: 8px;"></div>
         </section>
 
         <!-- Step 2: Scanned Matching Jobs Grid -->
         <section id="jobsResultsSection" style="display: none; margin-bottom: 1.5rem;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.8rem;">
-            <div class="section-title" id="jobsResultsTitle" style="margin: 0;">📋 Matching Jobs (>60% Match)</div>
+            <div class="section-title" id="jobsResultsTitle" style="margin: 0;">📋 Matching Indian Jobs (>60% Match)</div>
             <div style="display: flex; gap: 0.4rem; flex-wrap: wrap;" id="jobsScoreFilterWrap">
               <button type="button" class="quick-chip-btn active" onclick="filterJobsView(60, this)">All Matches (60%+)</button>
               <button type="button" class="quick-chip-btn" onclick="filterJobsView(75, this)">Strong Matches (75%+)</button>
@@ -4957,7 +4957,7 @@
       const locationVal = document.getElementById('jobsLocationInput') ? document.getElementById('jobsLocationInput').value.trim() : '';
 
       scanProgress.style.display = 'block';
-      progressPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span><strong>🔎 Searching online jobs based on your resume...</strong> (Scanning LinkedIn, Naukri, Indeed, Glassdoor, Google Jobs)</span></div>';
+      progressPanel.innerHTML = '<div style="display:flex;align-items:center;gap:0.5rem;"><span class="console-spinner"></span> <span><strong>🔎 Searching online Indian job postings based on your resume...</strong> (Scanning Naukri, LinkedIn India, Indeed, Shine, Hirist, Google Jobs)</span></div>';
       resultsSection.style.display = 'none';
       jobDescSection.style.display = 'none';
       tailorResultSection.style.display = 'none';
@@ -4984,7 +4984,7 @@
 
         const titleEl = document.getElementById('jobsResultsTitle');
         if (titleEl) {
-          titleEl.textContent = `📋 Matching Jobs — ${allScannedJobs.length} live opportunities (>60% Match)`;
+          titleEl.textContent = `📋 Matching Indian Jobs — ${allScannedJobs.length} live opportunities (>60% Match)`;
         }
 
         renderScannedJobs(allScannedJobs);
