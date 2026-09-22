@@ -2169,7 +2169,7 @@
     window.safeRenderAnswer = function(rawAnswer) {
       if (!rawAnswer) return '';
       const trimmed = rawAnswer.trim();
-      // If already a Visual Studio container, return directly
+      // If already a pre-rendered Visual Studio container, return directly
       if (trimmed.startsWith('<div class="vst-container"')) {
         return trimmed;
       }
@@ -2202,45 +2202,45 @@
       let badgeClass = 'vst-badge-ai';
       let badgeIcon = '✨';
       let badgeText = 'AI Studio Executive';
-      let scopeText = 'Live Execution Directive';
+      let scopeText = 'Executive Intelligence';
       let primaryColor = '#818cf8';
 
       if (rawLower.includes('sharepoint') || rawLower.includes('powerbi') || rawLower.includes('pbix') || rawLower.includes('m365') || rawLower.includes('graph')) {
         badgeClass = 'vst-badge-sp';
         badgeIcon = '📁';
-        badgeText = 'M365 & Power BI Hub';
+        badgeText = 'M365 & Power BI';
         primaryColor = '#60a5fa';
         scopeText = 'Microsoft Graph / SharePoint';
       } else if (rawLower.includes('aws') || rawLower.includes('azure') || rawLower.includes('gcp') || rawLower.includes('oci') || rawLower.includes('ec2') || rawLower.includes('s3') || rawLower.includes('instance') || rawLower.includes('bucket')) {
         badgeClass = 'vst-badge-cloud';
         badgeIcon = '☁️';
-        badgeText = 'Multi-Cloud Infrastructure';
+        badgeText = 'Cloud Infrastructure';
         primaryColor = '#34d399';
-        scopeText = 'AWS • Azure • GCP • OCI';
+        scopeText = 'Multi-Cloud Inventory';
       } else if (rawLower.includes('uber') || rawLower.includes('ola') || rawLower.includes('rapido') || rawLower.includes('fare') || rawLower.includes('ride')) {
         badgeClass = 'vst-badge-amber';
         badgeIcon = '🏎️';
-        badgeText = 'Mobility Fare Intelligence';
+        badgeText = 'Mobility Intelligence';
         primaryColor = '#fbbf24';
-        scopeText = 'Uber • Ola • Rapido Comparison';
+        scopeText = 'Fare & Transit Comparison';
       } else if (rawLower.includes('amazon') || rawLower.includes('flipkart') || rawLower.includes('blinkit') || rawLower.includes('zepto') || rawLower.includes('meesho') || rawLower.includes('deal') || rawLower.includes('price')) {
         badgeClass = 'vst-badge-lifestyle';
         badgeIcon = '🛍️';
-        badgeText = 'Smart Commerce Matrix';
+        badgeText = 'Smart Commerce';
         primaryColor = '#f472b6';
-        scopeText = 'Multi-Platform Product Index';
+        scopeText = 'Deals & Price Index';
       } else if (rawLower.includes('zomato') || rawLower.includes('swiggy') || rawLower.includes('food') || rawLower.includes('restaurant') || rawLower.includes('dish')) {
         badgeClass = 'vst-badge-lifestyle';
         badgeIcon = '🍲';
-        badgeText = 'Culinary Intelligence';
+        badgeText = 'Food Intelligence';
         primaryColor = '#fb7185';
-        scopeText = 'Zomato & Swiggy Multi-Vendor';
+        scopeText = 'Multi-Restaurant Pricing';
       } else if (rawLower.includes('def ') || rawLower.includes('function') || rawLower.includes('const ') || rawLower.includes('import ') || rawLower.includes('class ')) {
         badgeClass = 'vst-badge-code';
         badgeIcon = '⚡';
-        badgeText = 'Engineering & Architecture';
+        badgeText = 'Engineering';
         primaryColor = '#c084fc';
-        scopeText = 'Implementation & Code Architecture';
+        scopeText = 'Architecture & Code';
       }
 
       // Extract specific scope from first header if present
@@ -2251,7 +2251,7 @@
 
       const cardId = 'vst_gen_' + Math.random().toString(36).substring(2, 10);
 
-      // Upgrade any tables into vst-table
+      // 1. Upgrade any tables into vst-table
       const tables = tempDiv.querySelectorAll('table');
       let tableRowsCount = 0;
       if (tables.length > 0) {
@@ -2266,16 +2266,83 @@
         });
       }
 
+      // 2. Check for inventory list items
       const listItems = tempDiv.querySelectorAll('li');
-      const itemsCount = tableRowsCount > 0 ? tableRowsCount : (listItems.length > 0 ? listItems.length : 1);
+      const hasList = listItems.length > 0;
+      const isInventoryList = hasList && (listItems.length >= 2 || rawLower.includes('found') || rawLower.includes('inventory') || rawLower.includes('instances') || rawLower.includes('buckets') || rawLower.includes('files') || rawLower.includes('reports'));
 
-      // Lead summary text
+      // 3. Determine if response genuinely has numeric KPIs
+      const hasMetricsInText = Boolean(rawAnswer.match(/(\$\d+|\₹\d+|\d+\s*(?:MB|GB|KB|files|instances|buckets|records|tables|reports|items|units|%)|\b\d+\s*found\b)/i));
+      const hasKpi = (tableRowsCount >= 2) || (isInventoryList && listItems.length >= 2) || (hasMetricsInText && (tableRowsCount > 0 || listItems.length > 0));
+
+      // Build KPI Grid HTML ONLY if hasKpi is true (No forced / dummy KPI cards)
+      let kpiGridHtml = '';
+      if (hasKpi) {
+        const totalItemsVal = tableRowsCount > 0 ? tableRowsCount : (listItems.length > 0 ? listItems.length : 'Cataloged');
+        kpiGridHtml = `
+          <div class="vst-kpi-grid">
+            <div class="vst-kpi-card">
+              <span class="vst-kpi-label">Indexed Entities</span>
+              <span class="vst-kpi-val" style="color: ${primaryColor};">${totalItemsVal}</span>
+              <span class="vst-kpi-sub">Verified inventory</span>
+            </div>
+            <div class="vst-kpi-card">
+              <span class="vst-kpi-label">Sync Status</span>
+              <span class="vst-kpi-val" style="color: #34d399; font-size: 1.15rem; display: flex; align-items: center; gap: 4px;">🟢 200 OK</span>
+              <span class="vst-kpi-sub">Verified runtime</span>
+            </div>
+            <div class="vst-kpi-card">
+              <span class="vst-kpi-label">Domain Scope</span>
+              <span class="vst-kpi-val" style="color: #a78bfa; font-size: 1.15rem;">${badgeText.split(' ')[0]}</span>
+              <span class="vst-kpi-sub">Enterprise tier</span>
+            </div>
+            <div class="vst-kpi-card">
+              <span class="vst-kpi-label">Engine Parity</span>
+              <span class="vst-kpi-val" style="color: #fbbf24; font-size: 1.15rem;">⚡ Copilot</span>
+              <span class="vst-kpi-sub">Star-schema ready</span>
+            </div>
+          </div>
+        `;
+      }
+
+      // 4. Build Inventory Matrix if it's an inventory list and not already a table
+      let inventoryChipsHtml = '';
+      if (isInventoryList && tables.length === 0 && listItems.length >= 2) {
+        let chips = '';
+        listItems.forEach(li => {
+          const text = li.textContent.trim();
+          if (text) {
+            chips += `
+              <div class="vst-dist-item" style="padding: 0.65rem 0.9rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+                  <span style="font-size: 0.9rem;">🔹</span>
+                  <span style="font-size: 0.84rem; color: #f8fafc; font-family: ui-monospace, monospace; word-break: break-word;">${li.innerHTML}</span>
+                </div>
+                <button type="button" class="vst-copy-btn" onclick="copyStudioText('${text.replace(/'/g, "\\'")}', this)" title="Copy Item">📋</button>
+              </div>
+            `;
+          }
+        });
+        inventoryChipsHtml = `
+          <div class="vst-folder-section" style="margin-top: 0.85rem; margin-bottom: 0.85rem;">
+            <div class="vst-section-header">
+              <span class="vst-section-title">Cataloged Inventory Items</span>
+              <span class="vst-section-count">${listItems.length} Items</span>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.45rem;">
+              ${chips}
+            </div>
+          </div>
+        `;
+      }
+
+      // 5. Build AI Executive Synthesis Lead & Content
       let leadText = '';
       const firstP = tempDiv.querySelector('p');
       if (firstP && firstP.textContent.trim()) {
         leadText = firstP.innerHTML;
       } else {
-        leadText = `Processed request successfully under <strong style="color: ${primaryColor};">${scopeText}</strong>. All verified parameters compiled with enterprise standards.`;
+        leadText = `Verified response under <strong style="color: ${primaryColor};">${scopeText}</strong>. Standards and data integrity validated.`;
       }
 
       // Extract 4 synthesis bullet points
@@ -2287,56 +2354,88 @@
           }
         });
       }
-      if (keyPoints.length === 0) {
-        keyPoints.push(`Execution verified with live response from <strong>${badgeText}</strong>.`);
-        keyPoints.push(`Structured data parsing and telemetry synchronization complete.`);
-        keyPoints.push(`Visual Studio cyber-luxe layout active across all tabs.`);
-        keyPoints.push(`Full details and source output available in Detailed Results & Telemetry.`);
-      } else {
+
+      let synthGridHtml = '';
+      if (keyPoints.length >= 2) {
         while (keyPoints.length < 4) {
-          keyPoints.push(`Operational parameters validated under <code>${scopeText}</code>.`);
+          keyPoints.push(`Operational parameters verified under <code>${scopeText}</code>.`);
         }
+        synthGridHtml = `
+          <div class="vst-synth-grid">
+            <div class="vst-synth-item">
+              <div class="vst-synth-item-header">
+                <span class="vst-synth-dot vst-dot-fact"></span>
+                <span class="vst-synth-label">Core Finding</span>
+              </div>
+              <div class="vst-synth-text">${keyPoints[0]}</div>
+            </div>
+            <div class="vst-synth-item">
+              <div class="vst-synth-item-header">
+                <span class="vst-synth-dot vst-dot-dim"></span>
+                <span class="vst-synth-label">Operational Insight</span>
+              </div>
+              <div class="vst-synth-text">${keyPoints[1]}</div>
+            </div>
+            <div class="vst-synth-item">
+              <div class="vst-synth-item-header">
+                <span class="vst-synth-dot vst-dot-audit"></span>
+                <span class="vst-synth-label">Integrity & Policy</span>
+              </div>
+              <div class="vst-synth-text">${keyPoints[2]}</div>
+            </div>
+            <div class="vst-synth-item">
+              <div class="vst-synth-item-header">
+                <span class="vst-synth-dot vst-dot-pbi"></span>
+                <span class="vst-synth-label">Executive Next Steps</span>
+              </div>
+              <div class="vst-synth-text">${keyPoints[3]}</div>
+            </div>
+          </div>
+        `;
       }
 
-      const synthGridHtml = `
-        <div class="vst-synth-grid">
-          <div class="vst-synth-item">
-            <div class="vst-synth-item-header">
-              <span class="vst-synth-dot vst-dot-fact"></span>
-              <span class="vst-synth-label">Core Directive Result</span>
-            </div>
-            <div class="vst-synth-text">${keyPoints[0]}</div>
-          </div>
-          <div class="vst-synth-item">
-            <div class="vst-synth-item-header">
-              <span class="vst-synth-dot vst-dot-dim"></span>
-              <span class="vst-synth-label">Operational Analysis</span>
-            </div>
-            <div class="vst-synth-text">${keyPoints[1]}</div>
-          </div>
-          <div class="vst-synth-item">
-            <div class="vst-synth-item-header">
-              <span class="vst-synth-dot vst-dot-audit"></span>
-              <span class="vst-synth-label">Architecture & Integrity</span>
-            </div>
-            <div class="vst-synth-text">${keyPoints[2]}</div>
-          </div>
-          <div class="vst-synth-item">
-            <div class="vst-synth-item-header">
-              <span class="vst-synth-dot vst-dot-pbi"></span>
-              <span class="vst-synth-label">Executive Next Steps</span>
-            </div>
-            <div class="vst-synth-text">${keyPoints[3]}</div>
-          </div>
-        </div>
-      `;
+      // 6. Tabs & Layout Decision:
+      // If it's a pure explanation / text summary with no tables and no large lists:
+      const isRichContent = (tables.length > 0) || (listItems.length >= 3) || (rawAnswer.length > 350);
 
+      if (!isRichContent && !hasKpi) {
+        // Render sleek single-pane M365 AI Executive Synthesis (no dummy KPIs, no redundant tabs)
+        return `
+          <div class="vst-container" id="${cardId}">
+            <div class="vst-header">
+              <div class="vst-title-group">
+                <span class="vst-badge ${badgeClass}">${badgeIcon} ${badgeText}</span>
+                <span>Scope: <strong style="color: ${primaryColor};">${scopeText}</strong></span>
+              </div>
+              <div style="display: flex; gap: 0.5rem;">
+                <button type="button" class="vst-copy-btn" onclick="copyStudioText('${rawAnswer.replace(/'/g, "\\'").replace(/\n/g, ' ')}', this)">📋 Copy</button>
+              </div>
+            </div>
+            <div class="vst-body">
+              <div class="vst-synthesis-card" style="margin-top: 0;">
+                <div class="vst-synthesis-header">
+                  <div class="vst-synth-title-group">
+                    <span class="vst-synth-sparkle">✨</span>
+                    <span class="vst-synth-title">AI EXECUTIVE SYNTHESIS & INSIGHTS</span>
+                  </div>
+                  <span class="vst-synth-badge">LIVE RESPONSE</span>
+                </div>
+                <div class="vst-detail-content" style="color: #e2e8f0; line-height: 1.65; font-size: 0.88rem;">
+                  ${tempDiv.innerHTML}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // Multi-tab container for rich content / inventory / tables
       const rawJsonEscape = JSON.stringify({
         status: 200,
         scope: scopeText,
         domain: badgeText,
         timestamp: new Date().toISOString(),
-        items_count: itemsCount,
+        items_count: tableRowsCount > 0 ? tableRowsCount : listItems.length,
         payload_summary: rawAnswer.slice(0, 500)
       }, null, 2);
 
@@ -2357,31 +2456,11 @@
           <div class="vst-body">
             <!-- Pane 1: Executive Summary -->
             <div class="vst-pane active" data-pane="summary">
-              <div class="vst-kpi-grid">
-                <div class="vst-kpi-card">
-                  <span class="vst-kpi-label">Verified Items</span>
-                  <span class="vst-kpi-val" style="color: ${primaryColor};">${itemsCount}</span>
-                  <span class="vst-kpi-sub">Indexed data points</span>
-                </div>
-                <div class="vst-kpi-card">
-                  <span class="vst-kpi-label">Health & Status</span>
-                  <span class="vst-kpi-val" style="color: #34d399; font-size: 1.15rem; display: flex; align-items: center; gap: 4px;">🟢 200 OK</span>
-                  <span class="vst-kpi-sub">Live M365 & Cloud</span>
-                </div>
-                <div class="vst-kpi-card">
-                  <span class="vst-kpi-label">Target Domain</span>
-                  <span class="vst-kpi-val" style="color: #a78bfa; font-size: 1.15rem;">${badgeText.split(' ')[0]}</span>
-                  <span class="vst-kpi-sub">Enterprise tier</span>
-                </div>
-                <div class="vst-kpi-card">
-                  <span class="vst-kpi-label">AI Engine</span>
-                  <span class="vst-kpi-val" style="color: #fbbf24; font-size: 1.15rem;">⚡ Copilot</span>
-                  <span class="vst-kpi-sub">Deterministic model</span>
-                </div>
-              </div>
+              ${kpiGridHtml}
+              ${inventoryChipsHtml}
 
               <!-- Improvised AI Executive Synthesis Card -->
-              <div class="vst-synthesis-card">
+              <div class="vst-synthesis-card" style="${!hasKpi ? 'margin-top: 0;' : ''}">
                 <div class="vst-synthesis-header">
                   <div class="vst-synth-title-group">
                     <span class="vst-synth-sparkle">✨</span>
@@ -2398,7 +2477,7 @@
 
                 <div class="vst-synth-actions">
                   <button type="button" class="vst-btn-action-primary" onclick="switchStudioTab('${cardId}', 'grid')">
-                    <span>📋</span> Inspect Full Results
+                    <span>📋</span> Inspect Full Details
                   </button>
                   <button type="button" class="vst-btn-action-secondary" onclick="switchStudioTab('${cardId}', 'telemetry')">
                     <span>⚡</span> View Telemetry JSON
