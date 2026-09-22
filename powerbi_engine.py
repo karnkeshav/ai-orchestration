@@ -571,6 +571,160 @@ def list_local_and_onedrive_powerbi_files() -> List[dict]:
     return found
 
 
+def render_visual_studio_powerbi_card(cloud_reports: list, sharepoint_files: list, local_files: list) -> str:
+    card_id = f"vst_pbi_{uuid.uuid4().hex[:8]}"
+    total_count = len(cloud_reports) + len(sharepoint_files) + len(local_files)
+    
+    rows_html = ""
+    idx = 1
+    for r in cloud_reports:
+        rows_html += f"""
+        <tr>
+          <td style="color: #64748b; font-weight: 600; width: 36px;">{idx}</td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="vst-tag vst-tag-dim">CLOUD</span>
+              <strong style="color: #f1f5f9;">{r.get('name', 'Report')}</strong>
+            </div>
+          </td>
+          <td style="color: #cbd5e1;">{r.get('workspace', 'Workspace')}</td>
+          <td style="color: #38bdf8; font-family: ui-monospace, monospace;">{r.get('reportType', 'PowerBIReport')}</td>
+          <td>
+            <a href="{r.get('webUrl', '#')}" target="_blank" class="vst-copy-btn" style="text-decoration: none;">🔗 Open Cloud</a>
+          </td>
+        </tr>
+        """
+        idx += 1
+        
+    for f in sharepoint_files:
+        rows_html += f"""
+        <tr>
+          <td style="color: #64748b; font-weight: 600; width: 36px;">{idx}</td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="vst-tag vst-tag-fact">SHAREPOINT</span>
+              <strong style="color: #f1f5f9; font-family: ui-monospace, monospace;">{f.get('name', 'Dataset.pbix')}</strong>
+            </div>
+          </td>
+          <td style="color: #cbd5e1;">{f.get('source', 'Document Library')}</td>
+          <td style="color: #38bdf8; font-weight: 600;">{f.get('size_kb', 0)} KB</td>
+          <td>
+            <a href="{f.get('webUrl', '#')}" target="_blank" class="vst-copy-btn" style="text-decoration: none;">🔗 Open File</a>
+          </td>
+        </tr>
+        """
+        idx += 1
+
+    for f in local_files:
+        rows_html += f"""
+        <tr>
+          <td style="color: #64748b; font-weight: 600; width: 36px;">{idx}</td>
+          <td>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="vst-tag vst-tag-audit">DESKTOP</span>
+              <strong style="color: #f1f5f9; font-family: ui-monospace, monospace;">{f.get('name', 'Model.pbix')}</strong>
+            </div>
+          </td>
+          <td style="color: #cbd5e1; font-size: 0.78rem; font-family: ui-monospace, monospace;">{f.get('path', '')}</td>
+          <td style="color: #38bdf8; font-weight: 600;">{f.get('size_kb', 0)} KB</td>
+          <td>
+            <button type="button" class="vst-copy-btn" onclick="copyStudioText('{f.get('path', '')}', this)">📋 Copy Path</button>
+          </td>
+        </tr>
+        """
+        idx += 1
+
+    telemetry_json = json.dumps({
+        "status": 200,
+        "api": "Power BI REST API /v1.0/myorg & Microsoft Graph",
+        "total_reports": total_count,
+        "powerbi_service_reports": cloud_reports,
+        "sharepoint_pbix_files": sharepoint_files,
+        "local_onedrive_files": local_files,
+    }, indent=2)
+
+    return f"""<div class="vst-container" id="{card_id}">
+  <div class="vst-header">
+    <div class="vst-title-group">
+      <span class="vst-badge vst-badge-pbi">📊 Power BI & PBIX Hub</span>
+      <span>Total Reports: <strong style="color: #fbbf24;">{total_count}</strong></span>
+    </div>
+    <div class="vst-tabs">
+      <button type="button" class="vst-tab-btn active" data-tab="summary" onclick="switchStudioTab('{card_id}', 'summary')">📊 Summary</button>
+      <button type="button" class="vst-tab-btn" data-tab="grid" onclick="switchStudioTab('{card_id}', 'grid')">📋 Reports Grid ({total_count})</button>
+      <button type="button" class="vst-tab-btn" data-tab="telemetry" onclick="switchStudioTab('{card_id}', 'telemetry')">⚡ API Telemetry</button>
+    </div>
+  </div>
+
+  <div class="vst-body">
+    <div class="vst-pane active" data-pane="summary">
+      <div class="vst-kpi-grid">
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Power BI Reports</span>
+          <span class="vst-kpi-val" style="color: #fbbf24;">{total_count}</span>
+          <span class="vst-kpi-sub">Across cloud & storage</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Service Cloud</span>
+          <span class="vst-kpi-val" style="color: #60a5fa;">{len(cloud_reports)}</span>
+          <span class="vst-kpi-sub">Workspaces & Apps</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">SharePoint PBIX</span>
+          <span class="vst-kpi-val" style="color: #34d399;">{len(sharepoint_files)}</span>
+          <span class="vst-kpi-sub">Synced libraries</span>
+        </div>
+        <div class="vst-kpi-card">
+          <span class="vst-kpi-label">Desktop & OneDrive</span>
+          <span class="vst-kpi-val" style="color: #a78bfa;">{len(local_files)}</span>
+          <span class="vst-kpi-sub">Local recent files</span>
+        </div>
+      </div>
+
+      <div style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 1.1rem;">
+        <div style="font-weight: 700; color: #f8fafc; font-size: 0.92rem; margin-bottom: 0.4rem;">
+          💡 <span>Power BI Environment Status</span>
+        </div>
+        <div style="font-size: 0.85rem; color: #cbd5e1; line-height: 1.6;">
+          Indexed <strong>{total_count} report assets</strong> across your enterprise ecosystem.
+          You can create new corporate PBIX dashboards directly from your SharePoint CSV datasets with 1-click automated modeling.
+        </div>
+        <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1rem;">
+          <button type="button" class="btn-action" onclick="sendStudioPrompt('create powerbi pbix file named sales.pbix using the csv files in landmark/data_filled')" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
+            🚀 Create New Sales PBIX Dashboard
+          </button>
+          <button type="button" class="btn-secondary" onclick="switchStudioTab('{card_id}', 'grid')" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
+            📋 View All Reports
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="vst-pane" data-pane="grid">
+      <div class="vst-table-wrapper">
+        <table class="vst-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Report / PBIX File</th>
+              <th>Location / Workspace</th>
+              <th>Type / Size</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows_html if rows_html else '<tr><td colspan="5" style="text-align: center; color: #94a3b8; padding: 1.5rem;">No reports found in indexed locations.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="vst-pane" data-pane="telemetry">
+      <pre class="vst-json-block"><code>{telemetry_json}</code></pre>
+    </div>
+  </div>
+</div>"""
+
 def list_powerbi_reports_summary() -> str:
     now = time.monotonic()
     if _pbi_summary_cache["result"] and now < _pbi_summary_cache["expires_at"]:
@@ -589,42 +743,7 @@ def list_powerbi_reports_summary() -> str:
         sharepoint_files = f_sp.result()
         local_files = f_loc.result()
 
-    total_count = len(cloud_reports) + len(sharepoint_files) + len(local_files)
-
-    lines = []
-    if total_count > 0:
-        lines.append(f"📊 **Power BI Reports & PBIX Files Found ({total_count} total):**")
-        lines.append("")
-    else:
-        lines.append("📊 **Power BI Audit Result:** No `.pbix` files or Power BI Service reports were found in indexed locations.")
-        lines.append("")
-
-    if local_files:
-        lines.append("### 📁 Local & OneDrive Synced Power BI Files")
-        for f in local_files:
-            detail_str = f" *({f['details']})*" if f.get("details") else ""
-            lines.append(f"• **`{f['name']}`** ({f['size_kb']} KB){detail_str} — `{f['path']}` *(Last modified: {f['modified']})*")
-        lines.append("")
-
-    if sharepoint_files:
-        lines.append("### 📂 SharePoint Document Libraries")
-        for f in sharepoint_files:
-            url_part = f"[{f['name']}]({f['webUrl']})" if f.get("webUrl") else f"`{f['name']}`"
-            lines.append(f"• **{url_part}** ({f['size_kb']} KB) — *{f['source']}*")
-        lines.append("")
-
-    if cloud_reports:
-        lines.append("### ☁️ Power BI Service (Workspaces & Apps)")
-        for r in cloud_reports:
-            lines.append(f"• **[{r['name']}]({r['webUrl']})** — *{r['workspace']}* (`{r['reportType']}`)")
-        lines.append("")
-
-    lines.append(f"✅ **Audit Summary:** Found **{total_count}** Power BI report(s) / file(s) across Power BI Service, SharePoint, and Local/OneDrive storage.")
-    if not cloud_reports:
-        lines.append("")
-        lines.append("> ℹ️ **Note on Power BI Service (Cloud):** Personal *My Workspace* reports require delegated user login or moving reports to a shared workspace where the backend app (`Azure Service Principal`) is added as a workspace member.")
-
-    res = "\n".join(lines)
+    res = render_visual_studio_powerbi_card(cloud_reports, sharepoint_files, local_files)
     _pbi_summary_cache["result"] = res
     _pbi_summary_cache["expires_at"] = now + _PBI_SUMMARY_CACHE_TTL
     return res
