@@ -15,6 +15,32 @@
       "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_servers\\adobe_firefly_mcp_server.py"],
       "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
     },
+    "mercadolibre": {
+      "type": "http",
+      "url": "https://mcp.mercadolibre.com/mcp"
+    },
+    "mercadopago": {
+      "type": "http",
+      "url": "https://mcp.mercadopago.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${MERCADOPAGO_ACCESS_TOKEN}"
+      }
+    },
+    "latam-shop": {
+      "command": "C:\\Users\\keysh\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_servers\\latam_shop_mcp_server.py"],
+      "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
+    },
+    "latam-food": {
+      "command": "C:\\Users\\keysh\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_servers\\latam_food_mcp_server.py"],
+      "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
+    },
+    "latam-rides": {
+      "command": "C:\\Users\\keysh\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["C:\\Users\\keysh\\github\\ai-orchestration\\mcp_servers\\latam_rides_mcp_server.py"],
+      "cwd": "C:\\Users\\keysh\\github\\ai-orchestration"
+    },
     "clipchamp": {
       "command": "wsl",
       "args": ["-e", "python3", "/home/keysh/.gemini/config/clipchamp_mcp_wrapper.py"]

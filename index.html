@@ -247,6 +247,36 @@
       box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
     }
 
+    .region-toggle {
+      display: flex;
+      gap: 0.25rem;
+      padding: 0.25rem;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    .region-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      padding: 0.5rem 0.4rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+
+    .region-btn.active {
+      background: var(--accent-indigo);
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
     /* Main Content Area */
     .content-area {
       display: flex;
@@ -2792,6 +2822,10 @@
     <div class="sidebar-wrapper" id="sidebarWrapper">
       <!-- Sidebar Navigation -->
       <aside class="sidebar" id="sidebar">
+        <div class="region-toggle" role="group" aria-label="Region for Shop, Food and Travel">
+          <button type="button" class="region-btn active" id="regionIn" onclick="setRegion('in')" title="India: Amazon, Flipkart, Swiggy, Zomato, Ola, Uber, Rapido">🇮🇳 India</button>
+          <button type="button" class="region-btn" id="regionLatam" onclick="setRegion('latam')" title="LATAM: Mercado Libre, Rappi, PedidosYa, iFood, DiDi, inDrive">🌎 LATAM</button>
+        </div>
         <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
         <button class="nav-item" data-i18n="navApps" onclick="filterCapabilities('apps', this)">🚀 Apps</button>
         <button class="nav-item" onclick="filterCapabilities('android', this)">📱 Android App</button>
@@ -3491,6 +3525,44 @@
         toastCustomizationAdded: "✓ Customization added to directive",
         navTimer: "⏱️ Timer",
         timerTitle: "⏱️ Focus & Task Execution Timer",
+    // LATAM (Mexico, Colombia, Peru, Chile, Brazil) replacements for the India-specific
+    // shop / food / travel cards. Swapped in by renderCards() when the region toggle is on LATAM.
+    const capabilitiesLatam = {
+      shop: [
+        { icon: '🛍️', title: 'Best Deal Finder (LATAM)', desc: 'Compare prices across Mercado Libre, Amazon MX, Falabella, Liverpool', category: 'shop', key: 'latam-ecommerce-deals' },
+        { icon: '💳', title: 'Mercado Libre & Pago', desc: 'Official MCP: seller listings, orders, payment links', category: 'shop', key: 'latam-mercadolibre' },
+      ],
+      food: [
+        { icon: '🍲', title: 'Rappi vs PedidosYa vs iFood', desc: 'Compare dish prices & delivery ETAs', category: 'food', key: 'latam-food-compare' },
+      ],
+      travel: [
+        { icon: '🚖', title: 'DiDi vs inDrive vs Uber', desc: 'Compare ride fares in Mexico City, Bogotá, Lima', category: 'travel', key: 'latam-rides' },
+        { icon: '🚗', title: 'Cabify & Uber', desc: 'Premium and airport transfer fares', category: 'travel', key: 'latam-cabify-uber' },
+      ]
+    };
+
+    Object.assign(prompts, {
+      'latam-ecommerce-deals': "Search and compare live prices for a Samsung Galaxy A55 across Mercado Libre México, Amazon México, Liverpool and Coppel to find the best deal. Use any connected MCP tools, otherwise the browser.",
+      'latam-mercadolibre': "Using the Mercado Libre and Mercado Pago MCP servers, list what tools are available and summarize what I can do with my seller account (listings, orders, payment links).",
+      'latam-food-compare': "Where is a burger combo cheaper and faster to get in Bogotá? Compare Rappi and other available delivery apps (menu price, fees, ETA).",
+      'latam-rides': "Compare ride options and fares between Uber, DiDi and inDrive from Polanco to Mexico City International Airport (AICM).",
+      'latam-cabify-uber': "Compare Cabify and Uber fares from Miraflores to Jorge Chávez Airport in Lima."
+    });
+
+    let currentRegion = 'in';
+    try { currentRegion = localStorage.getItem('aios_region') === 'latam' ? 'latam' : 'in'; } catch (e) {}
+
+    document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
+    document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
+
+    function setRegion(region) {
+      currentRegion = region === 'latam' ? 'latam' : 'in';
+      try { localStorage.setItem('aios_region', currentRegion); } catch (e) {}
+      document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
+      document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
+      renderCards(currentCategory);
+    }
+
         timerSubtitle: "— Countdown, Stopwatch & Pomodoro Tracker",
         timerTurnOff: "✕ Close",
         timerShow: "⏱️ Show Timer",
@@ -4299,13 +4371,13 @@
 
       let toShow = [];
       if (category === 'all') {
-        Object.values(capabilities).forEach(arr => toShow.push(...arr));
+        Object.values(caps).forEach(arr => toShow.push(...arr));
       } else if (category === 'lifestyle') {
-        ['shop', 'food', 'travel', 'media'].forEach(c => toShow.push(...(capabilities[c] || [])));
+        ['shop', 'food', 'travel', 'media'].forEach(c => toShow.push(...(caps[c] || [])));
       } else if (category === 'cloud') {
-        toShow = [...(capabilities.cloud || []), ...(capabilities.finops || [])];
+        toShow = [...(caps.cloud || []), ...(caps.finops || [])];
       } else {
-        toShow = capabilities[category] || [];
+        toShow = caps[category] || [];
       }
 
       const langDict = capabilitiesTranslations[currentLang] || capabilitiesTranslations.en;
@@ -4354,6 +4426,8 @@
       if (answerContent) answerContent.innerHTML = '';
       const technicalLogs = document.getElementById('technicalLogs');
       if (technicalLogs) technicalLogs.innerHTML = '';
+
+      const caps = currentRegion === 'latam' ? { ...capabilities, ...capabilitiesLatam } : capabilities;
 
       // 4. Invalidate running polling and simulation loops
       activePollToken = null;
