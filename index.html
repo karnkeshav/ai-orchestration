@@ -2794,6 +2794,8 @@
       <aside class="sidebar" id="sidebar">
         <button class="nav-item active" id="navAllBtn" data-i18n="navAll" onclick="filterCapabilities('all', this)">🌐 All</button>
         <button class="nav-item" data-i18n="navApps" onclick="filterCapabilities('apps', this)">🚀 Apps</button>
+        <button class="nav-item" onclick="filterCapabilities('android', this)">📱 Android App</button>
+        <button class="nav-item" onclick="filterCapabilities('unity', this)">🎮 Unity Game</button>
         <button class="nav-item" data-i18n="navLifestyle" onclick="filterCapabilities('lifestyle', this)">🛍️ Lifestyle</button>
         <button class="nav-item" data-i18n="navCloud" onclick="filterCapabilities('cloud', this)">☁️ Cloud</button>
         <button class="nav-item" data-i18n="navM365" onclick="filterCapabilities('m365', this)">💼 M365</button>
@@ -3355,6 +3357,16 @@
         { icon: '🚀', title: 'Autonomous App Creator', desc: 'Build & deploy app with Google Stitch UI & GitHub Pages', category: 'apps', key: 'app-creator' },
         { icon: '🎨', title: 'Google Stitch SaaS App', desc: 'Modern Glassmorphic UI Dashboard with live telemetry', category: 'apps', key: 'app-saas' },
       ],
+      android: [
+        { icon: '📱', title: 'Build Android APK', desc: 'Build a debug APK on the ARM VM (Android MCP) for sideloading & testing', category: 'android', key: 'android-build-apk' },
+        { icon: '📦', title: 'Play Store Bundle (.aab)', desc: 'Build the release App Bundle Google Play requires, with signing checklist', category: 'android', key: 'android-build-aab' },
+        { icon: '▶️', title: 'Run on Emulator (Demo)', desc: 'Fetch the APK to the laptop, boot the emulator, install, launch & screenshot', category: 'android', key: 'android-run-emulator' },
+      ],
+      unity: [
+        { icon: '🎮', title: 'Inspect Unity Scene', desc: 'Read the open scene hierarchy and console via Unity MCP (laptop must be online)', category: 'unity', key: 'unity-inspect-scene' },
+        { icon: '🕹️', title: 'Create Game Prototype', desc: 'Build a playable 2D prototype in the open Unity project via Unity MCP', category: 'unity', key: 'unity-create-prototype' },
+        { icon: '🧪', title: 'Run Unity Tests & Fix Errors', desc: 'Run the test suite, read console errors and fix scripts', category: 'unity', key: 'unity-run-tests' },
+      ],
       shop: [
         { icon: '🛍️', title: 'Visual Best Deal Finder', desc: 'Upload photo or ask best deal across 5 platforms', category: 'shop', key: 'ecommerce-deals' },
         { icon: '🔐', title: 'Connected Accounts', desc: 'Check Prime, Swiggy One, Zomato Gold', category: 'shop', key: 'account-logins' },
@@ -3395,6 +3407,12 @@
       'website-fintech': "Create a high-performance Glassmorphic fintech wealth dashboard with asset distribution charts, ledger transactions, and CSV export deployed to GitHub Pages.",
       'app-creator': "create an app",
       'app-saas': "Create a modern SaaS analytics and multi-cloud command web app with Google Stitch UI design system and deploy it to GitHub Pages.",
+      'android-build-apk': "Using the android MCP server on the ARM VM, build a debug APK for the 'hello' Android project and list the resulting artifact.",
+      'android-build-aab': "Using the android MCP server on the ARM VM, build a release Android App Bundle (.aab) for the 'hello' project, list the artifact, and tell me what is still needed to sign it and upload it to Google Play (release keystore, Play App Signing, developer account).",
+      'android-run-emulator': "Demo: build the 'hello' Android project's debug APK on the ARM VM (android MCP), then with the androidLocal MCP fetch it to my laptop, start the Medium_Phone emulator, wait until it has booted, install the APK, launch it and take a screenshot.",
+      'unity-inspect-scene': "Using the Unity MCP (unityMCP), read the currently open Unity scene: list the GameObject hierarchy, summarize what the scene contains, and report any errors or warnings in the Unity console.",
+      'unity-create-prototype': "Using the Unity MCP (unityMCP), create a simple playable 2D prototype in the open Unity project: a player object with a movement script, a ground, a camera and one collectible with a score counter. Save the scene and summarize what you built.",
+      'unity-run-tests': "Using the Unity MCP (unityMCP), run the project's tests, read the Unity console, and fix any script compile errors or failing tests, then re-run to confirm.",
       'ecommerce-deals': "Search and compare live prices for boAt Rockerz 255 Pro+ across Amazon, Flipkart, Blinkit, Zepto, and Meesho to find the absolute best deal.",
       'account-logins': "Check login and membership status of all my connected accounts.",
       'food-paneer-butter-masala': "Where is paneer butter masala cheaper and faster to get? Compare Zomato and Swiggy.",
@@ -4408,7 +4426,7 @@
         if (commandHub) commandHub.style.display = 'block';
         if (appsContainer) appsContainer.style.display = 'none';
         if (activitySection) activitySection.style.display = 'none';
-        if (category === 'all' || category === 'websites' || category === 'lifestyle' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
+        if (category === 'all' || category === 'websites' || category === 'android' || category === 'unity' || category === 'lifestyle' || category === 'shop' || category === 'food' || category === 'travel' || category === 'media' || category === 'finops' || category === 'cloud' || category === 'm365') {
           if (capabilitiesSection) capabilitiesSection.style.display = 'block';
           renderCards(category);
         }
