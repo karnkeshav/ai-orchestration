@@ -3471,6 +3471,44 @@
       'm365-flow': "Build a Power Automate flow for cloud spend anomalies."
     };
 
+    // LATAM (Mexico, Colombia, Peru, Chile, Brazil) replacements for the India-specific
+    // shop / food / travel cards. Swapped in by renderCards() when the region toggle is on LATAM.
+    const capabilitiesLatam = {
+      shop: [
+        { icon: '🛍️', title: 'Best Deal Finder (LATAM)', desc: 'Compare prices across Mercado Libre, Amazon MX, Falabella, Liverpool', category: 'shop', key: 'latam-ecommerce-deals' },
+        { icon: '💳', title: 'Mercado Libre & Pago', desc: 'Official MCP: seller listings, orders, payment links', category: 'shop', key: 'latam-mercadolibre' },
+      ],
+      food: [
+        { icon: '🍲', title: 'Rappi vs PedidosYa vs iFood', desc: 'Compare dish prices & delivery ETAs', category: 'food', key: 'latam-food-compare' },
+      ],
+      travel: [
+        { icon: '🚖', title: 'DiDi vs inDrive vs Uber', desc: 'Compare ride fares in Mexico City, Bogotá, Lima', category: 'travel', key: 'latam-rides' },
+        { icon: '🚗', title: 'Cabify & Uber', desc: 'Premium and airport transfer fares', category: 'travel', key: 'latam-cabify-uber' },
+      ]
+    };
+
+    Object.assign(prompts, {
+      'latam-ecommerce-deals': "Search and compare live prices for a Samsung Galaxy A55 across Mercado Libre México, Amazon México, Liverpool and Coppel to find the best deal. Use any connected MCP tools, otherwise the browser.",
+      'latam-mercadolibre': "Using the Mercado Libre and Mercado Pago MCP servers, list what tools are available and summarize what I can do with my seller account (listings, orders, payment links).",
+      'latam-food-compare': "Where is a burger combo cheaper and faster to get in Bogotá? Compare Rappi and other available delivery apps (menu price, fees, ETA).",
+      'latam-rides': "Compare ride options and fares between Uber, DiDi and inDrive from Polanco to Mexico City International Airport (AICM).",
+      'latam-cabify-uber': "Compare Cabify and Uber fares from Miraflores to Jorge Chávez Airport in Lima."
+    });
+
+    let currentRegion = 'in';
+    try { currentRegion = localStorage.getItem('aios_region') === 'latam' ? 'latam' : 'in'; } catch (e) {}
+
+    document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
+    document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
+
+    function setRegion(region) {
+      currentRegion = region === 'latam' ? 'latam' : 'in';
+      try { localStorage.setItem('aios_region', currentRegion); } catch (e) {}
+      document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
+      document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
+      renderCards(currentCategory);
+    }
+
     const translations = {
       en: {
         badgeCloudEngine: "Cloud Engine",
@@ -3529,44 +3567,6 @@
         toastCustomizationAdded: "✓ Customization added to directive",
         navTimer: "⏱️ Timer",
         timerTitle: "⏱️ Focus & Task Execution Timer",
-    // LATAM (Mexico, Colombia, Peru, Chile, Brazil) replacements for the India-specific
-    // shop / food / travel cards. Swapped in by renderCards() when the region toggle is on LATAM.
-    const capabilitiesLatam = {
-      shop: [
-        { icon: '🛍️', title: 'Best Deal Finder (LATAM)', desc: 'Compare prices across Mercado Libre, Amazon MX, Falabella, Liverpool', category: 'shop', key: 'latam-ecommerce-deals' },
-        { icon: '💳', title: 'Mercado Libre & Pago', desc: 'Official MCP: seller listings, orders, payment links', category: 'shop', key: 'latam-mercadolibre' },
-      ],
-      food: [
-        { icon: '🍲', title: 'Rappi vs PedidosYa vs iFood', desc: 'Compare dish prices & delivery ETAs', category: 'food', key: 'latam-food-compare' },
-      ],
-      travel: [
-        { icon: '🚖', title: 'DiDi vs inDrive vs Uber', desc: 'Compare ride fares in Mexico City, Bogotá, Lima', category: 'travel', key: 'latam-rides' },
-        { icon: '🚗', title: 'Cabify & Uber', desc: 'Premium and airport transfer fares', category: 'travel', key: 'latam-cabify-uber' },
-      ]
-    };
-
-    Object.assign(prompts, {
-      'latam-ecommerce-deals': "Search and compare live prices for a Samsung Galaxy A55 across Mercado Libre México, Amazon México, Liverpool and Coppel to find the best deal. Use any connected MCP tools, otherwise the browser.",
-      'latam-mercadolibre': "Using the Mercado Libre and Mercado Pago MCP servers, list what tools are available and summarize what I can do with my seller account (listings, orders, payment links).",
-      'latam-food-compare': "Where is a burger combo cheaper and faster to get in Bogotá? Compare Rappi and other available delivery apps (menu price, fees, ETA).",
-      'latam-rides': "Compare ride options and fares between Uber, DiDi and inDrive from Polanco to Mexico City International Airport (AICM).",
-      'latam-cabify-uber': "Compare Cabify and Uber fares from Miraflores to Jorge Chávez Airport in Lima."
-    });
-
-    let currentRegion = 'in';
-    try { currentRegion = localStorage.getItem('aios_region') === 'latam' ? 'latam' : 'in'; } catch (e) {}
-
-    document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
-    document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
-
-    function setRegion(region) {
-      currentRegion = region === 'latam' ? 'latam' : 'in';
-      try { localStorage.setItem('aios_region', currentRegion); } catch (e) {}
-      document.getElementById('regionIn').classList.toggle('active', currentRegion === 'in');
-      document.getElementById('regionLatam').classList.toggle('active', currentRegion === 'latam');
-      renderCards(currentCategory);
-    }
-
         timerSubtitle: "— Countdown, Stopwatch & Pomodoro Tracker",
         timerTurnOff: "✕ Close",
         timerShow: "⏱️ Show Timer",
