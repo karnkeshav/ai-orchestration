@@ -4069,28 +4069,46 @@ def is_hollywood_video_brief(prompt_lower: str) -> bool:
     return bool(_MEDIA_BRIEF_RE.search(prompt_lower)) and not any(k in prompt_lower for k in _PIXAR_STORY_KEYWORDS)
 
 AGY_IMAGES_PER_TURN = int(os.environ.get("AGY_IMAGES_PER_TURN", 3))  # small turns: a hang loses less
-AGY_IMAGE_BUDGET_SECONDS = int(os.environ.get("AGY_IMAGE_BUDGET_SECONDS", 12 * 60))
+AGY_IMAGE_SESSIONS = int(os.environ.get("AGY_IMAGE_SESSIONS", 3))  # agy processes generating in parallel
+AGY_IMAGE_BATCH_SECONDS = int(os.environ.get("AGY_IMAGE_BATCH_SECONDS", 150))  # ~13 s/image + overhead
+AGY_IMAGE_BUDGET_SECONDS = int(os.environ.get("AGY_IMAGE_BUDGET_SECONDS", 6 * 60))
 
 async def _agy_generate_images(task_id: str, jobs: list):
-    """Ask the Studio's agy to generate the scene images (its built-in image model, as for the
-    Fabric video), a few per turn, then one retry pass for scenes still missing while the time
-    budget allows. The engine turns any scene still missing into a new angle of a real image."""
+    """Ask agy to generate the scene images (its built-in image model, as for the Fabric video).
+    Several dedicated agy sessions work through small batches in parallel (separate from the chat
+    session, so Studio requests are not blocked); a batch that overruns is cut off and its session
+    restarted; one retry pass for missing scenes while the time budget allows. The engine turns
+    any scene still missing into a new angle of a real image."""
     started = time.monotonic()
-    for attempt in range(2):
-        todo = [j for j in jobs if not os.path.exists(j["path"])]
-        if not todo:
-            return
-        if attempt:
-            tasks[task_id]["logs"].append(f"[00:02] 🔁 Retrying {len(todo)} missing scene image(s)...")
-        for start in range(0, len(todo), AGY_IMAGES_PER_TURN):
-            if time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
-                tasks[task_id]["logs"].append("[00:02] ⏱️ Image time budget used up; remaining scenes reuse real images.")
-                return
-            batch = [j for j in todo[start:start + AGY_IMAGES_PER_TURN] if not os.path.exists(j["path"])]
-            if batch:
-                await _agy_image_batch(task_id, batch, len(jobs))
+    pool = AgyWarmPool(AGY_IMAGE_SESSIONS)
+    try:
+        for attempt in range(2):
+            todo = [j for j in jobs if not os.path.exists(j["path"])]
+            if not todo or time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
+                break
+            if attempt:
+                tasks[task_id]["logs"].append(f"[00:02] 🔁 Retrying {len(todo)} missing scene image(s)...")
+            queue = asyncio.Queue()
+            for start in range(0, len(todo), AGY_IMAGES_PER_TURN):
+                queue.put_nowait(todo[start:start + AGY_IMAGES_PER_TURN])
 
-async def _agy_image_batch(task_id: str, batch: list, total: int):
+            async def worker(session):
+                while not queue.empty():
+                    batch = queue.get_nowait()
+                    if time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
+                        continue
+                    await _agy_image_batch(task_id, session, batch, len(jobs))
+
+            await asyncio.gather(*(worker(s) for s in pool.sessions))
+        made = sum(os.path.exists(j["path"]) for j in jobs)
+        tasks[task_id]["logs"].append(
+            f"[00:02] 🖼️ {made}/{len(jobs)} scene images generated in {int(time.monotonic() - started)} s")
+    finally:
+        for s in pool.sessions:  # these sessions exist only for this video
+            await s._kill()
+
+async def _agy_image_batch(task_id: str, session, batch: list, total: int):
+    batch = [j for j in batch if not os.path.exists(j["path"])]
     if batch:
         w, h = batch[0]["size"]
         shape = "16:9 landscape" if w > h else "9:16 vertical"
@@ -4105,7 +4123,11 @@ async def _agy_image_batch(task_id: str, batch: list, total: int):
         scenes = ", ".join(str(j["index"] + 1) for j in batch)
         tasks[task_id]["logs"].append(f"[00:02] 🎨 Antigravity generating images for scenes {scenes} (of {total})...")
         try:
-            await _agy_session.run_turn(prompt, task_id)
+            await asyncio.wait_for(session.run_turn(prompt, task_id), timeout=AGY_IMAGE_BATCH_SECONDS)
+        except asyncio.TimeoutError:
+            tasks[task_id]["logs"].append(f"[00:02] ⏱️ Image batch for scenes {scenes} took over "
+                                          f"{AGY_IMAGE_BATCH_SECONDS} s; restarting that agy session.")
+            await session._kill()  # it is mid-turn; a fresh process serves the next batch
         except Exception as e:
             tasks[task_id]["logs"].append(f"[00:02] ⚠️ Image batch failed ({str(e)[:120]}).")
         made = sum(os.path.exists(j["path"]) for j in batch)

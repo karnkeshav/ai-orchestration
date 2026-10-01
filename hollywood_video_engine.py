@@ -15,6 +15,7 @@ Scene plan, in order of preference:
     python hollywood_video_engine.py brief.txt --out promo.mp4
 """
 import asyncio
+import concurrent.futures
 import json
 import os
 import random
@@ -168,8 +169,9 @@ def split_long_scenes(scenes, max_len: float = 7.0, part_len: float = 5.0):
         n = max(2, int(round(d / part_len)))
         sentences = re.split(r"(?<=[.!?])\s+", s.get("narration", "").strip()) if s.get("narration") else []
         per = max(1, -(-len(sentences) // n)) if sentences else 0
+        group = len(out)  # the parts share the first part's generated image (new angle each)
         for k in range(n):
-            part = dict(s, dur=d / n, visual=f"{s['visual']}, {_ANGLES[k % len(_ANGLES)]}",
+            part = dict(s, dur=d / n, visual=f"{s['visual']}, {_ANGLES[k % len(_ANGLES)]}", img_group=group,
                         camera=("tracking fpv flight", "push-in", "crane rising", "pan")[k % 4] + " " + s.get("camera", ""),
                         narration=" ".join(sentences[k * per:(k + 1) * per]) if sentences else "",
                         title_text=s["title_text"] if k == n - 1 else "",
@@ -673,7 +675,8 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
         #    real image as a new angle; the designed backdrop is the last resort.
         jobs = [{"index": i, "path": os.path.join(work, f"gen_{i:02d}.png"), "size": (W, H),
                  "prompt": f"{s['visual']}. {style}. No text, no letters, no logos, no watermark."}
-                for i, s in enumerate(scenes) if not s.get("ui")]
+                for i, s in enumerate(scenes)
+                if not s.get("ui") and s.get("img_group", i) == i]  # split parts share one image
         if image_generator:
             try:
                 await image_generator(jobs)
@@ -690,15 +693,21 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
                 real.append(j["index"])
             except Exception:
                 missing.append(j["index"])
-        for i in missing:
+        job_idx = {j["index"] for j in jobs}
+        shared = [i for i, s in enumerate(scenes) if not s.get("ui") and i not in job_idx]
+        for i in sorted(missing + shared):
             dest = os.path.join(work, f"img_{i:02d}.jpg")
-            if real:
+            group = scenes[i].get("img_group")
+            if group is not None and group in real:
+                src = group  # another angle of its own shot's image
+            elif real:
                 src = min(real, key=lambda r: (abs(r - i), r > i))  # nearest, earlier one on ties
-                variant_image(os.path.join(work, f"img_{src:02d}.jpg"), dest, (W, H), seed=i)
             else:
                 fallback_scene_image(dest, (W, H), i, scenes[i].get("title_text", ""))
+                continue
+            variant_image(os.path.join(work, f"img_{src:02d}.jpg"), dest, (W, H), seed=i)
         ai_ok = [True] * len(real)
-        log(f"Scene images: {len(real)} AI-generated, {len(missing)} reused as new angles"
+        log(f"Scene images: {len(real)} AI-generated, {len(missing) + len(shared)} reused as new angles"
             + (" (no AI images: designed backdrops)" if missing and not real else ""))
 
         # 2. Voiceover per scene at a natural pace (the target length is a guide, running longer is
@@ -725,23 +734,22 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
         if total < target:
             durs = [d + (target - total) * d / sum(durs) for d in durs]
 
-        # 4. Render each scene: the Studio UI scene types its prompt; the others get a camera move on
-        #    the image, a steady text layer and, for montage lines, an animated step list.
-        clip_paths = []
-        for i, s in enumerate(scenes):
+        # 4. Render the scenes, several at once (zoompan is single-threaded, so one ffmpeg per core
+        #    is much faster than one at a time): the Studio UI scene types its prompt; the others get
+        #    a camera move on the image, a steady text layer and, for montage lines, a step list.
+        def render_scene(i):
+            s = scenes[i]
             frames = int(round(durs[i] * FPS))
             clip = os.path.join(work, f"clip_{i:02d}.mp4")
             ov = os.path.join(work, f"ov_{i:02d}.png")
             if s.get("ui"):
                 _overlay_png(ov, (W, H), s, cinematic=True, title_low=True)
                 render_ui_clip(clip, (W, H), durs[i], s.get("typed", ""), ov)
-                clip_paths.append(clip)
-                log(f"Scene {i + 1}/{len(scenes)} rendered (Studio UI, prompt typing, {durs[i]:.1f} s)")
-                continue
+                return clip, "Studio UI, prompt typing"
             steps = step_lines(s)
             img = os.path.join(work, f"img_{i:02d}.jpg")
             big = os.path.join(work, f"big_{i:02d}.jpg")
-            Image.open(img).convert("RGB").resize((int(W * 1.5), int(H * 1.5)), Image.LANCZOS).save(big, quality=93)
+            Image.open(img).convert("RGB").resize((int(W * 1.3), int(H * 1.3)), Image.LANCZOS).save(big, quality=93)
             _overlay_png(ov, (W, H), s, cinematic=True, subtitle=not steps)
             kind = _camera_kind(s.get("camera", ""), i)
             inputs = ["-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", big,
@@ -756,10 +764,19 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
                           f"[t{k}][s{k}]overlay=0:0:shortest=1[t{k + 1}];")
             graph += f"[t{len(layers)}]format=yuv420p[v]"
             _run([FFMPEG_EXE, "-y"] + inputs +
-                 ["-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames), "-r", str(FPS),
-                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", clip])
-            clip_paths.append(clip)
-            log(f"Scene {i + 1}/{len(scenes)} rendered ({kind}{', step list' if steps else ''}, {durs[i]:.1f} s)")
+                 ["-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames), "-r", str(FPS)]
+                 + X264 + ["-threads", "2", clip])
+            return clip, f"{kind}{', step list' if steps else ''}"
+
+        workers = int(os.environ.get("STUDIO_RENDER_WORKERS", max(1, min(4, os.cpu_count() or 1))))
+        loop = asyncio.get_running_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [loop.run_in_executor(pool, render_scene, i) for i in range(len(scenes))]
+            results = []
+            for i, fut in enumerate(futures):
+                results.append(await fut)
+                log(f"Scene {i + 1}/{len(scenes)} rendered ({results[-1][1]}, {durs[i]:.1f} s)")
+        clip_paths = [r[0] for r in results]
 
         # 5. Join with transitions; work out where each scene starts on the final timeline.
         starts, t = [0.0], durs[0]
@@ -778,10 +795,12 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
             prev = out
         video_only = os.path.join(work, "video.mp4")
         if len(clip_paths) == 1:
-            shutil.copy(clip_paths[0], video_only)
-        else:
-            _run([FFMPEG_EXE, "-y"] + inputs + ["-filter_complex", graph.rstrip(";"), "-map", "[v]",
-                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", video_only])
+            graph, inputs = "[0:v]null[v]", ["-i", clip_paths[0]]
+        # Fade to black at the very end, so the cached outro (which fades in from black) can be
+        # joined without re-encoding.
+        graph = graph.rstrip(";").replace("[v]", "[vx]") + f";[vx]fade=t=out:st={max(total - 0.4, 0):.3f}:d=0.4[v]"
+        _run([FFMPEG_EXE, "-y"] + inputs + ["-filter_complex", graph, "-map", "[v]", "-r", str(FPS)]
+             + X264 + [video_only])
 
         # 6. Audio: voice lines at their scene starts, ducked music, sound effects.
         from music_engine import build_soundtrack, detect_mood
@@ -799,6 +818,7 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
         sfx = os.path.join(work, "sfx.wav")
         _sfx_track(events, total, sfx)
 
+        main_film = os.path.join(work, "main.mp4")
         a_inputs, a_parts, labels = ["-i", music, "-i", sfx], [], []
         fmt = f"aformat=sample_fmts=fltp:sample_rates={SR}:channel_layouts=stereo"
         for n, i in enumerate(spoken):
@@ -817,9 +837,27 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
                   f"[vm][duck][fx]amix=inputs=3:duration=first:normalize=0,"
                   f"afade=t=out:st={max(total - 1.5, 0):.3f}:d=1.5,loudnorm=I=-14:TP=-1.5:LRA=11,aresample={SR}[a]")
         _run([FFMPEG_EXE, "-y", "-i", video_only] + a_inputs +
-             ["-filter_complex", _shift_inputs(agraph, 1), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
-              "-c:a", "aac", "-b:a", "192k", "-t", f"{total:.3f}", "-movflags", "+faststart", output_mp4_path])
+             ["-filter_complex", _shift_inputs(agraph, 1), "-map", "0:v", "-map", "[a]", "-c:v", "copy"]
+             + AAC + ["-t", f"{total:.3f}", "-video_track_timescale", TIMESCALE, main_film])
         log(f"Main film: {total:.1f} s, {len(scenes)} scenes")
+
+        # 7. Studio outro (the 9:16 promo clip, centred over its blurred copy on 16:9) + end card
+        #    for this shape. Built once per shape and cached, then joined without re-encoding.
+        tail = None
+        try:
+            tail = cached_tail((W, H), log)
+        except Exception as e:
+            log(f"outro/end card skipped: {str(e)[:200]}")
+        if tail:
+            lst = os.path.join(work, "concat.txt")
+            with open(lst, "w", encoding="utf-8") as f:
+                f.write(f"file '{_concat_path(main_film)}'\nfile '{_concat_path(tail)}'\n")
+            _run([FFMPEG_EXE, "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy",
+                  "-movflags", "+faststart", output_mp4_path])
+            if script_info is not None:
+                script_info.update(outro=True, endcard=True)
+        else:
+            _run([FFMPEG_EXE, "-y", "-i", main_film, "-c", "copy", "-movflags", "+faststart", output_mp4_path])
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -827,20 +865,72 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
         script_info.update({"scenes": len(scenes), "plan_source": source, "size": (W, H),
                             "main_seconds": round(total, 1), "ai_images": sum(ai_ok),
                             "title": (scenes[-1].get("title_text") or "AI Orchestration Studio")})
-
-    # 7. Studio outro: the 9:16 promo clip for every shape (centred over its blurred copy on 16:9)
-    #    until STUDIO_HOLLYWOOD_OUTRO names another clip; then the end card for this shape.
-    try:
-        from thumbnail_engine import OUTRO_9X16, append_outro, append_endcard
-        outro = os.environ.get("STUDIO_HOLLYWOOD_OUTRO", OUTRO_9X16)
-        if os.environ.get("STUDIO_VIDEO_OUTRO", "1") != "0" and append_outro(output_mp4_path, output_mp4_path, outro=outro):
-            script_info is not None and script_info.update(outro=True)
-        if os.environ.get("STUDIO_VIDEO_ENDCARD", "1") != "0" and append_endcard(
-                output_mp4_path, output_mp4_path, seconds=float(os.environ.get("STUDIO_ENDCARD_SECONDS", "4"))):
-            script_info is not None and script_info.update(endcard=True)
-    except Exception as e:
-        log(f"outro/end card skipped: {e}")
     return output_mp4_path
+
+
+# Same encoder settings for the main film and the cached tail, so they concatenate losslessly.
+X264 = ["-c:v", "libx264", "-preset", os.environ.get("STUDIO_X264_PRESET", "superfast"), "-crf", "20",
+        "-pix_fmt", "yuv420p", "-profile:v", "high", "-level", "4.1"]
+AAC = ["-c:a", "aac", "-b:a", "192k", "-ar", str(SR), "-ac", "2"]
+TIMESCALE = "12800"
+TAIL_VERSION = "1"
+
+
+def _concat_path(p: str) -> str:
+    return p.replace("\\", "/").replace("'", "'\\''")
+
+
+def cached_tail(size, log=print):
+    """Outro clip + end card for this shape, rendered once and cached under assets/cache (rebuilt
+    when the outro clip, the card or the shape changes). Starts from black, so a main film that
+    fades to black joins it with a plain stream copy."""
+    import hashlib
+    from thumbnail_engine import OUTRO_9X16, ENDCARD_16X9, ENDCARD_9X16
+    W, H = size
+    outro = os.environ.get("STUDIO_HOLLYWOOD_OUTRO", OUTRO_9X16)
+    card = ENDCARD_16X9 if W >= H else ENDCARD_9X16
+    use_outro = os.environ.get("STUDIO_VIDEO_OUTRO", "1") != "0" and os.path.exists(outro)
+    use_card = os.environ.get("STUDIO_VIDEO_ENDCARD", "1") != "0" and os.path.exists(card)
+    if not (use_outro or use_card):
+        return None
+    card_s = float(os.environ.get("STUDIO_ENDCARD_SECONDS", "4"))
+    sig = "|".join([TAIL_VERSION, f"{W}x{H}", str(FPS), str(card_s), " ".join(X264)] +
+                   [f"{p}:{os.path.getsize(p)}:{int(os.path.getmtime(p))}" for p, u in ((outro, use_outro), (card, use_card)) if u])
+    cache_dir = os.environ.get("STUDIO_VIDEO_CACHE", os.path.join(ROOT, "assets", "cache"))
+    os.makedirs(cache_dir, exist_ok=True)
+    out = os.path.join(cache_dir, f"tail_{W}x{H}_{hashlib.md5(sig.encode()).hexdigest()[:10]}.mp4")
+    if os.path.exists(out):
+        return out
+    log("Building the outro + end card once for this shape (cached for next videos)...")
+    fmt = f"setsar=1,fps={FPS},format=yuv420p"
+    afmt = f"aformat=sample_fmts=fltp:sample_rates={SR}:channel_layouts=stereo"
+    inputs, parts, labels = [], [], []
+    if use_outro:
+        has_audio = "Audio:" in subprocess.run([FFMPEG_EXE, "-i", outro], stdout=subprocess.PIPE,
+                                               stderr=subprocess.PIPE, text=True, errors="replace").stderr
+        d = _duration(outro)
+        inputs += ["-i", outro]
+        n = len(inputs) // 2 - 1
+        parts.append(f"[{n}:v]split[o1][o2];[o1]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+                     f"gblur=sigma=30,eq=brightness=-0.12[ob];[o2]scale={W}:{H}:force_original_aspect_ratio=decrease[of];"
+                     f"[ob][of]overlay=(W-w)/2:(H-h)/2,{fmt},fade=t=in:st=0:d=0.4[ov]")
+        parts.append(f"[{n}:a]{afmt},atrim=0:{d:.3f}[oa]" if has_audio else
+                     f"anullsrc=r={SR}:cl=stereo,atrim=0:{d:.3f}[oa]")
+        labels.append("[ov][oa]")
+    if use_card:
+        inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{card_s:.2f}", "-i", card]
+        n = sum(1 for x in inputs if x == "-i") - 1
+        parts.append(f"[{n}:v]split[c1][c2];[c1]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+                     f"gblur=sigma=30,eq=brightness=-0.15[cb];[c2]scale={W}:{H}:force_original_aspect_ratio=decrease[cf];"
+                     f"[cb][cf]overlay=(W-w)/2:(H-h)/2,{fmt},fade=t=in:st=0:d=0.5[cv]")
+        parts.append(f"anullsrc=r={SR}:cl=stereo,atrim=0:{card_s:.2f}[ca]")
+        labels.append("[cv][ca]")
+    graph = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(labels)}:v=1:a=1[v][a]"
+    tmp = out + ".tmp.mp4"
+    _run([FFMPEG_EXE, "-y"] + inputs + ["-filter_complex", graph, "-map", "[v]", "-map", "[a]", "-r", str(FPS)]
+         + X264 + AAC + ["-video_track_timescale", TIMESCALE, tmp])
+    os.replace(tmp, out)
+    return out
 
 
 def _shift_inputs(graph: str, by: int) -> str:
