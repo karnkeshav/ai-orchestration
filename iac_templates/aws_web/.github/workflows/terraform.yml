@@ -1,0 +1,137 @@
+name: terraform
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: plan, apply or destroy
+        type: choice
+        options: [plan, apply, destroy]
+        default: plan
+      ttl_minutes:
+        description: Minutes before automatic destroy (0 = keep)
+        type: string
+        default: "30"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  TF_IN_AUTOMATION: "1"
+  TF_VERSION: 1.10.5
+  MAX_MONTHLY_USD: "15"
+
+jobs:
+  validate:
+    name: Validate and scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: Format check
+        run: terraform fmt -check -recursive || echo "::warning title=fmt::Formatting drift found (non-blocking)"
+      - name: Init (no backend)
+        run: terraform init -backend=false -input=false
+      - name: Validate
+        run: terraform validate
+      - name: Security and cost policy
+        run: python3 guardrails/policy.py static
+
+  deploy:
+    name: Plan and deploy
+    needs: validate
+    if: vars.AWS_ROLE_ARN != '' && vars.TF_STATE_BUCKET != ''
+    runs-on: ubuntu-latest
+    concurrency:
+      group: tf-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      ACTION: ${{ inputs.action }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Init
+        run: >-
+          terraform init -input=false
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate"
+          -backend-config="region=${{ env.AWS_REGION }}"
+          -backend-config="use_lockfile=true"
+      - name: Plan
+        run: |
+          if [ "$ACTION" = "destroy" ]; then
+            terraform plan -input=false -lock-timeout=5m -destroy -out=tfplan
+          else
+            terraform plan -input=false -lock-timeout=5m -out=tfplan
+          fi
+          terraform show -json tfplan > plan.json
+      - name: Cost and policy gate
+        run: python3 guardrails/policy.py plan plan.json
+      - name: Apply
+        if: inputs.action == 'apply' || inputs.action == 'destroy'
+        run: terraform apply -input=false -lock-timeout=5m tfplan
+      - name: Smoke test
+        if: inputs.action == 'apply'
+        run: |
+          URL=$(terraform output -raw url)
+          for i in $(seq 1 36); do
+            if curl -fsS -m 5 "$URL" > /dev/null; then
+              echo "::notice title=url::$URL"
+              echo "- **Live:** $URL" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error title=smoke::$URL did not answer within 3 minutes"
+          exit 1
+
+  auto-destroy:
+    name: Auto-destroy timer
+    needs: deploy
+    if: always() && inputs.action == 'apply' && inputs.ttl_minutes != '0' && needs.deploy.result != 'skipped'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      TTL: ${{ inputs.ttl_minutes }}
+    steps:
+      - name: Wait
+        run: |
+          echo "::notice title=ttl::Destroying in $TTL minutes"
+          sleep $(( TTL * 60 ))
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+      - name: AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+      - name: Init
+        run: >-
+          terraform init -input=false
+          -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          -backend-config="key=${{ github.event.repository.name }}/terraform.tfstate"
+          -backend-config="region=${{ env.AWS_REGION }}"
+          -backend-config="use_lockfile=true"
+      - name: Destroy
+        run: terraform destroy -input=false -auto-approve -lock-timeout=10m

@@ -1,0 +1,30 @@
+#!/bin/bash
+# Rendered by Terraform templatefile(): only index_b64 is a template variable,
+# so plain $VARS (no braces) are used for shell variables below.
+set -euo pipefail
+mkdir -p /srv/www
+echo "${index_b64}" | base64 -d > /srv/www/index.html
+
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+IID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+ITYPE=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-type)
+AZ=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/placement/availability-zone)
+BOOTED=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+sed -i -e "s|__IID__|$IID|" -e "s|__ITYPE__|$ITYPE|" -e "s|__AZ__|$AZ|" -e "s|__BOOTED__|$BOOTED|" /srv/www/index.html
+
+cat > /etc/systemd/system/demo-web.service <<'UNIT'
+[Unit]
+Description=Terraform demo web page
+After=network-online.target
+
+[Service]
+WorkingDirectory=/srv/www
+ExecStart=/usr/bin/python3 -m http.server 80
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now demo-web.service

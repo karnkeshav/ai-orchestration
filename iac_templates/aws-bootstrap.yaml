@@ -1,0 +1,117 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  One-time setup for AI Orchestration Studio Terraform demos: a GitHub OIDC role that
+  only repos named <owner>/iac-* can assume, plus an S3 bucket for Terraform state.
+  Deploy in us-east-1 (the project's selected Region).
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: karnkeshav
+  RepoPrefix:
+    Type: String
+    Default: iac-
+  CreateOidcProvider:
+    Type: String
+    AllowedValues: ["true", "false"]
+    Default: "true"
+    Description: Set to false if this account already has the token.actions.githubusercontent.com provider.
+
+Conditions:
+  MakeOidc: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeOidc
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  StateBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      BucketName: !Sub ai-orch-tfstate-${AWS::AccountId}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  DeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ai-orch-terraform-deployer
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub arn:aws:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOwner}/${RepoPrefix}*:*
+      Policies:
+        - PolicyName: terraform-demo-guardrails
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: Ec2OnlyInSelectedRegion
+                Effect: Allow
+                Action: ec2:*
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: us-east-1
+              - Sid: OnlySmallInstanceTypes
+                Effect: Deny
+                Action: ec2:RunInstances
+                Resource: !Sub arn:aws:ec2:us-east-1:${AWS::AccountId}:instance/*
+                Condition:
+                  StringNotEquals:
+                    ec2:InstanceType: [t4g.nano, t4g.micro, t4g.small, t3.nano, t3.micro]
+              - Sid: NeverTouchInstancesThisRoleDidNotCreate
+                Effect: Deny
+                Action:
+                  - ec2:TerminateInstances
+                  - ec2:StopInstances
+                  - ec2:RebootInstances
+                  - ec2:ModifyInstanceAttribute
+                Resource: !Sub arn:aws:ec2:us-east-1:${AWS::AccountId}:instance/*
+                Condition:
+                  StringNotEquals:
+                    aws:ResourceTag/ManagedBy: ai-orchestration-studio
+              - Sid: AmiLookup
+                Effect: Allow
+                Action: [ssm:GetParameter, ssm:GetParameters]
+                Resource: arn:aws:ssm:us-east-1::parameter/aws/service/ami-amazon-linux-latest/*
+              - Sid: StateBucketList
+                Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt StateBucket.Arn
+              - Sid: StateObjects
+                Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource: !Sub ${StateBucket.Arn}/*
+
+Outputs:
+  RoleArn:
+    Description: Put this in the Studio's .env as IAC_AWS_ROLE_ARN
+    Value: !GetAtt DeployRole.Arn
+  StateBucketName:
+    Description: Put this in the Studio's .env as IAC_STATE_BUCKET
+    Value: !Ref StateBucket

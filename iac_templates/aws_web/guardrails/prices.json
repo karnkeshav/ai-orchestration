@@ -1,0 +1,33 @@
+{
+  "_note": "us-east-1 on-demand Linux USD/hour; estimates for the cost gate, not a bill",
+  "allowed_instance_types": ["t4g.nano", "t4g.micro", "t4g.small", "t3.nano", "t3.micro"],
+  "max_monthly_usd": 15,
+  "hours_per_month": 730,
+  "ebs_gp3_usd_per_gb_month": 0.08,
+  "root_volume_gb": 8,
+  "public_ipv4_usd_per_hour": 0.005,
+  "instance_usd_per_hour": {
+    "t4g.nano": 0.0042,
+    "t4g.micro": 0.0084,
+    "t4g.small": 0.0168,
+    "t4g.medium": 0.0336,
+    "t4g.large": 0.0672,
+    "t4g.xlarge": 0.1344,
+    "t4g.2xlarge": 0.2688,
+    "t3.nano": 0.0052,
+    "t3.micro": 0.0104,
+    "t3.small": 0.0208,
+    "t3.medium": 0.0416,
+    "t3.large": 0.0832,
+    "m7g.large": 0.0816,
+    "m7g.xlarge": 0.1632,
+    "m7g.2xlarge": 0.3264,
+    "m7g.4xlarge": 0.6528,
+    "c7g.large": 0.0725,
+    "c7g.xlarge": 0.145,
+    "c7g.2xlarge": 0.29,
+    "m5.large": 0.096,
+    "m5.xlarge": 0.192,
+    "m5.2xlarge": 0.384
+  }
+}

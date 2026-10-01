@@ -4118,6 +4118,27 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
             "url": "./Brother_Sister_Pixar_Animation_65s.mp4"
         }
 
+def _is_iac_request(prompt_lower: str) -> bool:
+    try:
+        from iac_engine import is_iac_request
+    except Exception:
+        return False
+    return is_iac_request(prompt_lower)
+
+async def run_iac_pipeline(task_id: str, prompt: str, github_user: Optional[str] = None, github_token: Optional[str] = None):
+    """One prompt -> Terraform repo + GitHub Actions pipeline -> live AWS server
+    (iac_engine.py). Terraform runs on GitHub's runners, not on this VM."""
+    from iac_engine import run_iac_mission
+    tasks[task_id]["logs"].append(f"[00:01] ⚡ Directive received: {prompt[:60]}...")
+
+    def log_cb(msg: str):
+        tasks[task_id]["logs"].append(msg)
+
+    result = await run_iac_mission(prompt, on_log=log_cb, github_user=github_user, github_token=github_token)
+    tasks[task_id]["answer"] = result["markdown"]
+    tasks[task_id]["deliverable"] = result["deliverable"]
+    tasks[task_id]["status"] = "COMPLETED"
+
 _POWERBI_INTENT_KEYWORDS = ("power bi", "powerbi", "pbix", "pbip", "pbit", "dax", "tmdl", "semantic model")
 
 _POWERBI_BUILD_VERBS = (
@@ -5335,6 +5356,13 @@ async def _run_pipeline_tiers(
     history: Optional[List[Dict[str, Any]]] = None
 ):
     prompt_lower = prompt.lower()
+    # Terraform / CI/CD requests have a dedicated engine and must be checked
+    # before everything else: "terraform a web server on AWS ... cost" would
+    # otherwise be answered by the instant cost query, and "create ... aws"
+    # would be sent to agy as a raw mutation.
+    if not image_data and _is_iac_request(prompt_lower):
+        await run_iac_pipeline(task_id, prompt, github_user=github_user, github_token=github_token)
+        return
     # Mutation-shaped requests skip every keyword fast-path and go straight
     # to agy -- see is_mutation_request's docstring/comment for why. If agy
     # itself fails, report that honestly instead of falling through to
