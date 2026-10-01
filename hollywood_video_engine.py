@@ -1,0 +1,671 @@
+"""Hollywood-style multi-scene promo videos from one prompt.
+
+The Pixar engine (hybrid_video_engine.py) makes a single-image story video. This engine makes a
+trailer-style film: one AI image per scene, a camera move per scene (push-in, pull-back, pan,
+crane, Dutch tilt, crash zoom), transitions between scenes, act tags, title cards, burned-in
+subtitles, a deep voiceover fitted to the requested length, a ducked music bed and whoosh / boom
+sound effects. The studio outro and end card are appended (shape picked by the video's shape).
+
+Scene plan, in order of preference:
+  1. a shot list in the prompt (SHOT / SCENE / PART blocks with Camera:, Visual:, VO:, Title card:,
+     SFX:, Transition: lines) -- followed as written;
+  2. Gemini (free tier) writes a scene plan from a plain brief;
+  3. an offline problem -> boom -> solution -> benefits -> call-to-action template.
+
+    python hollywood_video_engine.py brief.txt --out promo.mp4
+"""
+import asyncio
+import json
+import os
+import random
+import re
+import shutil
+import subprocess
+import tempfile
+import urllib.parse
+import urllib.request
+
+import imageio_ffmpeg
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+from scipy.io import wavfile
+
+FFMPEG_EXE = imageio_ffmpeg.get_ffmpeg_exe()
+SR = 44100
+FPS = 25
+SIZES = {"16:9": (1920, 1080), "9:16": (1080, 1920)}
+DEFAULT_STYLE = ("cinematic film still, teal and orange colour grade, anamorphic lens flare, "
+                 "volumetric light and haze, shallow depth of field, dramatic lighting, high detail")
+
+# ----------------------------------------------------------------------------- prompt parsing
+
+_LANDSCAPE_RE = re.compile(r"16\s*[:x/]\s*9|1920\s*x\s*1080|\b(?:landscape|widescreen|youtube video|horizontal)\b", re.I)
+_VERTICAL_RE = re.compile(r"9\s*[:x/]\s*16|1080\s*x\s*1920|\b(?:vertical|portrait|reels?|shorts|instagram)\b", re.I)
+
+
+def aspect_from_prompt(prompt: str, default: str = "16:9") -> str:
+    """The first shape the prompt names (a brief states its own format before e.g. a 9:16 outro)."""
+    land, vert = _LANDSCAPE_RE.search(prompt or ""), _VERTICAL_RE.search(prompt or "")
+    if land and (not vert or land.start() < vert.start()):
+        return "16:9"
+    return "9:16" if vert else default
+
+
+def duration_from_prompt(prompt: str, default: float = 60.0) -> float:
+    p = (prompt or "").lower()
+    m = re.search(r"\b(\d{1,3})\s*-?\s*(?:seconds?|secs?|s)\b", p)
+    if m and 10 <= int(m.group(1)) <= 180:
+        return float(m.group(1))
+    m = re.search(r"\b(\d)\s*-?\s*min(?:ute)?s?\b", p)
+    if m and 1 <= int(m.group(1)) <= 3:
+        return 60.0 * int(m.group(1))
+    if re.search(r"\b(?:one|a)\s*-?\s*minute\b", p):
+        return 60.0
+    return default
+
+
+_SHOT_RE = re.compile(r"^\s*(?:SHOT|SCENE)\s*(\d+)\b(.*)$", re.I)
+_PART_RE = re.compile(r"^\s*=*\s*(?:PART|ACT)\s*(\d+)\s*[:\-]?\s*(.*?)\s*=*\s*$", re.I)
+_STOP_RE = re.compile(r"^\s*=*\s*(?:FINISH|RULES|GLOBAL STYLE|STYLE)\b", re.I)
+_FIELD_RE = re.compile(r"^\s*(?:[-*]\s+)?([A-Za-z][A-Za-z /\-]{0,24}?)\s*(?:\([^)]*\))?\s*:\s*(.*)$")
+_TIME_RE = re.compile(r"\((\d+):(\d+(?:\.\d+)?)\s*-\s*(\d+):(\d+(?:\.\d+)?)\)|\((\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*s\)")
+_TEXT_KEYS = ("title card", "title card overlay", "title", "text", "on-screen text", "big text",
+              "text overlay", "tagline")
+_FIELD_KEYS = {"camera", "visual", "sfx", "vo", "voiceover", "voice over", "transition", "small text",
+               "small line", "look", "stations"} | set(_TEXT_KEYS)
+
+
+def _quoted(value: str):
+    return re.findall(r'"([^"]{1,200})"', value or "")
+
+
+def _span(m):
+    if not m:
+        return None
+    if m.group(1) is not None:
+        a = int(m.group(1)) * 60 + float(m.group(2))
+        b = int(m.group(3)) * 60 + float(m.group(4))
+    else:
+        a, b = float(m.group(5)), float(m.group(6))
+    return b - a if b > a else None
+
+
+def parse_shot_list(prompt: str):
+    """-> (scenes, style) when the prompt is a shot list, else (None, style)."""
+    lines = (prompt or "").splitlines()
+    use_parts = not any(_SHOT_RE.match(l) for l in lines)
+    style, act, blocks, cur, key = None, "", [], None, None
+    for raw in lines:
+        line = raw.rstrip()
+        if _STOP_RE.match(line):
+            cur, key = None, None
+            continue
+        pm = _PART_RE.match(line)
+        if pm:
+            name = re.sub(r"\(.*?\)", "", pm.group(2).split(" - ")[0]).strip(" =-:").upper()
+            act = f"ACT {pm.group(1)}: {name}" if name else f"ACT {pm.group(1)}"
+            if use_parts:
+                cur = {"act": act, "fields": {}, "dur": _span(_TIME_RE.search(line))}
+                blocks.append(cur)
+                key = None
+            continue
+        sm = None if use_parts else _SHOT_RE.match(line)
+        if sm:
+            cur = {"act": act, "fields": {}, "dur": _span(_TIME_RE.search(line))}
+            blocks.append(cur)
+            key = None
+            continue
+        fm = _FIELD_RE.match(line)
+        if fm and fm.group(1).strip().lower() in _FIELD_KEYS:
+            k = fm.group(1).strip().lower()
+            if k == "look" and cur is None:
+                style, key = fm.group(2).strip(), "look"
+                continue
+            if cur is not None:
+                key = k
+                cur["fields"][k] = (cur["fields"].get(k, "") + " " + fm.group(2)).strip()
+            continue
+        if cur is None and key == "look" and line.strip() and not line.lstrip().startswith("-"):
+            style += " " + line.strip()
+        elif cur is None:
+            key = None
+        elif key and line.strip():
+            cur["fields"][key] += " " + line.strip()
+    scenes = []
+    for b in blocks:
+        f = b["fields"]
+        vo_raw = f.get("vo") or f.get("voiceover") or f.get("voice over") or ""
+        vo = " ".join(_quoted(vo_raw)) or ("" if vo_raw.strip().startswith("(") else vo_raw.strip())
+        texts = []
+        for k in _TEXT_KEYS:  # title card(s) first, tagline as the next line
+            if f.get(k):
+                q = _quoted(f[k])
+                texts += q if q else [f[k].strip()]
+        if not (vo or f.get("visual") or f.get("camera") or texts):
+            continue
+        visual = " ".join(x for x in (f.get("visual", ""), f.get("camera", "")) if x) or " ".join(texts) or vo
+        scenes.append({
+            "act": b["act"], "narration": vo, "title_text": "\n".join(texts[:2])[:110],
+            "small_text": " ".join(_quoted(f.get("small text", "") + f.get("small line", "")))[:80],
+            "visual": visual, "camera": f.get("camera", ""),
+            "sfx": f.get("sfx", ""), "transition": f.get("transition", ""), "dur": b["dur"],
+        })
+    return (split_long_scenes(scenes) if len(scenes) >= 3 else None), (style or None)
+
+
+_ANGLES = ("wide establishing view", "dramatic close view", "view from above", "low-angle hero view")
+
+
+def split_long_scenes(scenes, max_len: float = 7.0, part_len: float = 5.0):
+    """A long shot (e.g. a 15 s montage) becomes several images with their own camera moves; the
+    narration's sentences are shared across the parts so each part speaks over its own image."""
+    out = []
+    for s in scenes:
+        d = s.get("dur") or 0
+        if d <= max_len:
+            out.append(s)
+            continue
+        n = max(2, int(round(d / part_len)))
+        sentences = re.split(r"(?<=[.!?])\s+", s.get("narration", "").strip()) if s.get("narration") else []
+        per = max(1, -(-len(sentences) // n)) if sentences else 0
+        for k in range(n):
+            part = dict(s, dur=d / n, visual=f"{s['visual']}, {_ANGLES[k % len(_ANGLES)]}",
+                        camera=("tracking fpv flight", "push-in", "crane rising", "pan")[k % 4] + " " + s.get("camera", ""),
+                        narration=" ".join(sentences[k * per:(k + 1) * per]) if sentences else "",
+                        title_text=s["title_text"] if k == n - 1 else "",
+                        transition="whip" if k < n - 1 else s.get("transition", ""),
+                        sfx="whoosh" if k else s.get("sfx", ""))
+            out.append(part)
+    return out
+
+
+GEMINI_MODELS = os.environ.get("GEMINI_SCRIPT_MODELS",
+                               "gemini-3.6-flash,gemini-flash-lite-latest,gemini-2.5-flash").split(",")
+
+
+def gemini_scene_plan(prompt: str, target: float):
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    from google import genai
+    from google.genai import types
+    words = int(target * 2.4)
+    instruction = (
+        "You are a Hollywood trailer editor. Turn this video brief into a fast-paced trailer-style "
+        f"promo of about {int(target)} seconds.\nBrief: {prompt}\n"
+        "Structure: a sharp problem statement, a dramatic 'boom' reveal of the solution, how it works, "
+        "the benefits, and a call to action. Use only facts present in the brief; invent no numbers.\n"
+        "Return JSON: {\"scenes\": [ ... 7 to 10 objects ... ]} where each object has:\n"
+        '  "act": short act label in capitals (e.g. "ACT I: THE PROBLEM")\n'
+        '  "visual": a vivid image prompt for this scene (subject, setting, lighting), no text in the image\n'
+        '  "camera": one of push-in, pull-back, pan-left, pan-right, crane-up, dutch, crash-zoom, orbit\n'
+        '  "title_text": big on-screen title card, max 40 characters\n'
+        f'  "narration": the voiceover line for this scene (all scenes together about {words} words)\n'
+        '  "sfx": one of whoosh, boom, riser, chime, none\n'
+        '  "transition": one of fade, dip-to-black, white-flash, whip, glitch, zoom, cut\n'
+        '  "seconds": scene length in seconds (all scenes together about the target length)'
+    )
+    client = genai.Client(api_key=api_key)
+    for model in GEMINI_MODELS:
+        try:
+            resp = client.models.generate_content(
+                model=model, contents=instruction,
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.8))
+            data = json.loads(resp.text)
+            raw = data.get("scenes") if isinstance(data, dict) else data
+            scenes = []
+            for s in raw or []:
+                if not isinstance(s, dict) or not (s.get("visual") or s.get("narration")):
+                    continue
+                scenes.append({"act": str(s.get("act", ""))[:40], "visual": str(s.get("visual", "")),
+                               "camera": str(s.get("camera", "")), "title_text": str(s.get("title_text", ""))[:60],
+                               "small_text": "", "narration": str(s.get("narration", "")),
+                               "sfx": str(s.get("sfx", "")), "transition": str(s.get("transition", "")),
+                               "dur": float(s["seconds"]) if str(s.get("seconds", "")).replace(".", "", 1).isdigit() else None})
+            if len(scenes) >= 4:
+                return scenes
+        except Exception as e:
+            print(f"[hollywood] Gemini {model} failed: {type(e).__name__} {str(e)[:120]}")
+    return None
+
+
+def template_scene_plan(prompt: str, target: float):
+    topic = re.sub(r"\s+", " ", prompt or "").strip()
+    m = re.search(r"\b(?:about|for|on|of)\s+(.{8,90}?)(?:[.,;]|$)", topic, re.I)
+    topic = (m.group(1) if m else topic[:80]).strip()
+    S = lambda act, visual, camera, title, vo, sfx, tr: {
+        "act": act, "visual": visual, "camera": camera, "title_text": title, "small_text": "",
+        "narration": vo, "sfx": sfx, "transition": tr, "dur": None}
+    return [
+        S("ACT I: THE PROBLEM", "a lone engineer at night surrounded by glowing screens of errors and alerts, city lights behind",
+          "push-in", "THE OLD WAY IS BROKEN", f"Every team knows the pain. {topic}, done the old way, takes hours of manual work.", "whoosh", "dip-to-black"),
+        S("ACT I: THE PROBLEM", "red warning holograms and a ticking clock over a cluttered desk, cold blue light",
+          "dutch", "HOURS. MISTAKES. COST.", "Endless steps. Missed details. Surprise costs.", "boom", "cut"),
+        S("ACT II: THE BREAKTHROUGH", "an explosion of neon light forming a glowing AI core in a dark void",
+          "crash-zoom", "UNTIL NOW", "Until now.", "boom", "white-flash"),
+        S("ACT II: THE BREAKTHROUGH", "a giant floating holographic prompt box glowing cyan in a dark futuristic studio",
+          "push-in", "ONE PROMPT", "With AI Orchestration Studio, one prompt does it all.", "riser", "zoom"),
+        S("ACT III: THE SOLUTION", "a high-speed flight through a glowing data pipeline tunnel of light gates",
+          "pan-right", "AUTOMATED END TO END", f"It plans, builds and checks everything for {topic}, automatically.", "whoosh", "whip"),
+        S("ACT IV: THE BENEFITS", "a triumphant team in a bright modern office looking at a glowing success dashboard",
+          "crane-up", "HOURS BECOME MINUTES", "Hours become minutes. Fewer mistakes. Full control.", "chime", "fade"),
+        S("ACT V: THE TITLE", "a chrome logo glowing in volumetric light with dust particles and lens flare",
+          "pull-back", "AI ORCHESTRATION STUDIO", "AI Orchestration Studio. One prompt. Real results.", "boom", "fade"),
+    ]
+
+
+# ----------------------------------------------------------------------------- media helpers
+
+def _run(cmd):
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace")
+    if res.returncode != 0:
+        raise RuntimeError(res.stderr[-900:])
+    return res
+
+
+def _duration(path: str) -> float:
+    out = subprocess.run([FFMPEG_EXE, "-i", path], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, errors="replace").stderr
+    m = re.search(r"Duration: (\d+):(\d+):(\d+(?:\.\d+)?)", out)
+    return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3)) if m else 0.0
+
+
+def fetch_scene_image(prompt: str, size, dest: str, seed: int) -> bool:
+    """Free AI still from Pollinations (no key). False on any failure."""
+    w, h = size
+    q = urllib.parse.quote(prompt[:900])
+    url = f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&model=flux&seed={seed}"
+    for _ in range(2):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "ai-orchestration-studio"})
+            with urllib.request.urlopen(req, timeout=90) as r:
+                data = r.read()
+            if len(data) > 20000:
+                with open(dest, "wb") as f:
+                    f.write(data)
+                Image.open(dest).verify()
+                return True
+        except Exception as e:
+            print(f"[hollywood] image failed: {type(e).__name__} {str(e)[:100]}")
+    return False
+
+
+def fallback_scene_image(dest: str, size, idx: int, title: str):
+    """Designed backdrop when no AI image is available: graded gradient, light orbs, rays."""
+    W, H = size
+    rnd = random.Random(idx)
+    top = (rnd.randint(5, 25), rnd.randint(10, 35), rnd.randint(40, 80))
+    bot = (rnd.randint(40, 90), rnd.randint(10, 40), rnd.randint(60, 120))
+    img = Image.new("RGB", size)
+    d = ImageDraw.Draw(img)
+    for y in range(H):
+        r = y / H
+        d.line([(0, y), (W, y)], fill=tuple(int(top[i] * (1 - r) + bot[i] * r) for i in range(3)))
+    glow = Image.new("RGB", size)
+    gd = ImageDraw.Draw(glow)
+    for _ in range(5):
+        cx, cy, R = rnd.randint(0, W), rnd.randint(0, H), rnd.randint(min(W, H) // 6, min(W, H) // 2)
+        gd.ellipse([cx - R, cy - R, cx + R, cy + R], fill=rnd.choice([(0, 200, 255), (170, 80, 255), (255, 150, 60)]))
+    img = Image.blend(img, glow.filter(ImageFilter.GaussianBlur(min(W, H) // 8)), 0.35)
+    img.save(dest, "JPEG", quality=92)
+
+
+def _camera_kind(text: str, idx: int) -> str:
+    t = (text or "").lower()
+    for kind, words in (("crash", ("crash",)), ("dutch", ("dutch", "tilted", "handheld")),
+                        ("pull", ("pull-back", "pull back", "pulling", "pull-out", "crane shot pulling", "pulls up")),
+                        ("crane", ("crane", "tilt up", "rises", "rising", "low-angle", "low angle", "hero")),
+                        ("pan_r", ("pan-right", "tracking", "side-scroll", "fpv", "flight", "glides", "orbit", "whip-pan", "drone")),
+                        ("pan_l", ("pan-left",)),
+                        ("push", ("push", "dolly", "zoom-in", "zoom in", "close-up", "macro", "extreme"))):
+        if any(w in t for w in words):
+            return kind
+    return ("push", "pan_r", "pull", "crane", "pan_l")[idx % 5]
+
+
+def _zoompan(kind: str, frames: int, W: int, H: int) -> str:
+    N = max(frames - 1, 1)
+    p = f"(on/{N})"
+    zp = {
+        "push": (f"1.0+0.16*{p}", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+        "pull": (f"1.18-0.16*{p}", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+        "pan_r": ("1.16", f"(iw-iw/zoom)*{p}", "ih/2-(ih/zoom/2)"),
+        "pan_l": ("1.16", f"(iw-iw/zoom)*(1-{p})", "ih/2-(ih/zoom/2)"),
+        "crane": ("1.16", "iw/2-(iw/zoom/2)", f"(ih-ih/zoom)*(1-{p})"),
+        "crash": (f"1.0+0.4*min({p}*4\\,1)", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+        "dutch": (f"1.12+0.08*{p}", "iw/2-(iw/zoom/2)", "ih/2-(ih/zoom/2)"),
+    }[kind]
+    vf = f"zoompan=z='{zp[0]}':x='{zp[1]}':y='{zp[2]}':d=1:s={W}x{H}:fps={FPS}"
+    if kind == "dutch":
+        vf += f",rotate=a='0.06*sin(2*PI*t/6)':fillcolor=black,scale={int(W * 1.12)}:{int(H * 1.12)},crop={W}:{H}"
+    return vf
+
+
+def _transition(text: str) -> tuple:
+    t = (text or "").lower()
+    if any(w in t for w in ("black", "dip", "fade to")):
+        return "fadeblack", 0.5
+    if any(w in t for w in ("flash", "light burst", "light-leak", "white")):
+        return "fadewhite", 0.35
+    if any(w in t for w in ("whip", "swipe", "wipe")):
+        return "slideleft", 0.35
+    if "glitch" in t:
+        return "pixelize", 0.35
+    if any(w in t for w in ("zoom", "burst", "bursts", "flies")):
+        return "zoomin", 0.45
+    if any(w in t for w in ("smash", "hard cut", "cut on", "cut")):
+        return "fade", 0.12
+    return "fade", 0.5
+
+
+def _overlay_png(dest: str, size, scene: dict, cinematic: bool):
+    """Letterbox, act tag, title card and subtitle on a transparent layer (kept steady over the move)."""
+    from thumbnail_engine import _font, _latin, _wrap
+    W, H = size
+    img = Image.new("RGBA", size, (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    bar = int((H - W / 2.39) / 2) if cinematic and W > H else 0
+    if bar:
+        d.rectangle([0, 0, W, bar], fill=(0, 0, 0, 255))
+        d.rectangle([0, H - bar, W, H], fill=(0, 0, 0, 255))
+    else:  # vertical: soft dark bands so text reads on any image
+        for i in range(int(H * 0.22)):
+            a = int(170 * (1 - i / (H * 0.22)))
+            d.line([(0, H - 1 - i), (W, H - 1 - i)], fill=(0, 0, 0, a))
+    m = int(W * 0.04)
+    if scene.get("act") and _latin(scene["act"]):
+        f = _font(int(min(W, H) * 0.028))
+        d.text((m, (bar or int(H * 0.04)) + int(min(W, H) * 0.03)), scene["act"], font=f,
+               fill=(0, 225, 255, 235), stroke_width=2, stroke_fill=(0, 0, 0, 200))
+    title = (scene.get("title_text") or "").strip()
+    if title and _latin(title):
+        size_px = int(min(W, H) * (0.085 if W > H else 0.075))
+        while True:
+            tf = _font(size_px)
+            lines = [l for part in title.upper().split("\n") for l in _wrap(d, part, tf, int(W * 0.84))]
+            if len(lines) <= 3 or size_px < 30:
+                break
+            size_px = int(size_px * 0.88)
+        y = H // 2 - (len(lines) * int(size_px * 1.1)) // 2
+        for line in lines[:3]:
+            d.text((W // 2, y), line, font=tf, anchor="ma", fill=(255, 255, 255, 255),
+                   stroke_width=max(3, size_px // 16), stroke_fill=(0, 0, 0, 230))
+            y += int(size_px * 1.1)
+        if scene.get("small_text") and _latin(scene["small_text"]):
+            sf = _font(int(size_px * 0.42))
+            d.text((W // 2, y + int(size_px * 0.2)), scene["small_text"], font=sf, anchor="ma",
+                   fill=(255, 215, 90, 255), stroke_width=3, stroke_fill=(0, 0, 0, 230))
+    sub = (scene.get("narration") or "").strip()
+    if sub and _latin(sub):
+        sf = _font(int(min(W, H) * (0.034 if W > H else 0.036)))
+        lines = _wrap(d, sub, sf, int(W * 0.88))[:2]
+        lh = int(sf.size * 1.2)
+        y = (H - bar + int(bar * 0.12)) if bar and bar > lh * 2 else H - int(H * 0.06) - lh * len(lines)
+        if bar and bar <= lh * 2:
+            y = H - bar - lh * len(lines) - int(H * 0.02)
+        for line in lines:
+            d.text((W // 2, y), line, font=sf, anchor="ma", fill=(255, 255, 255, 255),
+                   stroke_width=3, stroke_fill=(0, 0, 0, 255))
+            y += lh
+    img.save(dest, "PNG")
+
+
+_TRIM = ("silenceremove=start_periods=1:start_threshold=-45dB,areverse,"
+         "silenceremove=start_periods=1:start_threshold=-45dB,areverse")
+
+
+async def _tts(text: str, dest: str, voice: str, rate: int):
+    """Voice line -> WAV with Edge-TTS's leading/trailing silence trimmed (about 0.6 s per line,
+    which otherwise adds ~10 s of dead air to a 16-line trailer). '...' becomes a short pause."""
+    import edge_tts
+    raw = dest + ".mp3"
+    text = re.sub(r"\s*(?:\.\.\.|…)\s*", ", ", text).strip(" ,")
+    await edge_tts.Communicate(text, voice=voice, rate=f"{rate:+d}%", pitch="-6Hz").save(raw)
+    _run([FFMPEG_EXE, "-y", "-i", raw, "-af", _TRIM, "-ar", str(SR), "-ac", "2", dest])
+    os.remove(raw)
+
+
+def _sfx_track(events, total: float, dest: str):
+    """Whoosh / boom / riser / chime events [(time, kind)] synthesised into one stereo WAV."""
+    n = int(total * SR) + SR
+    out = np.zeros(n, dtype=np.float32)
+    rng = np.random.default_rng(7)
+    for t0, kind in events:
+        i0 = int(max(t0, 0) * SR)
+        if kind == "boom":
+            L = int(1.8 * SR)
+            t = np.arange(L) / SR
+            s = 0.9 * np.sin(2 * np.pi * (55 - 25 * t) * t) * np.exp(-2.2 * t)
+            s += 0.25 * rng.standard_normal(L) * np.exp(-14 * t)
+        elif kind == "riser":
+            L = int(1.2 * SR)
+            t = np.arange(L) / SR
+            s = 0.25 * rng.standard_normal(L) * (t / t[-1]) ** 2
+            s = np.convolve(s, np.ones(8) / 8, mode="same")
+        elif kind == "chime":
+            L = int(1.2 * SR)
+            t = np.arange(L) / SR
+            s = 0.18 * (np.sin(2 * np.pi * 1318 * t) + 0.6 * np.sin(2 * np.pi * 1976 * t)) * np.exp(-4 * t)
+        else:  # whoosh: band-passed noise swelling and fading
+            L = int(0.7 * SR)
+            t = np.arange(L) / SR
+            env = np.sin(np.pi * t / t[-1]) ** 2
+            s = rng.standard_normal(L) * env
+            s = np.convolve(s, np.ones(24) / 24, mode="same") * 0.9
+        i1 = min(n, i0 + len(s))
+        out[i0:i1] += s[: i1 - i0]
+    out = np.clip(out, -1, 1)
+    wavfile.write(dest, SR, (np.stack([out, out], axis=1) * 32767).astype(np.int16))
+
+
+def _sfx_kind(text: str):
+    t = (text or "").lower()
+    if any(w in t for w in ("boom", "braa", "impact", "slam", "stamp", "drum hit", "hit", "shockwave", "clang")):
+        return "boom"
+    if any(w in t for w in ("riser", "swell", "rising", "build")):
+        return "riser"
+    if any(w in t for w in ("chime", "ding", "success", "bleep")):
+        return "chime"
+    if any(w in t for w in ("whoosh", "swoosh", "whip")):
+        return "whoosh"
+    return None
+
+
+# ----------------------------------------------------------------------------- main renderer
+
+async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info: dict = None,
+                                 music_info: dict = None, on_log=None, aspect: str = None,
+                                 target_seconds: float = None, image_generator=None) -> str:
+    """`image_generator`: optional async callable(jobs) that writes an image for each job
+    ({index, prompt, path, size}) to job["path"]; missing or broken files fall back."""
+    log = on_log or (lambda m: print(f"[hollywood] {m}"))
+    aspect = aspect or aspect_from_prompt(prompt)
+    W, H = SIZES.get(aspect, SIZES["16:9"])
+    target = target_seconds or duration_from_prompt(prompt)
+    hindi = "hindi" in (prompt or "").lower()
+    voice = "hi-IN-MadhurNeural" if hindi else os.environ.get("STUDIO_TRAILER_VOICE", "en-US-GuyNeural")
+
+    scenes, style = parse_shot_list(prompt)
+    source = "shot list"
+    if not scenes:
+        loop = asyncio.get_running_loop()
+        try:
+            scenes = await asyncio.wait_for(loop.run_in_executor(None, gemini_scene_plan, prompt, target), 60)
+            source = "gemini"
+        except Exception as e:
+            log(f"Gemini scene plan failed ({type(e).__name__}), using template")
+            scenes = None
+    if not scenes:
+        scenes, source = template_scene_plan(prompt, target), "template"
+    style = style or DEFAULT_STYLE
+    log(f"Scene plan: {len(scenes)} scenes from {source}, {aspect} {W}x{H}, target {target:.0f} s")
+
+    work = tempfile.mkdtemp(prefix="hollywood_")
+    try:
+        # 1. One image per scene. The caller's image generator (the Studio passes agy) writes the
+        #    files; Pollinations only if STUDIO_IMAGE_PROVIDER=pollinations (free tier is slow and
+        #    watermarked); any scene still without a valid image gets a designed backdrop.
+        jobs = [{"index": i, "path": os.path.join(work, f"gen_{i:02d}.png"), "size": (W, H),
+                 "prompt": f"{s['visual']}. {style}. No text, no letters, no logos, no watermark."}
+                for i, s in enumerate(scenes)]
+        if image_generator:
+            try:
+                await image_generator(jobs)
+            except Exception as e:
+                log(f"Image generator failed: {type(e).__name__} {str(e)[:160]}")
+        elif os.environ.get("STUDIO_IMAGE_PROVIDER", "").lower() == "pollinations":
+            for j in jobs:
+                fetch_scene_image(j["prompt"], (W, H), j["path"], seed=1000 + j["index"] * 17)
+        ai_ok = []
+        for j in jobs:
+            dest = os.path.join(work, f"img_{j['index']:02d}.jpg")
+            try:
+                Image.open(j["path"]).convert("RGB").save(dest, "JPEG", quality=94)
+                ai_ok.append(True)
+            except Exception:
+                fallback_scene_image(dest, (W, H), j["index"], scenes[j["index"]].get("title_text", ""))
+                ai_ok.append(False)
+        log(f"Scene images: {sum(ai_ok)} AI-generated, {len(scenes) - sum(ai_ok)} designed fallback")
+
+        # 2. Voiceover per scene at a natural pace (the target length is a guide, running longer is
+        #    fine); only a script far over the target gets a slight speed-up.
+        spoken = [i for i, s in enumerate(scenes) if s.get("narration")]
+        rate, voice_len = int(os.environ.get("STUDIO_TRAILER_RATE", "5")), {}
+        for attempt in range(2):
+            for i in spoken:
+                await _tts(scenes[i]["narration"], os.path.join(work, f"vo_{i:02d}.wav"), voice, rate)
+                voice_len[i] = _duration(os.path.join(work, f"vo_{i:02d}.wav"))
+            need = sum(voice_len.values()) + 0.45 * len(spoken)
+            if need <= target * 1.25 or attempt:
+                break
+            rate += 10
+            log(f"Script is long for {target:.0f} s: voiceover at {rate:+d}%")
+
+        # 3. Scene lengths: the shot's own timing, never shorter than its voice line; padded up to
+        #    the target when the script is short.
+        trans = [_transition(s.get("transition", "")) for s in scenes]
+        durs = [max(s.get("dur") or 0, voice_len.get(i, 0) + 0.45 + (0.3 if i else 0), 1.8)
+                for i, s in enumerate(scenes)]
+        total = sum(durs) - sum(t[1] for t in trans[:-1])
+        if total < target:
+            durs = [d + (target - total) * d / sum(durs) for d in durs]
+
+        # 4. Render each scene: camera move on the image + steady text layer.
+        clip_paths = []
+        for i, s in enumerate(scenes):
+            frames = int(round(durs[i] * FPS))
+            img = os.path.join(work, f"img_{i:02d}.jpg")
+            big = os.path.join(work, f"big_{i:02d}.jpg")
+            Image.open(img).convert("RGB").resize((int(W * 1.5), int(H * 1.5)), Image.LANCZOS).save(big, quality=93)
+            ov = os.path.join(work, f"ov_{i:02d}.png")
+            _overlay_png(ov, (W, H), s, cinematic=True)
+            kind = _camera_kind(s.get("camera", ""), i)
+            clip = os.path.join(work, f"clip_{i:02d}.mp4")
+            graph = (f"[0:v]{_zoompan(kind, frames, W, H)},eq=contrast=1.06:saturation=1.08,format=yuv420p[bg];"
+                     f"[1:v]format=rgba,fade=t=in:st=0.25:d=0.45:alpha=1[ov];"
+                     f"[bg][ov]overlay=0:0:shortest=1,format=yuv420p[v]")
+            _run([FFMPEG_EXE, "-y", "-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", big,
+                  "-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", ov,
+                  "-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames), "-r", str(FPS),
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", clip])
+            clip_paths.append(clip)
+            log(f"Scene {i + 1}/{len(scenes)} rendered ({kind}, {durs[i]:.1f} s)")
+
+        # 5. Join with transitions; work out where each scene starts on the final timeline.
+        starts, t = [0.0], durs[0]
+        for i in range(1, len(scenes)):
+            t -= trans[i - 1][1]
+            starts.append(t)
+            t += durs[i]
+        total = t
+        inputs, graph, prev = [], "", "[0:v]"
+        for p in clip_paths:
+            inputs += ["-i", p]
+        for i in range(1, len(clip_paths)):
+            name, d = trans[i - 1]
+            out = f"[x{i}]" if i < len(clip_paths) - 1 else "[v]"
+            graph += f"{prev}[{i}:v]xfade=transition={name}:duration={d}:offset={starts[i]:.3f}{out};"
+            prev = out
+        video_only = os.path.join(work, "video.mp4")
+        if len(clip_paths) == 1:
+            shutil.copy(clip_paths[0], video_only)
+        else:
+            _run([FFMPEG_EXE, "-y"] + inputs + ["-filter_complex", graph.rstrip(";"), "-map", "[v]",
+                  "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", video_only])
+
+        # 6. Audio: voice lines at their scene starts, ducked music, sound effects.
+        from music_engine import build_soundtrack, detect_mood
+        music = os.path.join(work, "music.wav")
+        info = build_soundtrack(prompt, total, music, mood=detect_mood(prompt))
+        if music_info is not None:
+            music_info.update(info)
+        events = []
+        for i, s in enumerate(scenes):
+            k = _sfx_kind(s.get("sfx", ""))
+            if k:
+                events.append((starts[i] + (0.0 if k == "boom" else 0.1), k))
+            if i and trans[i - 1][1] >= 0.3:
+                events.append((starts[i] - 0.25, "whoosh"))
+        sfx = os.path.join(work, "sfx.wav")
+        _sfx_track(events, total, sfx)
+
+        a_inputs, a_parts, labels = ["-i", music, "-i", sfx], [], []
+        fmt = f"aformat=sample_fmts=fltp:sample_rates={SR}:channel_layouts=stereo"
+        for n, i in enumerate(spoken):
+            a_inputs += ["-i", os.path.join(work, f"vo_{i:02d}.wav")]
+            ms = int((starts[i] + 0.3) * 1000)
+            a_parts.append(f"[{n + 2}:a]{fmt},adelay={ms}|{ms}[v{n}]")
+            labels.append(f"[v{n}]")
+        if labels:
+            voice_mix = (";".join(a_parts) + ";" + "".join(labels) +
+                         f"amix=inputs={len(labels)}:duration=longest:normalize=0,apad,atrim=0:{total:.3f},asplit=2[vm][vk];")
+        else:
+            voice_mix = f"anullsrc=r={SR}:cl=stereo,atrim=0:{total:.3f},asplit=2[vm][vk];"
+        agraph = (voice_mix +
+                  f"[0:a]{fmt},volume=0.75[mus];[mus][vk]sidechaincompress=threshold=0.03:ratio=6:attack=20:release=450[duck];"
+                  f"[1:a]{fmt},volume=0.55,atrim=0:{total:.3f}[fx];"
+                  f"[vm][duck][fx]amix=inputs=3:duration=first:normalize=0,"
+                  f"afade=t=out:st={max(total - 1.5, 0):.3f}:d=1.5,loudnorm=I=-14:TP=-1.5:LRA=11,aresample={SR}[a]")
+        _run([FFMPEG_EXE, "-y", "-i", video_only] + a_inputs +
+             ["-filter_complex", _shift_inputs(agraph, 1), "-map", "0:v", "-map", "[a]", "-c:v", "copy",
+              "-c:a", "aac", "-b:a", "192k", "-t", f"{total:.3f}", "-movflags", "+faststart", output_mp4_path])
+        log(f"Main film: {total:.1f} s, {len(scenes)} scenes")
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+    if script_info is not None:
+        script_info.update({"scenes": len(scenes), "plan_source": source, "size": (W, H),
+                            "main_seconds": round(total, 1), "ai_images": sum(ai_ok),
+                            "title": (scenes[-1].get("title_text") or "AI Orchestration Studio")})
+
+    # 7. Studio outro: the 9:16 promo clip for every shape (centred over its blurred copy on 16:9)
+    #    until STUDIO_HOLLYWOOD_OUTRO names another clip; then the end card for this shape.
+    try:
+        from thumbnail_engine import OUTRO_9X16, append_outro, append_endcard
+        outro = os.environ.get("STUDIO_HOLLYWOOD_OUTRO", OUTRO_9X16)
+        if os.environ.get("STUDIO_VIDEO_OUTRO", "1") != "0" and append_outro(output_mp4_path, output_mp4_path, outro=outro):
+            script_info is not None and script_info.update(outro=True)
+        if os.environ.get("STUDIO_VIDEO_ENDCARD", "1") != "0" and append_endcard(
+                output_mp4_path, output_mp4_path, seconds=float(os.environ.get("STUDIO_ENDCARD_SECONDS", "4"))):
+            script_info is not None and script_info.update(endcard=True)
+    except Exception as e:
+        log(f"outro/end card skipped: {e}")
+    return output_mp4_path
+
+
+def _shift_inputs(graph: str, by: int) -> str:
+    """The audio graph is written with music=[0:a], sfx=[1:a], voices=[2..]; the real command has
+    the video as input 0, so every [n:a] label moves up by `by`."""
+    return re.sub(r"\[(\d+):a\]", lambda m: f"[{int(m.group(1)) + by}:a]", graph)
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="Render a Hollywood-style multi-scene promo from a brief.")
+    ap.add_argument("brief", help="text file with the brief / shot list, or the brief itself")
+    ap.add_argument("--out", default="hollywood_promo.mp4")
+    a = ap.parse_args()
+    text = open(a.brief, encoding="utf-8").read() if os.path.exists(a.brief) else a.brief
+    si = {}
+    asyncio.run(render_hollywood_video(text, a.out, script_info=si))
+    print(json.dumps(si, indent=2))

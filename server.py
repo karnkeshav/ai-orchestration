@@ -4057,9 +4057,81 @@ def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = Non
     ]) or bool(image_data)
 
 _VIDEO_KEYWORDS = ("pixar", "story", "brother", "video", "disney", "cartoon")
+_PIXAR_STORY_KEYWORDS = ("pixar", "disney", "cartoon", "story", "brother")
 
 def is_video_mission_query(prompt_lower: str) -> bool:
     return any(k in prompt_lower for k in _VIDEO_KEYWORDS)
+
+def is_hollywood_video_brief(prompt_lower: str) -> bool:
+    """A video / trailer / reel brief that is not a Pixar-style story (e.g. a Hollywood promo
+    with a shot list). These get the multi-scene engine; the Pixar engine only makes a
+    single-image story video."""
+    return bool(_MEDIA_BRIEF_RE.search(prompt_lower)) and not any(k in prompt_lower for k in _PIXAR_STORY_KEYWORDS)
+
+AGY_IMAGES_PER_TURN = int(os.environ.get("AGY_IMAGES_PER_TURN", 6))  # ~13 s per image in agy
+
+async def _agy_generate_images(task_id: str, jobs: list):
+    """Ask the Studio's agy to generate the scene images (its built-in image model, as for the
+    Fabric video), a few per turn to stay inside agy's 5-minute turn limit. Writes each image to
+    job["path"]; the engine replaces any missing file with a designed backdrop."""
+    for start in range(0, len(jobs), AGY_IMAGES_PER_TURN):
+        batch = [j for j in jobs[start:start + AGY_IMAGES_PER_TURN] if not os.path.exists(j["path"])]
+        if not batch:
+            continue
+        w, h = batch[0]["size"]
+        shape = "16:9 landscape" if w > h else "9:16 vertical"
+        lines = "\n".join(f'{n + 1}. Save to {_agy_path(j["path"])}\n   Image: {j["prompt"]}'
+                          for n, j in enumerate(batch))
+        prompt = (
+            f"Generate {len(batch)} separate images with your image generation tool, one per item below. "
+            f"Each must be a photorealistic cinematic film still in {shape} format with no text, letters "
+            "or logos. Save each image as a PNG file at exactly the path given (create folders if "
+            "needed, convert the format if your tool saves elsewhere). Do not do anything else. "
+            "When finished, reply with the list of saved paths.\n\n" + lines)
+        tasks[task_id]["logs"].append(
+            f"[00:02] ?? Antigravity generating scene images {start + 1}-{start + len(batch)} of {len(jobs)}...")
+        try:
+            await _agy_session.run_turn(prompt, task_id)
+        except Exception as e:
+            tasks[task_id]["logs"].append(f"[00:02] ?? Image batch failed ({str(e)[:120]}); those scenes use designed backdrops.")
+        made = sum(os.path.exists(j["path"]) for j in batch)
+        tasks[task_id]["logs"].append(f"[00:02] ??? {made}/{len(batch)} images saved in this batch")
+
+async def run_hollywood_video_mission(task_id: str, prompt: str):
+    """Hollywood-style multi-scene promo (hollywood_video_engine.py): shot list or Gemini scene
+    plan, one agy-generated image per scene, camera moves, transitions, trailer voiceover,
+    music + SFX, then the studio outro and end card for the video's shape."""
+    from hollywood_video_engine import render_hollywood_video
+    out_name = "Studio_Hollywood_Video.mp4"
+    target_video = os.path.join(base_dir, out_name)
+    script_info, music_info = {}, {}
+    log = lambda m: tasks[task_id]["logs"].append(f"[00:0X] ?? {m}")
+    tasks[task_id]["logs"].append("[00:01] ?? Hollywood video brief recognised: planning scenes...")
+    try:
+        await render_hollywood_video(prompt, target_video, script_info=script_info, music_info=music_info,
+                                     on_log=log, image_generator=lambda jobs: _agy_generate_images(task_id, jobs))
+    except Exception as e:
+        tasks[task_id]["logs"].append(f"[00:0X] ?? Hollywood renderer failed: {str(e)[:300]}")
+        tasks[task_id]["answer"] = f"?? The video could not be rendered ({str(e)[:200]}). Nothing was published."
+        tasks[task_id]["deliverable"] = None
+        tasks[task_id]["status"] = "COMPLETED"
+        return
+    vw, vh = script_info.get("size", (1920, 1080))
+    shape = "9:16 reel" if vh > vw else "16:9"
+    plan = {"shot list": "your shot list", "gemini": "Gemini scene plan", "template": "built-in template"}
+    tasks[task_id]["answer"] = (
+        "? **Hollywood-style Video Rendered!**\n\n"
+        f"? **Scenes:** {script_info.get('scenes')} (from {plan.get(script_info.get('plan_source'), 'plan')}), "
+        f"{script_info.get('ai_images', 0)} AI-generated images\n"
+        f"? **Main film:** {script_info.get('main_seconds')} s, {shape} ({vw}x{vh})\n"
+        "? **Camera & edit:** a camera move per scene, trailer transitions, act tags, title cards, burned-in subtitles\n"
+        f"? **Sound:** trailer voiceover, {music_info.get('mood', 'cinematic')} music ducked under the voice, whoosh/boom effects\n"
+        + ("? **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
+        + ("? **End card:** Follow / Like / Subscribe + WhatsApp community card\n" if script_info.get("endcard") else "")
+        + (f"? **Music credit:** {music_info['credit']}\n" if music_info.get("credit") else ""))
+    tasks[task_id]["deliverable"] = {"type": "video", "title": f"?? Hollywood-style Video ({shape})",
+                                     "url": f"./{out_name}?v={task_id}"}
+    tasks[task_id]["status"] = "COMPLETED"
 
 _RIDE_PROVIDER_KEYWORDS = ("ola", "uber", "rapido")
 _RIDE_INTENT_KEYWORDS = ("fare", "fares", "cab", "cabs", "ride", "compare", "cheaper", "cheapest", "book")
@@ -5386,6 +5458,11 @@ async def _run_pipeline_tiers(
     # would be sent to agy as a raw mutation.
     if not image_data and _is_iac_request(prompt_lower):
         await run_iac_pipeline(task_id, prompt, github_user=github_user, github_token=github_token)
+        return
+    # Hollywood / promo / trailer video briefs get the multi-scene engine, not the single-image
+    # Pixar engine and not the create/delete path.
+    if not image_data and is_hollywood_video_brief(prompt_lower):
+        await run_hollywood_video_mission(task_id, prompt)
         return
     # Mutation-shaped requests skip every keyword fast-path and go straight
     # to agy -- see is_mutation_request's docstring/comment for why. If agy

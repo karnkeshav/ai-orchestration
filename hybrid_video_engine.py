@@ -212,6 +212,17 @@ def _render_vertical_frame(output_png_path, title, subtitle, character_name, sce
 
 VIDEO_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080)}
 
+_LANDSCAPE_RE = re.compile(r"16\s*[:x/]\s*9|1920\s*x\s*1080|\b(?:landscape|widescreen|youtube video|horizontal)\b", re.IGNORECASE)
+_VERTICAL_RE = re.compile(r"9\s*[:x/]\s*16|1080\s*x\s*1920|\b(?:vertical|portrait|reels?|shorts|instagram)\b", re.IGNORECASE)
+
+def aspect_from_prompt(prompt: str):
+    """'16:9' / '9:16' from the first shape the prompt names (a brief states the video's own
+    format before mentioning e.g. a 9:16 outro), else None (use the default)."""
+    land, vert = _LANDSCAPE_RE.search(prompt or ""), _VERTICAL_RE.search(prompt or "")
+    if land and (not vert or land.start() < vert.start()):
+        return "16:9"
+    return "9:16" if vert else None
+
 GEMINI_SCRIPT_MODELS = os.environ.get(
     "GEMINI_SCRIPT_MODELS", "gemini-3.6-flash,gemini-flash-lite-latest,gemini-2.5-flash").split(",")
 MOOD_PALETTES = {"tech": "disney_magical", "mystery": "disney_magical", "inspiring": "disney_magical",
@@ -349,7 +360,7 @@ async def render_hybrid_video(
     `aspect` is "9:16" (reel, default via STUDIO_VIDEO_ASPECT) or "16:9"; the outro and end
     card are picked to match. If `music_info` / `script_info` are dicts they are filled with
     the soundtrack details (mood, source, credit) and the narration (title, narration, source)."""
-    aspect = aspect or os.environ.get("STUDIO_VIDEO_ASPECT", "9:16")
+    aspect = aspect or aspect_from_prompt(story_prompt) or os.environ.get("STUDIO_VIDEO_ASPECT", "9:16")
     width, height = VIDEO_SIZES.get(aspect, VIDEO_SIZES["9:16"])
     from music_engine import build_soundtrack, detect_mood, mix_filter
     work_dir = os.path.dirname(os.path.abspath(output_mp4_path))
