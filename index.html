@@ -4373,6 +4373,8 @@
       const grid = document.getElementById('cardsGrid');
       grid.innerHTML = '';
 
+      const caps = currentRegion === 'latam' ? { ...capabilities, ...capabilitiesLatam } : capabilities;
+
       let toShow = [];
       if (category === 'all') {
         Object.values(caps).forEach(arr => toShow.push(...arr));
@@ -4430,8 +4432,6 @@
       if (answerContent) answerContent.innerHTML = '';
       const technicalLogs = document.getElementById('technicalLogs');
       if (technicalLogs) technicalLogs.innerHTML = '';
-
-      const caps = currentRegion === 'latam' ? { ...capabilities, ...capabilitiesLatam } : capabilities;
 
       // 4. Invalidate running polling and simulation loops
       activePollToken = null;
