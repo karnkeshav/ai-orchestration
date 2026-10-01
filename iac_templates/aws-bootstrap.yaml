@@ -8,6 +8,12 @@ Parameters:
   GitHubOwner:
     Type: String
     Default: karnkeshav
+  GitHubOwnerId:
+    Type: String
+    Default: "160194487"
+    Description: >-
+      Numeric GitHub user ID. GitHub can send the OIDC subject with immutable IDs
+      (repo:<owner>@<owner_id>/<repo>@<repo_id>:...), so both formats are trusted.
   RepoPrefix:
     Type: String
     Default: iac-
@@ -64,7 +70,9 @@ Resources:
               StringEquals:
                 token.actions.githubusercontent.com:aud: sts.amazonaws.com
               StringLike:
-                token.actions.githubusercontent.com:sub: !Sub repo:${GitHubOwner}/${RepoPrefix}*:*
+                token.actions.githubusercontent.com:sub:
+                  - !Sub repo:${GitHubOwner}/${RepoPrefix}*:*
+                  - !Sub repo:${GitHubOwner}@${GitHubOwnerId}/${RepoPrefix}*:*
       Policies:
         - PolicyName: terraform-demo-guardrails
           PolicyDocument:
