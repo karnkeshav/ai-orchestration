@@ -310,6 +310,163 @@ def fallback_scene_image(dest: str, size, idx: int, title: str):
     img.save(dest, "JPEG", quality=92)
 
 
+def variant_image(src: str, dest: str, size, seed: int):
+    """A scene without its own image reuses a real one: a different crop, mirrored sometimes, and a
+    colour tint, so it reads as another angle of the same world rather than a repeat."""
+    W, H = size
+    rnd = random.Random(seed)
+    img = Image.open(src).convert("RGB")
+    scale = max(W / img.width, H / img.height)
+    img = img.resize((int(img.width * scale) + 1, int(img.height * scale) + 1), Image.LANCZOS)
+    f = rnd.uniform(0.62, 0.78)
+    cw, ch = int(img.width * f), int(img.height * f)
+    x, y = rnd.randint(0, img.width - cw), rnd.randint(0, img.height - ch)
+    img = img.crop((x, y, x + cw, y + ch)).resize((W, H), Image.LANCZOS)
+    if rnd.random() < 0.5:
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    tint = Image.new("RGB", (W, H), rnd.choice([(0, 150, 200), (120, 60, 200), (220, 120, 40)]))
+    Image.blend(img, tint, 0.16).save(dest, "JPEG", quality=93)
+
+
+ROOT = os.path.dirname(os.path.abspath(__file__))
+PRODUCT_UI = os.environ.get("STUDIO_PRODUCT_UI", os.path.join(ROOT, "assets", "studio_ui.png"))
+_UI_SCENE_RE = re.compile(r"prompt box|prompt bar|types itself|typing|types in|studio (?:ui|interface|screen|home)", re.I)
+REGULAR_FONTS = [r"C:\Windows\Fonts\segoeui.ttf", r"C:\Windows\Fonts\arial.ttf",
+                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                 "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"]
+
+
+def _regular_font(size: int):
+    from PIL import ImageFont
+    for p in REGULAR_FONTS:
+        if os.path.exists(p):
+            return ImageFont.truetype(p, size)
+    return ImageFont.load_default(size=size)
+
+
+def mark_ui_scene(scenes):
+    """The first scene about the prompt box shows the real Studio UI with the prompt typing in."""
+    if not os.path.exists(PRODUCT_UI):
+        return
+    for s in scenes:
+        if _UI_SCENE_RE.search(f"{s.get('visual', '')} {s.get('camera', '')}"):
+            quotes = sorted(_quoted(s.get("visual", "")), key=len, reverse=True)
+            s["ui"] = True
+            s["typed"] = quotes[0] if quotes and len(quotes[0].split()) >= 4 else ""
+            return
+
+
+def render_ui_clip(dest: str, size, dur: float, typed: str, overlay_png: str):
+    """Real Studio screenshot: the camera pushes in on the prompt box while the prompt types itself,
+    then the Execute button pulses. Frames are drawn with PIL and piped to ffmpeg."""
+    W, H = size
+    ui = Image.open(PRODUCT_UI).convert("RGB")
+    cfg_path = os.path.splitext(PRODUCT_UI)[0] + ".json"
+    cfg = json.load(open(cfg_path, encoding="utf-8")) if os.path.exists(cfg_path) else {}
+    if typed and cfg.get("text_box"):  # clear the prompt that is in the screenshot
+        ImageDraw.Draw(ui).rectangle(cfg["text_box"], fill=tuple(cfg.get("fill_color", (19, 29, 53))))
+    if W > H:  # cover the frame
+        s = max(W / ui.width, H / ui.height)
+        canvas = ui.resize((int(ui.width * s), int(ui.height * s)), Image.LANCZOS)
+        ox, oy = (canvas.width - W) // 2, (canvas.height - H) // 2
+        canvas = canvas.crop((ox, oy, ox + W, oy + H))
+        ox, oy = -ox, -oy
+    else:  # fit the width over a blurred copy
+        s = W / ui.width
+        fg = ui.resize((W, int(ui.height * s)), Image.LANCZOS)
+        bs = H / ui.height
+        canvas = ui.resize((int(ui.width * bs), H)).crop((0, 0, W, H)).filter(ImageFilter.GaussianBlur(30))
+        ox, oy = 0, (H - fg.height) // 2
+        canvas.paste(fg, (ox, oy))
+    P = lambda x, y: (ox + x * s, oy + y * s)
+    tb = cfg.get("text_box", [ui.width * 0.3, ui.height * 0.33, ui.width * 0.83, ui.height * 0.37])
+    tx, ty = P(*cfg.get("text_origin", tb[:2]))
+    font = _regular_font(max(12, int(cfg.get("font_px", 17) * s)))
+    color = tuple(cfg.get("text_color", (235, 240, 255)))
+    btn = cfg.get("button")
+    focus = P((tb[0] + tb[2]) / 2, (tb[1] + (btn[3] if btn else tb[3])) / 2)
+
+    N = max(int(round(dur * FPS)), 2)
+    proc = subprocess.Popen(
+        [FFMPEG_EXE, "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-",
+         "-loop", "1", "-framerate", str(FPS), "-t", f"{dur:.3f}", "-i", overlay_png,
+         "-filter_complex", "[1:v]format=rgba,fade=t=in:st=0.25:d=0.45:alpha=1[ov];[0:v][ov]overlay=0:0:shortest=1,format=yuv420p[v]",
+         "-map", "[v]", "-frames:v", str(N), "-c:v", "libx264", "-preset", "veryfast", "-crf", "19",
+         "-pix_fmt", "yuv420p", dest], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    try:
+        for f in range(N):
+            p = f / (N - 1)
+            frame = canvas.copy()
+            d = ImageDraw.Draw(frame)
+            n = int(len(typed) * min(1.0, p / 0.7))
+            shown = typed[:n]
+            d.text((tx, ty), shown, font=font, fill=color)
+            if p < 0.8 and int(f / (FPS * 0.5)) % 2 == 0:  # blinking cursor
+                cx = tx + d.textlength(shown, font=font) + 2
+                d.line([(cx, ty), (cx, ty + font.size * 1.15)], fill=color, width=max(2, font.size // 10))
+            if btn and p > 0.78:  # Execute pulse
+                k = (p - 0.78) / 0.22
+                x0, y0 = P(btn[0], btn[1])
+                x1, y1 = P(btn[2], btn[3])
+                g = int(18 * s * k)
+                d.rounded_rectangle([x0 - g, y0 - g, x1 + g, y1 + g], radius=int(14 * s),
+                                    outline=(120, 220, 255), width=max(2, int(4 * s * (1 - k) + 1)))
+            e = 0.5 - 0.5 * np.cos(np.pi * p)  # ease in-out push toward the prompt box
+            z = 1.0 + 0.45 * e
+            cx, cy = W / 2 + (focus[0] - W / 2) * e, H / 2 + (focus[1] - H / 2) * e
+            cw, ch = W / z, H / z
+            x0 = min(max(cx - cw / 2, 0), W - cw)
+            y0 = min(max(cy - ch / 2, 0), H - ch)
+            frame = frame.crop((int(x0), int(y0), int(x0 + cw), int(y0 + ch))).resize((W, H), Image.BILINEAR)
+            proc.stdin.write(frame.tobytes())
+        proc.stdin.close()
+        err = proc.stderr.read().decode("utf-8", "replace")
+        if proc.wait() != 0:
+            raise RuntimeError(err[-600:])
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+
+
+def step_lines(scene: dict):
+    """Montage narration like 'It writes the Terraform. Builds the repo.' -> animated step list."""
+    if scene.get("title_text") or scene.get("ui"):
+        return []
+    parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", scene.get("narration", "")) if p.strip()]
+    return parts if 2 <= len(parts) <= 5 and all(len(p) <= 60 for p in parts) else []
+
+
+def _step_layers(work: str, i: int, size, steps, voice_len: float):
+    """One transparent PNG per step (dark pill, green tick, text) and the second it appears."""
+    from thumbnail_engine import _font
+    W, H = size
+    f = _font(int(min(W, H) * (0.048 if W > H else 0.04)))
+    lh = int(f.size * 1.75)
+    y0 = H // 2 - (lh * len(steps)) // 2
+    x0 = int(W * 0.08)
+    total_chars = sum(len(s) for s in steps) or 1
+    paths, at, acc = [], [], 0
+    for k, text in enumerate(steps):
+        img = Image.new("RGBA", size, (0, 0, 0, 0))
+        d = ImageDraw.Draw(img)
+        y = y0 + k * lh
+        tw = d.textlength(text, font=f)
+        d.rounded_rectangle([x0 - 20, y - 14, x0 + f.size * 1.6 + tw + 30, y + f.size + 20],
+                            radius=18, fill=(5, 12, 30, 190), outline=(0, 225, 255, 160), width=2)
+        r = f.size // 2
+        cx, cy = x0 + r, y + f.size // 2 + 3
+        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(30, 200, 110, 255))
+        d.line([(cx - r * 0.5, cy), (cx - r * 0.1, cy + r * 0.45), (cx + r * 0.55, cy - r * 0.45)],
+               fill=(255, 255, 255, 255), width=max(3, r // 4))
+        d.text((x0 + f.size * 1.4, y), text, font=f, fill=(255, 255, 255, 255))
+        p = os.path.join(work, f"step_{i:02d}_{k}.png")
+        img.save(p)
+        paths.append(p)
+        at.append(0.3 + voice_len * acc / total_chars)
+        acc += len(text)
+    return paths, at
+
+
 def _camera_kind(text: str, idx: int) -> str:
     t = (text or "").lower()
     for kind, words in (("crash", ("crash",)), ("dutch", ("dutch", "tilted", "handheld")),
@@ -358,8 +515,10 @@ def _transition(text: str) -> tuple:
     return "fade", 0.5
 
 
-def _overlay_png(dest: str, size, scene: dict, cinematic: bool):
-    """Letterbox, act tag, title card and subtitle on a transparent layer (kept steady over the move)."""
+def _overlay_png(dest: str, size, scene: dict, cinematic: bool, title_low: bool = False,
+                 subtitle: bool = True):
+    """Letterbox, act tag, title card and subtitle on a transparent layer (kept steady over the move).
+    `title_low` puts the title card in the lower third (keeps the Studio UI visible)."""
     from thumbnail_engine import _font, _latin, _wrap
     W, H = size
     img = Image.new("RGBA", size, (0, 0, 0, 0))
@@ -387,6 +546,10 @@ def _overlay_png(dest: str, size, scene: dict, cinematic: bool):
                 break
             size_px = int(size_px * 0.88)
         y = H // 2 - (len(lines) * int(size_px * 1.1)) // 2
+        if title_low:
+            size_px = int(size_px * 0.8)
+            tf = _font(size_px)
+            y = H - (bar or int(H * 0.06)) - int(H * 0.09) - len(lines[:3]) * int(size_px * 1.1)
         for line in lines[:3]:
             d.text((W // 2, y), line, font=tf, anchor="ma", fill=(255, 255, 255, 255),
                    stroke_width=max(3, size_px // 16), stroke_fill=(0, 0, 0, 230))
@@ -395,7 +558,7 @@ def _overlay_png(dest: str, size, scene: dict, cinematic: bool):
             sf = _font(int(size_px * 0.42))
             d.text((W // 2, y + int(size_px * 0.2)), scene["small_text"], font=sf, anchor="ma",
                    fill=(255, 215, 90, 255), stroke_width=3, stroke_fill=(0, 0, 0, 230))
-    sub = (scene.get("narration") or "").strip()
+    sub = (scene.get("narration") or "").strip() if subtitle else ""
     if sub and _latin(sub):
         sf = _font(int(min(W, H) * (0.034 if W > H else 0.036)))
         lines = _wrap(d, sub, sf, int(W * 0.88))[:2]
@@ -498,16 +661,19 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
     if not scenes:
         scenes, source = template_scene_plan(prompt, target), "template"
     style = style or DEFAULT_STYLE
-    log(f"Scene plan: {len(scenes)} scenes from {source}, {aspect} {W}x{H}, target {target:.0f} s")
+    mark_ui_scene(scenes)
+    log(f"Scene plan: {len(scenes)} scenes from {source}, {aspect} {W}x{H}, target {target:.0f} s"
+        + (" (prompt-box scene uses the real Studio UI)" if any(s.get("ui") for s in scenes) else ""))
 
     work = tempfile.mkdtemp(prefix="hollywood_")
     try:
-        # 1. One image per scene. The caller's image generator (the Studio passes agy) writes the
-        #    files; Pollinations only if STUDIO_IMAGE_PROVIDER=pollinations (free tier is slow and
-        #    watermarked); any scene still without a valid image gets a designed backdrop.
+        # 1. One image per scene (not for the Studio UI scene). The caller's image generator (the
+        #    Studio passes agy) writes the files; Pollinations only if STUDIO_IMAGE_PROVIDER=pollinations
+        #    (free tier is slow and watermarked). A scene still without an image reuses the nearest
+        #    real image as a new angle; the designed backdrop is the last resort.
         jobs = [{"index": i, "path": os.path.join(work, f"gen_{i:02d}.png"), "size": (W, H),
                  "prompt": f"{s['visual']}. {style}. No text, no letters, no logos, no watermark."}
-                for i, s in enumerate(scenes)]
+                for i, s in enumerate(scenes) if not s.get("ui")]
         if image_generator:
             try:
                 await image_generator(jobs)
@@ -516,16 +682,24 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
         elif os.environ.get("STUDIO_IMAGE_PROVIDER", "").lower() == "pollinations":
             for j in jobs:
                 fetch_scene_image(j["prompt"], (W, H), j["path"], seed=1000 + j["index"] * 17)
-        ai_ok = []
+        real, missing = [], []
         for j in jobs:
             dest = os.path.join(work, f"img_{j['index']:02d}.jpg")
             try:
                 Image.open(j["path"]).convert("RGB").save(dest, "JPEG", quality=94)
-                ai_ok.append(True)
+                real.append(j["index"])
             except Exception:
-                fallback_scene_image(dest, (W, H), j["index"], scenes[j["index"]].get("title_text", ""))
-                ai_ok.append(False)
-        log(f"Scene images: {sum(ai_ok)} AI-generated, {len(scenes) - sum(ai_ok)} designed fallback")
+                missing.append(j["index"])
+        for i in missing:
+            dest = os.path.join(work, f"img_{i:02d}.jpg")
+            if real:
+                src = min(real, key=lambda r: (abs(r - i), r > i))  # nearest, earlier one on ties
+                variant_image(os.path.join(work, f"img_{src:02d}.jpg"), dest, (W, H), seed=i)
+            else:
+                fallback_scene_image(dest, (W, H), i, scenes[i].get("title_text", ""))
+        ai_ok = [True] * len(real)
+        log(f"Scene images: {len(real)} AI-generated, {len(missing)} reused as new angles"
+            + (" (no AI images: designed backdrops)" if missing and not real else ""))
 
         # 2. Voiceover per scene at a natural pace (the target length is a guide, running longer is
         #    fine); only a script far over the target gets a slight speed-up.
@@ -543,33 +717,49 @@ async def render_hollywood_video(prompt: str, output_mp4_path: str, script_info:
 
         # 3. Scene lengths: the shot's own timing, never shorter than its voice line; padded up to
         #    the target when the script is short.
-        trans = [_transition(s.get("transition", "")) for s in scenes]
+        # A zoom out of the Studio UI scene would zoom into the empty prompt box: fade instead.
+        trans = [("fade", 0.4) if s.get("ui") else _transition(s.get("transition", "")) for s in scenes]
         durs = [max(s.get("dur") or 0, voice_len.get(i, 0) + 0.45 + (0.3 if i else 0), 1.8)
                 for i, s in enumerate(scenes)]
         total = sum(durs) - sum(t[1] for t in trans[:-1])
         if total < target:
             durs = [d + (target - total) * d / sum(durs) for d in durs]
 
-        # 4. Render each scene: camera move on the image + steady text layer.
+        # 4. Render each scene: the Studio UI scene types its prompt; the others get a camera move on
+        #    the image, a steady text layer and, for montage lines, an animated step list.
         clip_paths = []
         for i, s in enumerate(scenes):
             frames = int(round(durs[i] * FPS))
+            clip = os.path.join(work, f"clip_{i:02d}.mp4")
+            ov = os.path.join(work, f"ov_{i:02d}.png")
+            if s.get("ui"):
+                _overlay_png(ov, (W, H), s, cinematic=True, title_low=True)
+                render_ui_clip(clip, (W, H), durs[i], s.get("typed", ""), ov)
+                clip_paths.append(clip)
+                log(f"Scene {i + 1}/{len(scenes)} rendered (Studio UI, prompt typing, {durs[i]:.1f} s)")
+                continue
+            steps = step_lines(s)
             img = os.path.join(work, f"img_{i:02d}.jpg")
             big = os.path.join(work, f"big_{i:02d}.jpg")
             Image.open(img).convert("RGB").resize((int(W * 1.5), int(H * 1.5)), Image.LANCZOS).save(big, quality=93)
-            ov = os.path.join(work, f"ov_{i:02d}.png")
-            _overlay_png(ov, (W, H), s, cinematic=True)
+            _overlay_png(ov, (W, H), s, cinematic=True, subtitle=not steps)
             kind = _camera_kind(s.get("camera", ""), i)
-            clip = os.path.join(work, f"clip_{i:02d}.mp4")
+            inputs = ["-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", big,
+                      "-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", ov]
             graph = (f"[0:v]{_zoompan(kind, frames, W, H)},eq=contrast=1.06:saturation=1.08,format=yuv420p[bg];"
                      f"[1:v]format=rgba,fade=t=in:st=0.25:d=0.45:alpha=1[ov];"
-                     f"[bg][ov]overlay=0:0:shortest=1,format=yuv420p[v]")
-            _run([FFMPEG_EXE, "-y", "-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", big,
-                  "-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", ov,
-                  "-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames), "-r", str(FPS),
+                     f"[bg][ov]overlay=0:0:shortest=1[t0];")
+            layers, at = _step_layers(work, i, (W, H), steps, voice_len.get(i, durs[i] - 0.6)) if steps else ([], [])
+            for k, (p, t0) in enumerate(zip(layers, at)):
+                inputs += ["-loop", "1", "-framerate", str(FPS), "-t", f"{durs[i]:.3f}", "-i", p]
+                graph += (f"[{k + 2}:v]format=rgba,fade=t=in:st={t0:.2f}:d=0.3:alpha=1[s{k}];"
+                          f"[t{k}][s{k}]overlay=0:0:shortest=1[t{k + 1}];")
+            graph += f"[t{len(layers)}]format=yuv420p[v]"
+            _run([FFMPEG_EXE, "-y"] + inputs +
+                 ["-filter_complex", graph, "-map", "[v]", "-frames:v", str(frames), "-r", str(FPS),
                   "-c:v", "libx264", "-preset", "veryfast", "-crf", "19", "-pix_fmt", "yuv420p", clip])
             clip_paths.append(clip)
-            log(f"Scene {i + 1}/{len(scenes)} rendered ({kind}, {durs[i]:.1f} s)")
+            log(f"Scene {i + 1}/{len(scenes)} rendered ({kind}{', step list' if steps else ''}, {durs[i]:.1f} s)")
 
         # 5. Join with transitions; work out where each scene starts on the final timeline.
         starts, t = [0.0], durs[0]

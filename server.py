@@ -4068,16 +4068,30 @@ def is_hollywood_video_brief(prompt_lower: str) -> bool:
     single-image story video."""
     return bool(_MEDIA_BRIEF_RE.search(prompt_lower)) and not any(k in prompt_lower for k in _PIXAR_STORY_KEYWORDS)
 
-AGY_IMAGES_PER_TURN = int(os.environ.get("AGY_IMAGES_PER_TURN", 6))  # ~13 s per image in agy
+AGY_IMAGES_PER_TURN = int(os.environ.get("AGY_IMAGES_PER_TURN", 3))  # small turns: a hang loses less
+AGY_IMAGE_BUDGET_SECONDS = int(os.environ.get("AGY_IMAGE_BUDGET_SECONDS", 12 * 60))
 
 async def _agy_generate_images(task_id: str, jobs: list):
     """Ask the Studio's agy to generate the scene images (its built-in image model, as for the
-    Fabric video), a few per turn to stay inside agy's 5-minute turn limit. Writes each image to
-    job["path"]; the engine replaces any missing file with a designed backdrop."""
-    for start in range(0, len(jobs), AGY_IMAGES_PER_TURN):
-        batch = [j for j in jobs[start:start + AGY_IMAGES_PER_TURN] if not os.path.exists(j["path"])]
-        if not batch:
-            continue
+    Fabric video), a few per turn, then one retry pass for scenes still missing while the time
+    budget allows. The engine turns any scene still missing into a new angle of a real image."""
+    started = time.monotonic()
+    for attempt in range(2):
+        todo = [j for j in jobs if not os.path.exists(j["path"])]
+        if not todo:
+            return
+        if attempt:
+            tasks[task_id]["logs"].append(f"[00:02] 🔁 Retrying {len(todo)} missing scene image(s)...")
+        for start in range(0, len(todo), AGY_IMAGES_PER_TURN):
+            if time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
+                tasks[task_id]["logs"].append("[00:02] ⏱️ Image time budget used up; remaining scenes reuse real images.")
+                return
+            batch = [j for j in todo[start:start + AGY_IMAGES_PER_TURN] if not os.path.exists(j["path"])]
+            if batch:
+                await _agy_image_batch(task_id, batch, len(jobs))
+
+async def _agy_image_batch(task_id: str, batch: list, total: int):
+    if batch:
         w, h = batch[0]["size"]
         shape = "16:9 landscape" if w > h else "9:16 vertical"
         lines = "\n".join(f'{n + 1}. Save to {_agy_path(j["path"])}\n   Image: {j["prompt"]}'
@@ -4088,14 +4102,14 @@ async def _agy_generate_images(task_id: str, jobs: list):
             "or logos. Save each image as a PNG file at exactly the path given (create folders if "
             "needed, convert the format if your tool saves elsewhere). Do not do anything else. "
             "When finished, reply with the list of saved paths.\n\n" + lines)
-        tasks[task_id]["logs"].append(
-            f"[00:02] ?? Antigravity generating scene images {start + 1}-{start + len(batch)} of {len(jobs)}...")
+        scenes = ", ".join(str(j["index"] + 1) for j in batch)
+        tasks[task_id]["logs"].append(f"[00:02] 🎨 Antigravity generating images for scenes {scenes} (of {total})...")
         try:
             await _agy_session.run_turn(prompt, task_id)
         except Exception as e:
-            tasks[task_id]["logs"].append(f"[00:02] ?? Image batch failed ({str(e)[:120]}); those scenes use designed backdrops.")
+            tasks[task_id]["logs"].append(f"[00:02] ⚠️ Image batch failed ({str(e)[:120]}).")
         made = sum(os.path.exists(j["path"]) for j in batch)
-        tasks[task_id]["logs"].append(f"[00:02] ??? {made}/{len(batch)} images saved in this batch")
+        tasks[task_id]["logs"].append(f"[00:02] 🖼️ {made}/{len(batch)} images saved in this batch")
 
 async def run_hollywood_video_mission(task_id: str, prompt: str):
     """Hollywood-style multi-scene promo (hollywood_video_engine.py): shot list or Gemini scene
@@ -4105,14 +4119,14 @@ async def run_hollywood_video_mission(task_id: str, prompt: str):
     out_name = "Studio_Hollywood_Video.mp4"
     target_video = os.path.join(base_dir, out_name)
     script_info, music_info = {}, {}
-    log = lambda m: tasks[task_id]["logs"].append(f"[00:0X] ?? {m}")
-    tasks[task_id]["logs"].append("[00:01] ?? Hollywood video brief recognised: planning scenes...")
+    log = lambda m: tasks[task_id]["logs"].append(f"[00:0X] 🎬 {m}")
+    tasks[task_id]["logs"].append("[00:01] 🎬 Hollywood video brief recognised: planning scenes...")
     try:
         await render_hollywood_video(prompt, target_video, script_info=script_info, music_info=music_info,
                                      on_log=log, image_generator=lambda jobs: _agy_generate_images(task_id, jobs))
     except Exception as e:
-        tasks[task_id]["logs"].append(f"[00:0X] ?? Hollywood renderer failed: {str(e)[:300]}")
-        tasks[task_id]["answer"] = f"?? The video could not be rendered ({str(e)[:200]}). Nothing was published."
+        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ Hollywood renderer failed: {str(e)[:300]}")
+        tasks[task_id]["answer"] = f"⚠️ The video could not be rendered ({str(e)[:200]}). Nothing was published."
         tasks[task_id]["deliverable"] = None
         tasks[task_id]["status"] = "COMPLETED"
         return
@@ -4120,16 +4134,16 @@ async def run_hollywood_video_mission(task_id: str, prompt: str):
     shape = "9:16 reel" if vh > vw else "16:9"
     plan = {"shot list": "your shot list", "gemini": "Gemini scene plan", "template": "built-in template"}
     tasks[task_id]["answer"] = (
-        "? **Hollywood-style Video Rendered!**\n\n"
-        f"? **Scenes:** {script_info.get('scenes')} (from {plan.get(script_info.get('plan_source'), 'plan')}), "
+        "✓ **Hollywood-style Video Rendered!**\n\n"
+        f"• **Scenes:** {script_info.get('scenes')} (from {plan.get(script_info.get('plan_source'), 'plan')}), "
         f"{script_info.get('ai_images', 0)} AI-generated images\n"
-        f"? **Main film:** {script_info.get('main_seconds')} s, {shape} ({vw}x{vh})\n"
-        "? **Camera & edit:** a camera move per scene, trailer transitions, act tags, title cards, burned-in subtitles\n"
-        f"? **Sound:** trailer voiceover, {music_info.get('mood', 'cinematic')} music ducked under the voice, whoosh/boom effects\n"
-        + ("? **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
-        + ("? **End card:** Follow / Like / Subscribe + WhatsApp community card\n" if script_info.get("endcard") else "")
-        + (f"? **Music credit:** {music_info['credit']}\n" if music_info.get("credit") else ""))
-    tasks[task_id]["deliverable"] = {"type": "video", "title": f"?? Hollywood-style Video ({shape})",
+        f"• **Main film:** {script_info.get('main_seconds')} s, {shape} ({vw}x{vh})\n"
+        "• **Camera & edit:** a camera move per scene, trailer transitions, act tags, title cards, burned-in subtitles\n"
+        f"• **Sound:** trailer voiceover, {music_info.get('mood', 'cinematic')} music ducked under the voice, whoosh/boom effects\n"
+        + ("• **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
+        + ("• **End card:** Follow / Like / Subscribe + WhatsApp community card\n" if script_info.get("endcard") else "")
+        + (f"• **Music credit:** {music_info['credit']}\n" if music_info.get("credit") else ""))
+    tasks[task_id]["deliverable"] = {"type": "video", "title": f"🎬 Hollywood-style Video ({shape})",
                                      "url": f"./{out_name}?v={task_id}"}
     tasks[task_id]["status"] = "COMPLETED"
 
@@ -5035,7 +5049,7 @@ class AgyWarmSession:
             async for raw in proc.stderr:
                 line = raw.decode("utf-8", errors="ignore").strip()
                 if line:
-                    print(f"[agy stderr] {line}")
+                    print(f"[agy stderr] {line}", flush=True)  # unflushed, it never reaches the journal
         except Exception:
             pass
 
