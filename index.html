@@ -5532,6 +5532,22 @@
               resultSection.style.display = "block";
               let renderedHtml = safeRenderAnswer(resPayload.answer);
 
+              // Video deliverables: player with the generated thumbnail as poster.
+              if (resPayload.deliverable && resPayload.deliverable.type === 'video' && resPayload.deliverable.url) {
+                const vd = resPayload.deliverable;
+                const abs = (u) => (u && u.startsWith('./')) ? (activeBackendUrl || '') + u.slice(1) : u;
+                const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+                const src = esc(abs(vd.url)), poster = vd.poster ? esc(abs(vd.poster)) : '';
+                renderedHtml += `
+                  <div style="margin-top: 1.2rem; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: #000;">
+                    <video controls preload="metadata" playsinline ${poster ? `poster="${poster}"` : ''} src="${src}" style="display: block; width: 100%; max-height: 520px; background: #000;"></video>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; padding: 0.7rem 1rem; background: rgba(255,255,255,0.04);">
+                      <a href="${src}" download class="btn-secondary" style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.84rem;">💾 Download Video</a>
+                      ${poster ? `<a href="${poster}" download class="btn-secondary" style="text-decoration: none; padding: 0.5rem 1rem; font-size: 0.84rem;">🖼️ Download Thumbnail</a>` : ''}
+                    </div>
+                  </div>`;
+              }
+
               if (resPayload.deliverable && resPayload.deliverable.html) {
                 const del = resPayload.deliverable;
                 window.lastGeneratedApp = del;

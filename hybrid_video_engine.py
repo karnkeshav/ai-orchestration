@@ -170,29 +170,40 @@ def _topic_from_prompt(prompt: str) -> str:
     topic = re.sub(r"\s+with\s+(hindi|english)\s+voice-?overs?$", "", topic, flags=re.IGNORECASE)
     return topic[:90] or "a new idea"
 
+# Offline puzzle hooks: (thumbnail question, answer) -- the narration asks it and reveals it last.
+_TEMPLATE_PUZZLES = {
+    "tech": ("Can AI fix it ALONE?", "No. The real magic is AI and people working together."),
+    "mystery": ("Who broke it? Can you guess?", "It was a single forgotten setting. One tiny change fixed everything."),
+    "emotional": ("Will they ever meet again?", "Yes. Distance changes places, never hearts."),
+    "inspiring": ("Can ONE step change everything?", "Yes. The first step is the one that changes everything."),
+}
+_DEFAULT_PUZZLE = ("What happens next? Can you guess?", "Every big change starts with one small step.")
+
 def _template_script(prompt: str, language: str, mood: str) -> dict:
-    """Offline fallback narration built from the prompt's topic."""
+    """Offline fallback narration built from the prompt's topic, with a puzzle hook."""
     topic = _topic_from_prompt(prompt)
+    question, answer = _TEMPLATE_PUZZLES.get(mood, _DEFAULT_PUZZLE)
     if language == "hi":
         # An English topic read by the Hindi voice sounds broken, so only Hindi topics are spoken.
         about = "" if topic.isascii() else f"आज की कहानी है {topic} की। "
         lines = {
-            "emotional": f"कुछ रिश्ते शब्दों से नहीं, दिल से बनते हैं। {about}देखिए, और उन लम्हों को याद कीजिए जो हमेशा साथ रहते हैं।",
-            "tech": f"सोचिए, अगर मशीनें भी हमारी टीम का हिस्सा हों! {about}स्मार्ट सोच, तेज़ काम, और एक नया भविष्य।",
+            "emotional": f"क्या वो फिर कभी मिलेंगे? {about}कुछ रिश्ते शब्दों से नहीं, दिल से बनते हैं। और जवाब है: हाँ, दूरियाँ जगह बदलती हैं, दिल नहीं।",
+            "tech": f"क्या AI अकेले यह कर सकता है? {about}स्मार्ट सोच, तेज़ काम। और जवाब है: नहीं, असली जादू इंसान और AI के साथ काम करने में है।",
         }
-        narration = lines.get(mood, f"आइए, एक छोटी सी कहानी देखते हैं। {about}हर बड़ा बदलाव एक छोटे कदम से शुरू होता है।")
+        narration = lines.get(mood, f"सोचिए, आगे क्या होगा? {about}हर बड़ा बदलाव एक छोटे कदम से शुरू होता है। और यही है जवाब।")
         subtitle = "Ek chhoti si kahani, ek bada sapna."
     else:
         lines = {
-            "tech": f"Picture this: {topic}. Smart tools, sharp minds, and one team that never stops learning. The future isn't coming, it's already here.",
-            "mystery": f"Something didn't add up. The clue? {topic}. One by one, the pieces fell into place, until the answer was clear.",
-            "emotional": f"Some moments stay with us forever. This is a story about {topic}, and the people who make life feel like home.",
-            "inspiring": f"Every big change starts with one brave step. This is a story about {topic}, and what happens when you decide to grow.",
+            "tech": f"{question} Picture this: {topic}. Smart tools, sharp minds, and one team that never stops learning. The answer? {answer}",
+            "mystery": f"{question} Something didn't add up: {topic}. One by one, the clues fell into place. The answer? {answer}",
+            "emotional": f"{question} This is a story about {topic}, and the people who make life feel like home. The answer? {answer}",
+            "inspiring": f"{question} This is a story about {topic}, and what happens when you decide to grow. The answer? {answer}",
         }
-        narration = lines.get(mood, f"Once upon a time, there was a story about {topic}. Let's see where it takes us!")
+        narration = lines.get(mood, f"{question} Here's a story about {topic}. The answer? {answer}")
         subtitle = topic[:70]
-    return {"title": topic[:1].upper() + topic[1:50],"narration": narration, "subtitle": subtitle,
-            "characters": "Chhotu & Didi" if language == "hi" else "Leo & Maya", "source": "template"}
+    return {"title": topic[:1].upper() + topic[1:50], "narration": narration, "subtitle": subtitle,
+            "characters": "Chhotu & Didi" if language == "hi" else "Leo & Maya",
+            "hook_question": question, "answer": answer, "source": "template"}
 
 def _gemini_script(prompt: str, language: str, mood: str):
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -203,12 +214,25 @@ def _gemini_script(prompt: str, language: str, mood: str):
     lang = ("Hindi in Devanagari script (simple spoken Hindi, English tech words are fine)"
             if language == "hi" else "English")
     instruction = (
-        "You write narration for a 10-15 second animated short video.\n"
+        "You write a short animated video built around a curiosity-gap puzzle: the thumbnail asks a "
+        "question or riddle, and viewers only learn the answer by watching to the end.\n"
         f"Video request: {prompt}\nMood: {mood}\n"
         "Return JSON with exactly these keys:\n"
-        '  "title": English title, max 45 characters\n'
-        f'  "narration": 25-40 words in {lang}, warm storyteller voice, no emojis, no hashtags\n'
-        '  "subtitle": one short on-screen line in Latin script (Hinglish if Hindi), max 70 characters\n'
+        "The puzzle MUST come from the real subject of the request: find the single most "
+        "curiosity-provoking question about that exact topic (a surprising fact, a 'how/why', a "
+        "'what happens when', or a guess-the-outcome). For IT, AI, cloud, data or career topics the "
+        "answer must be true and teach something real (e.g. a real cause, technique, number or "
+        "outcome). For personal or emotional stories the answer is the story's real turning point. "
+        "Never invent silly or unrelated twists.\n"
+        '  "hook_question": the thumbnail puzzle in English, max 55 characters, ends with "?", '
+        "names the topic, must NOT reveal or hint the answer\n"
+        '  "answer": the reveal in English, max 90 characters, directly answers hook_question\n'
+        '  "title": English title, max 45 characters, must not give away the answer\n'
+        f'  "spoken_question": exactly the hook_question, translated into {lang}\n'
+        f'  "story": 25-40 words in {lang}, warm storyteller voice, no emojis, no hashtags; builds '
+        "suspense toward the answer but must NOT state or hint it\n"
+        f'  "spoken_answer": one sentence in {lang} that reveals exactly the same answer as "answer"\n'
+        '  "subtitle": one short on-screen line in Latin script (Hinglish if Hindi), max 70 characters, no spoilers\n'
         '  "characters": names of 1-2 characters, Latin script, max 25 characters'
     )
     client = genai.Client(api_key=api_key)  # keep a reference: a temporary client is closed mid-request
@@ -218,7 +242,7 @@ def _gemini_script(prompt: str, language: str, mood: str):
         try:
             resp = client.models.generate_content(
                 model=model, contents=instruction,
-                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.9))
+                config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.7))
             break
         except Exception as e:
             if i == len(attempts) - 1 or not any(c in str(e) for c in ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED")):
@@ -231,10 +255,15 @@ def _gemini_script(prompt: str, language: str, mood: str):
     for k, v in list(data.items()):
         if isinstance(v, list):  # e.g. "characters": ["Byte", "Ravi"]
             data[k] = " & ".join(str(x.get("name", x)) if isinstance(x, dict) else str(x) for x in v)
-    if not all(isinstance(data.get(k), str) and data[k].strip() for k in ("title", "narration", "subtitle", "characters")):
+    if not all(isinstance(data.get(k), str) and data[k].strip()
+               for k in ("title", "subtitle", "characters", "hook_question", "answer",
+                         "spoken_question", "story", "spoken_answer")):
         return None
-    words = data["narration"].split()
-    data["narration"] = " ".join(words[:60])
+    # Assemble question -> story -> reveal ourselves so the spoken puzzle and answer always
+    # match the thumbnail.
+    story = " ".join(data["story"].split()[:55])
+    data["narration"] = f"{data['spoken_question'].strip()} {story} {data['spoken_answer'].strip()}"
+    data["hook_question"], data["answer"] = data["hook_question"][:70], data["answer"][:120]
     data["title"], data["subtitle"], data["characters"] = data["title"][:50], data["subtitle"][:80], data["characters"][:30]
     data["source"] = "gemini"
     return data
@@ -244,11 +273,11 @@ async def write_story_script(prompt: str, language: str, mood: str) -> dict:
     otherwise an offline template. Returns {title, narration, subtitle, characters, source}."""
     try:
         loop = asyncio.get_running_loop()
-        script = await asyncio.wait_for(loop.run_in_executor(None, _gemini_script, prompt, language, mood), 20)
+        script = await asyncio.wait_for(loop.run_in_executor(None, _gemini_script, prompt, language, mood), 35)
         if script:
             return script
     except Exception as e:
-        print(f"[hybrid_video_engine] Gemini script failed, using template: {e}")
+        print(f"[hybrid_video_engine] Gemini script failed, using template: {type(e).__name__} {e}")
     return _template_script(prompt, language, mood)
 
 async def render_hybrid_video(
@@ -329,7 +358,41 @@ async def render_hybrid_video(
     ]
     
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    
+
+    # 7. Studio outro clip (16:9 or 9:16 picked by the video's shape).
+    if os.environ.get("STUDIO_VIDEO_OUTRO", "1") != "0":
+        try:
+            from thumbnail_engine import append_outro
+            if append_outro(output_mp4_path, output_mp4_path) and script_info is not None:
+                script_info["outro"] = True
+        except Exception as e:
+            print(f"[hybrid_video_engine] outro skipped: {e}")
+
+    # 7b. Like / follow / share end card held on the last frames.
+    if os.environ.get("STUDIO_VIDEO_ENDCARD", "1") != "0":
+        try:
+            from thumbnail_engine import append_endcard
+            if append_endcard(output_mp4_path, output_mp4_path,
+                              seconds=float(os.environ.get("STUDIO_ENDCARD_SECONDS", "4"))) and script_info is not None:
+                script_info["endcard"] = True
+        except Exception as e:
+            print(f"[hybrid_video_engine] end card skipped: {e}")
+
+    # 8. Puzzle-hook thumbnail: saved as <video>_thumb.jpg, shown as the opening
+    #    frames and embedded as cover art. Any failure leaves the video as it is.
+    if os.environ.get("STUDIO_VIDEO_THUMBNAIL", "1") != "0":
+        try:
+            from thumbnail_engine import make_thumbnail, prepend_thumbnail
+            thumb_path = os.path.splitext(output_mp4_path)[0] + "_thumb.jpg"
+            make_thumbnail(script["title"], thumb_path, mood=mood, background=frame_path,
+                           question=script.get("hook_question"))
+            prepend_thumbnail(output_mp4_path, thumb_path, output_mp4_path,
+                              seconds=float(os.environ.get("STUDIO_THUMBNAIL_SECONDS", "1.5")))
+            if script_info is not None:
+                script_info["thumbnail"] = thumb_path
+        except Exception as e:
+            print(f"[hybrid_video_engine] thumbnail skipped: {e}")
+
     # Cleanup temp files
     for p in [frame_path, voice_path, music_path]:
         if os.path.exists(p):

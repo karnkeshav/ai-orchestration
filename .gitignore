@@ -25,6 +25,8 @@ venv/
 # Music engine tools (python setup_music_tools.py downloads them)
 tools/
 music_library/*/
+# Studio outro clips / end card (personal branding; deployed to the VM directly)
+assets/
 
 # Generated Power BI projects (downloaded per-request, not source)
 generated_dashboards/

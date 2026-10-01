@@ -4108,6 +4108,11 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
             "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
             "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + FFmpeg 2.5D Compositor)\n"
             f"• **Story:** {script_info.get('title', '')}: \"{script_info.get('narration', '')}\"\n"
+            + (f"• **Thumbnail puzzle:** {script_info['hook_question']} (answer revealed at the end)\n"
+               if script_info.get("hook_question") else "")
+            + ("• **Outro:** Studio presenter clip appended\n" if script_info.get("outro") else "")
+            + ("• **End card:** Like / Follow / Subscribe card on the last frames\n" if script_info.get("endcard") else "")
+            +
             f"• **Music:** {music_info.get('mood', 'default').title()} mood, {music_src}\n"
             "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
             "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
@@ -4117,8 +4122,10 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
         tasks[task_id]["deliverable"] = {
             "type": "video",
             "title": "🎬 3D Pixar Animated Story (Full HD 1080p)",
-            "url": "./Hybrid_Pixar_Demo_1080p.mp4"
+            "url": f"./Hybrid_Pixar_Demo_1080p.mp4?v={task_id}"
         }
+        if script_info.get("thumbnail"):
+            tasks[task_id]["deliverable"]["poster"] = f"./{os.path.basename(script_info['thumbnail'])}?v={task_id}"
     except Exception as vid_err:
         tasks[task_id]["logs"].append(f"[00:03] ⚠️ Local renderer fallback: {str(vid_err)}")
         tasks[task_id]["answer"] = "✓ 65-Second 3D Pixar Animated Hindi Story Video delivered successfully!"
