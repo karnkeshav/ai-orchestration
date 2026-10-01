@@ -22,6 +22,10 @@ venv/
 *.mkv
 *.avi
 
+# Music engine tools (python setup_music_tools.py downloads them)
+tools/
+music_library/*/
+
 # Generated Power BI projects (downloaded per-request, not source)
 generated_dashboards/
 generated_resumes/

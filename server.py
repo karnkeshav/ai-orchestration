@@ -4090,19 +4090,29 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
     try:
         from hybrid_video_engine import render_hybrid_video
         target_video = os.path.join(base_dir, "Hybrid_Pixar_Demo_1080p.mp4")
+        music_info, script_info = {}, {}
         await render_hybrid_video(
             story_prompt=prompt,
             output_mp4_path=target_video,
             character_name="Chhotu & Didi (3D Pixar)",
-            language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en"
+            language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en",
+            music_info=music_info,
+            script_info=script_info
         )
+        tasks[task_id]["logs"].append(f"[00:03] ✍️ Narration ({'Gemini' if script_info.get('source') == 'gemini' else 'template'}): {script_info.get('narration', '')[:160]}")
+        music_src = {"library": "royalty-free library track", "midi": "original score (FluidSynth + GeneralUser GS)",
+                     "synth": "original score (built-in synthesizer)"}.get(music_info.get("source"), "synthesized")
+        tasks[task_id]["logs"].append(f"[00:03] 🎵 Soundtrack: {music_info.get('mood', '?')} mood, {music_src}, ducked under voice, -14 LUFS master")
         tasks[task_id]["logs"].append("[00:04] 🎥 Full HD 1080p FFmpeg motion compositing & audio multiplexing complete!")
         tasks[task_id]["answer"] = (
             "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
-            "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + Synthetic Harmonics + FFmpeg 2.5D Compositor)\n"
+            "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + FFmpeg 2.5D Compositor)\n"
+            f"• **Story:** {script_info.get('title', '')}: \"{script_info.get('narration', '')}\"\n"
+            f"• **Music:** {music_info.get('mood', 'default').title()} mood, {music_src}\n"
             "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
             "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
             "• **Throughput:** Ready for 1,000+ videos/day automated batch pipeline."
+            + (f"\n• **Music credit:** {music_info['credit']}" if music_info.get("credit") else "")
         )
         tasks[task_id]["deliverable"] = {
             "type": "video",
