@@ -87,15 +87,20 @@ def _background_image(background, size):
 
 def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None,
                    background: str = None, size=(1920, 1080), brand: str = "AI ORCHESTRATION STUDIO",
-                   question: str = None) -> str:
+                   question: str = None, teaser: str = None) -> str:
     """With `question`, the thumbnail is a puzzle hook: the question is the headline, a giant
-    '?' fills the right side, and the hook line says the answer is at the end of the video."""
+    '?' fills the right side (the top on 9:16), `teaser` (a short no-spoiler line about the
+    story) is the hook line, and a bright chip says the answer is at the end of the video."""
     accent, top_c, bot_c, tag = MOOD_STYLE.get(mood, DEFAULT_STYLE)
     W, H = size
     vertical = H > W
+    cta = None
     if question and _latin(question):
         title, tag = question, "CAN YOU GUESS?"
-        hook = hook or "Watch till the end for the answer!"
+        if teaser and _latin(teaser):
+            hook, cta = teaser, "ANSWER AT THE END!"
+        else:
+            hook = hook or "Watch till the end for the answer!"
 
     # Backdrop: mood gradient, blended with the blurred scene if there is one.
     base = Image.new("RGB", size)
@@ -104,8 +109,9 @@ def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None
         r = y / H
         d.line([(0, y), (W, y)], fill=tuple(int(top_c[i] * (1 - r) + bot_c[i] * r) for i in range(3)))
     scene = _background_image(background, size)
-    if scene:
-        base = Image.blend(base, scene.filter(ImageFilter.GaussianBlur(W // 160)), 0.55)
+    if scene:  # lighter blur on reels so the scene reads as a teaser of the content
+        blur = W // 200 if vertical else W // 160
+        base = Image.blend(base, scene.filter(ImageFilter.GaussianBlur(blur)), 0.6 if vertical else 0.55)
 
     # Readability: darken the text side.
     shade = Image.new("L", size)
@@ -121,7 +127,7 @@ def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None
     # Glow orb in the accent colour.
     glow = Image.new("RGBA", size, (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    cx, cy, R = (int(W * 0.78), int(H * 0.38), int(min(W, H) * 0.34)) if not vertical else (W // 2, int(H * 0.25), int(W * 0.45))
+    cx, cy, R = (int(W * 0.78), int(H * 0.38), int(min(W, H) * 0.34)) if not vertical else (W // 2, int(H * 0.2), int(W * 0.36))
     gd.ellipse([cx - R, cy - R, cx + R, cy + R], fill=accent + (90,))
     glow = glow.filter(ImageFilter.GaussianBlur(R // 2))
     img = Image.alpha_composite(base.convert("RGBA"), glow)
@@ -139,7 +145,7 @@ def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None
     # Mood tag chip.
     tag_font = _font(int(H * (0.024 if vertical else 0.034)))
     tw = draw.textlength(tag, font=tag_font)
-    ty = int(H * (0.52 if vertical else 0.12))
+    ty = int(H * (0.4 if vertical else 0.12))
     pad = int(tag_font.size * 0.55)
     draw.rounded_rectangle([margin, ty, margin + tw + 2 * pad, ty + tag_font.size + 2 * pad],
                            radius=pad, fill=accent + (255,))
@@ -149,7 +155,7 @@ def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None
     title = (title or "").strip() or "New Story"
     if not _latin(title):
         title = tag.title()
-    size_px = int(H * (0.075 if vertical else 0.13))
+    size_px = int(H * (0.085 if vertical else 0.13))
     while True:
         tf = _font(size_px)
         lines = _wrap(draw, title.upper(), tf, text_w)
@@ -165,12 +171,22 @@ def make_thumbnail(title: str, out_path: str, hook: str = None, mood: str = None
 
     # Hook line.
     if hook and _latin(hook):
-        hf = _font(int(size_px * 0.36))
+        hf = _font(int(H * 0.036) if vertical else int(size_px * 0.36))
         hook_lines = _wrap(draw, hook.strip(), hf, text_w)[:2]
         y += int(H * 0.015)
         for line in hook_lines:
-            draw.text((margin, y), line, font=hf, fill=(235, 240, 255), stroke_width=2, stroke_fill=(0, 0, 0))
+            draw.text((margin, y), line, font=hf, fill=(235, 240, 255), stroke_width=3, stroke_fill=(0, 0, 0))
             y += int(hf.size * 1.25)
+
+    # Call-to-action chip: the reason to keep watching.
+    if cta:
+        cf = _font(int(H * 0.042) if vertical else int(size_px * 0.34))
+        cpad = int(cf.size * 0.45)
+        y += int(H * 0.02)
+        cw = draw.textlength(cta, font=cf)
+        draw.rounded_rectangle([margin, y, margin + cw + 2 * cpad, y + cf.size + 2 * cpad],
+                               radius=cpad, fill=(255, 215, 0), outline=(0, 0, 0), width=4)
+        draw.text((margin + cpad, y + cpad * 0.8), cta, font=cf, fill=(15, 10, 20))
 
     # Brand strip + accent bar.
     bf = _font(int(H * (0.018 if vertical else 0.026)))
@@ -267,17 +283,26 @@ def append_endcard(video_in: str, video_out: str, image: str = None, seconds: fl
 
 
 def prepend_thumbnail(video_in: str, thumb: str, video_out: str, seconds: float = 1.5,
-                      fade: float = 0.5, embed_cover: bool = True) -> str:
+                      fade: float = 0.5, embed_cover: bool = True, overlay: bool = False) -> str:
     """Hold `thumb` for `seconds`, cross-fade into `video_in`, shift its audio to match,
-    and (optionally) embed `thumb` as cover art. video_in and video_out may be the same path."""
+    and (optionally) embed `thumb` as cover art. video_in and video_out may be the same path.
+    With `overlay`, the thumbnail covers the video's first `seconds` instead and fades out,
+    so the opening audio (e.g. the narrator asking the puzzle) plays under it."""
     w, h, fps, has_audio, _ = _probe(video_in)
     hold = seconds + fade
-    vf = (f"[1:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
-          f"fps={fps},format=yuv420p,settb=AVTB[t];"
-          f"[0:v]scale={w}:{h},setsar=1,fps={fps},format=yuv420p,settb=AVTB[m];"
-          f"[t][m]xfade=transition=fade:duration={fade}:offset={seconds}[v]")
+    thumb_v = (f"[1:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,"
+               f"fps={fps},format=yuv420p,settb=AVTB")
+    if overlay:
+        vf = (f"{thumb_v},format=yuva420p,fade=t=out:st={seconds}:d={fade}:alpha=1[t];"
+              f"[0:v]setsar=1,format=yuv420p[m];[m][t]overlay=eof_action=pass,format=yuv420p[v]")
+    else:
+        vf = (f"{thumb_v}[t];"
+              f"[0:v]scale={w}:{h},setsar=1,fps={fps},format=yuv420p,settb=AVTB[m];"
+              f"[t][m]xfade=transition=fade:duration={fade}:offset={seconds}[v]")
     maps = ["-map", "[v]"]
-    if has_audio:
+    if has_audio and overlay:
+        maps += ["-map", "0:a"]
+    elif has_audio:
         ms = int(seconds * 1000)
         vf += f";[0:a]adelay={ms}|{ms}[a]"
         maps += ["-map", "[a]"]
@@ -296,7 +321,7 @@ def prepend_thumbnail(video_in: str, thumb: str, video_out: str, seconds: float 
     cmd += ["-movflags", "+faststart", tmp_out]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace")
     if res.returncode != 0 and embed_cover:
-        return prepend_thumbnail(video_in, thumb, video_out, seconds, fade, embed_cover=False)
+        return prepend_thumbnail(video_in, thumb, video_out, seconds, fade, embed_cover=False, overlay=overlay)
     if res.returncode != 0:
         raise RuntimeError(res.stderr[-800:])
     shutil.move(tmp_out, video_out)

@@ -98,8 +98,11 @@ def render_3d_pixar_frame(
     width: int = 1920,
     height: int = 1080
 ):
-    """Render high-resolution 1080p 3D Pixar scene layout."""
+    """Render high-resolution 1080p 3D Pixar scene layout (16:9, or 9:16 when height > width)."""
     palette = PALETTES.get(palette_key, PALETTES["pixar_warm"])
+    if height > width:
+        return _render_vertical_frame(output_png_path, title, subtitle, character_name, scene_tag,
+                                      palette, width, height)
     img = Image.new("RGBA", (width, height), (0, 0, 0, 255))
     draw = ImageDraw.Draw(img)
     
@@ -155,6 +158,59 @@ def render_3d_pixar_frame(
 
     img.convert("RGB").save(output_png_path, "PNG")
     return output_png_path
+
+def _render_vertical_frame(output_png_path, title, subtitle, character_name, scene_tag, palette, width, height):
+    """9:16 reel layout: badges on top, character card in the middle, subtitle bubble below.
+    Text is wrapped to the narrow width and kept clear of the reel UI at the bottom."""
+    from thumbnail_engine import _font, _latin, _wrap
+    img = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    draw = ImageDraw.Draw(img)
+    top_c, bot_c = palette["bg_top"], palette["bg_bottom"]
+    for y in range(height):
+        r = y / float(height)
+        draw.line([(0, y), (width, y)], fill=tuple(int(top_c[i] * (1 - r) + bot_c[i] * r) for i in range(3)) + (255,))
+    glow, accent = palette["glow"], palette["accent"]
+    for rad in range(420, 30, -20):
+        a = int(30 * (1.0 - rad / 420.0))
+        draw.ellipse([(width - 200 - rad, 260 - rad), (width - 200 + rad, 260 + rad)], fill=glow + (a,))
+    for rad in range(360, 30, -20):
+        a = int(25 * (1.0 - rad / 360.0))
+        draw.ellipse([(160 - rad, height - 420 - rad), (160 + rad, height - 420 + rad)], fill=accent + (a,))
+
+    m = 70
+    badge_f = _font(30)
+    draw.rounded_rectangle([(m, 110), (width - m, 190)], radius=18, fill=(15, 20, 35, 230), outline=accent, width=3)
+    draw.text((width // 2, 150), "3D PIXAR ANIMATION", font=badge_f, fill=accent, anchor="mm")
+    draw.text((width // 2, 240), scene_tag.upper(), font=_font(28), fill=(220, 235, 255), anchor="mm")
+
+    card = [(m, 320), (width - m, 1280)]
+    draw.rounded_rectangle(card, radius=32, fill=palette["card_bg"], outline=accent, width=4)
+    cx, cy = width // 2, 560
+    draw.ellipse([(cx - 170, cy - 170), (cx + 170, cy + 170)], fill=(30, 15, 55), outline=accent, width=6)
+    draw.ellipse([(cx - 120, cy - 120), (cx + 120, cy + 120)], fill=glow + (120,))
+    if _latin(character_name):
+        draw.text((cx, 790), character_name, font=_font(40), fill=accent, anchor="mm")
+    text_w = width - 2 * m - 80
+    tf = _font(64)
+    y = 860
+    for line in (_wrap(draw, title, tf, text_w) if _latin(title) else [])[:3]:
+        draw.text((cx, y), line, font=tf, fill=(255, 255, 255), anchor="ma", stroke_width=3, stroke_fill=(0, 0, 0))
+        y += 78
+
+    if subtitle and _latin(subtitle):
+        sf = _font(42)
+        lines = _wrap(draw, f'"{subtitle}"', sf, text_w)[:3]
+        bh = 60 + 56 * len(lines)
+        draw.rounded_rectangle([(m, 1340), (width - m, 1340 + bh)], radius=24, fill=(12, 18, 36, 230),
+                               outline=(110, 130, 180), width=3)
+        y = 1370
+        for line in lines:
+            draw.text((cx, y), line, font=sf, fill=(240, 245, 255), anchor="ma")
+            y += 56
+    img.convert("RGB").save(output_png_path, "PNG")
+    return output_png_path
+
+VIDEO_SIZES = {"9:16": (1080, 1920), "16:9": (1920, 1080)}
 
 GEMINI_SCRIPT_MODELS = os.environ.get(
     "GEMINI_SCRIPT_MODELS", "gemini-3.6-flash,gemini-flash-lite-latest,gemini-2.5-flash").split(",")
@@ -286,11 +342,15 @@ async def render_hybrid_video(
     character_name: str = "Chhotu & Didi",
     language: str = "hi",
     music_info: dict = None,
-    script_info: dict = None
+    script_info: dict = None,
+    aspect: str = None
 ):
     """Ultra-fast, high-definition 3D Pixar animated video compositor.
-    If `music_info` / `script_info` are dicts they are filled with the soundtrack
-    details (mood, source, credit) and the narration (title, narration, source)."""
+    `aspect` is "9:16" (reel, default via STUDIO_VIDEO_ASPECT) or "16:9"; the outro and end
+    card are picked to match. If `music_info` / `script_info` are dicts they are filled with
+    the soundtrack details (mood, source, credit) and the narration (title, narration, source)."""
+    aspect = aspect or os.environ.get("STUDIO_VIDEO_ASPECT", "9:16")
+    width, height = VIDEO_SIZES.get(aspect, VIDEO_SIZES["9:16"])
     from music_engine import build_soundtrack, detect_mood, mix_filter
     work_dir = os.path.dirname(os.path.abspath(output_mp4_path))
     os.makedirs(work_dir, exist_ok=True)
@@ -309,6 +369,7 @@ async def render_hybrid_video(
     script = await write_story_script(story_prompt, language, mood)
     if script_info is not None:
         script_info.update(script)
+        script_info["size"] = (width, height)
 
     # 2. Render 1080p Visual Scene
     render_3d_pixar_frame(
@@ -317,7 +378,9 @@ async def render_hybrid_video(
         subtitle=script["subtitle"],
         character_name=f"{script['characters']} (3D Pixar)",
         scene_tag=f"Scene 1: {mood.title()}",
-        palette_key=MOOD_PALETTES.get(mood, "pixar_warm")
+        palette_key=MOOD_PALETTES.get(mood, "pixar_warm"),
+        width=width,
+        height=height
     )
 
     # 3. Synthesize Edge-TTS Speech
@@ -344,7 +407,7 @@ async def render_hybrid_video(
         "-i", voice_path,
         "-i", music_path,
         "-filter_complex",
-        f"[0:v]zoompan=z='min(zoom+0.0008,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1920x1080:fps=25[v];"
+        f"[0:v]zoompan=z='min(zoom+0.0008,1.15)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s={width}x{height}:fps=25[v];"
         + mix_filter(voice_input=1, music_input=2, voice_delay=lead_in, total_sec=total),
         "-map", "[v]",
         "-map", "[a]",
@@ -378,16 +441,20 @@ async def render_hybrid_video(
         except Exception as e:
             print(f"[hybrid_video_engine] end card skipped: {e}")
 
-    # 8. Puzzle-hook thumbnail: saved as <video>_thumb.jpg, shown as the opening
-    #    frames and embedded as cover art. Any failure leaves the video as it is.
-    if os.environ.get("STUDIO_VIDEO_THUMBNAIL", "1") != "0":
+    # 8. Puzzle-hook thumbnail (off by default: thumbnails are made separately in ChatGPT;
+    #    set STUDIO_VIDEO_THUMBNAIL=1 to turn it back on). Saved as <video>_thumb.jpg, embedded
+    #    as cover art and laid over the opening seconds while the narrator asks the puzzle
+    #    question. Any failure leaves the video as it is.
+    if os.environ.get("STUDIO_VIDEO_THUMBNAIL", "0") != "0":
         try:
             from thumbnail_engine import make_thumbnail, prepend_thumbnail
             thumb_path = os.path.splitext(output_mp4_path)[0] + "_thumb.jpg"
             make_thumbnail(script["title"], thumb_path, mood=mood, background=frame_path,
-                           question=script.get("hook_question"))
+                           question=script.get("hook_question"), teaser=script.get("subtitle"),
+                           size=(width, height))
             prepend_thumbnail(output_mp4_path, thumb_path, output_mp4_path,
-                              seconds=float(os.environ.get("STUDIO_THUMBNAIL_SECONDS", "1.5")))
+                              seconds=float(os.environ.get("STUDIO_THUMBNAIL_SECONDS", "2.5")),
+                              overlay=True)
             if script_info is not None:
                 script_info["thumbnail"] = thumb_path
         except Exception as e:

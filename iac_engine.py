@@ -53,7 +53,13 @@ _DESTROY_RE = re.compile(
 )
 
 
+_MEDIA_RE = re.compile(r"\b(?:video|reel|trailer|thumbnail|animation|voice-?over|storyboard|shot list)\b")
+
+
 def is_iac_request(prompt_lower: str) -> bool:
+    # A video/creative brief *about* the Terraform feature is not a deployment request.
+    if _MEDIA_RE.search(prompt_lower):
+        return False
     if any(w in prompt_lower for w in _IAC_WORDS):
         return True
     if any(w in prompt_lower for w in _PIPELINE_WORDS) and any(w in prompt_lower for w in _INFRA_WORDS):
@@ -501,7 +507,9 @@ async def _create(prompt, clock, github_user, github_token) -> dict:
     aws_ready = bool(role and bucket)
     gh = GitHub(token)
     owner = await loop.run_in_executor(None, gh.login)
-    repo = await loop.run_in_executor(None, gh.create_repo, spec["name"], f"Terraform stack generated from one prompt: {prompt[:120]}")
+    # GitHub rejects descriptions with control characters (newlines, tabs) -- flatten the prompt.
+    one_line = " ".join(prompt.split())
+    repo = await loop.run_in_executor(None, gh.create_repo, spec["name"], f"Terraform stack generated from one prompt: {one_line[:120]}")
     branch = repo.get("default_branch") or "main"
     clock.log(f"📁 Created repo {repo['html_url']}")
     await loop.run_in_executor(None, gh.commit_files, owner, spec["name"], branch, files,
@@ -612,8 +620,8 @@ async def run_iac_mission(prompt: str, on_log: Callable[[str], None], github_use
         hint = ""
         if e.status in (401, 403):
             hint = " The GitHub token needs the `repo` and `workflow` scopes."
-        elif e.status == 422:
-            hint = " (A repo with that name may already exist.)"
+        elif e.status == 422 and "already exists" in str(e):
+            hint = " (A repo with that name already exists.)"
         clock.log(f"❌ GitHub error: {e}")
         return {"markdown": f"❌ GitHub rejected the request: {e}.{hint}", "deliverable": None}
     except Exception as e:

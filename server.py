@@ -4032,9 +4032,14 @@ def is_powerbi_dashboard_build_request(prompt_lower: str) -> bool:
     has_data_source = any(s in prompt_lower for s in ("sharepoint", "csv", "data", "file", "files"))
     return (has_pbi and has_build and has_data_source) or (("pbix" in prompt_lower or "pbip" in prompt_lower or "powerbi" in prompt_lower or "power bi" in prompt_lower) and has_build)
 
+_MEDIA_BRIEF_RE = re.compile(r"\b(?:video|reel|trailer|thumbnail|animation|voice-?over|storyboard|shot list)\b")
+
 def is_mutation_request(prompt_lower: str) -> bool:
     # Power BI Dashboard builds from SharePoint are handled by the native Python TMDL engine
     if is_powerbi_dashboard_build_request(prompt_lower):
+        return False
+    # A video / marketing brief that *mentions* repos, pipelines or AWS creates media, not infrastructure.
+    if _MEDIA_BRIEF_RE.search(prompt_lower):
         return False
     # Presentation / reporting requests ("create a table / tabular view / summary") are NOT infrastructure mutations.
     is_presentation = any(p in prompt_lower for p in _PRESENTATION_EXCLUSIONS)
@@ -4103,25 +4108,27 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
         music_src = {"library": "royalty-free library track", "midi": "original score (FluidSynth + GeneralUser GS)",
                      "synth": "original score (built-in synthesizer)"}.get(music_info.get("source"), "synthesized")
         tasks[task_id]["logs"].append(f"[00:03] 🎵 Soundtrack: {music_info.get('mood', '?')} mood, {music_src}, ducked under voice, -14 LUFS master")
-        tasks[task_id]["logs"].append("[00:04] 🎥 Full HD 1080p FFmpeg motion compositing & audio multiplexing complete!")
+        vw, vh = script_info.get("size", (1920, 1080))
+        shape = "9:16 reel" if vh > vw else "16:9"
+        tasks[task_id]["logs"].append(f"[00:04] 🎥 Full HD {vw}x{vh} ({shape}) FFmpeg motion compositing & audio multiplexing complete!")
         tasks[task_id]["answer"] = (
             "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
             "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + FFmpeg 2.5D Compositor)\n"
             f"• **Story:** {script_info.get('title', '')}: \"{script_info.get('narration', '')}\"\n"
-            + (f"• **Thumbnail puzzle:** {script_info['hook_question']} (answer revealed at the end)\n"
+            + (f"• **Puzzle hook:** {script_info['hook_question']} (asked at the start, answer revealed at the end; use it as the thumbnail headline)\n"
                if script_info.get("hook_question") else "")
-            + ("• **Outro:** Studio presenter clip appended\n" if script_info.get("outro") else "")
-            + ("• **End card:** Like / Follow / Subscribe card on the last frames\n" if script_info.get("endcard") else "")
+            + ("• **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
+            + ("• **End card:** Follow / Like / Subscribe + WhatsApp community card on the last frames\n" if script_info.get("endcard") else "")
             +
             f"• **Music:** {music_info.get('mood', 'default').title()} mood, {music_src}\n"
-            "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
+            f"• **Resolution:** 1080p Full HD {shape} ({vw}x{vh} @ 25fps, H.264 / AAC)\n"
             "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
             "• **Throughput:** Ready for 1,000+ videos/day automated batch pipeline."
             + (f"\n• **Music credit:** {music_info['credit']}" if music_info.get("credit") else "")
         )
         tasks[task_id]["deliverable"] = {
             "type": "video",
-            "title": "🎬 3D Pixar Animated Story (Full HD 1080p)",
+            "title": f"🎬 3D Pixar Animated Story (Full HD 1080p, {shape})",
             "url": f"./Hybrid_Pixar_Demo_1080p.mp4?v={task_id}"
         }
         if script_info.get("thumbnail"):
