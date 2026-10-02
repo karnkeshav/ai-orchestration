@@ -4032,14 +4032,9 @@ def is_powerbi_dashboard_build_request(prompt_lower: str) -> bool:
     has_data_source = any(s in prompt_lower for s in ("sharepoint", "csv", "data", "file", "files"))
     return (has_pbi and has_build and has_data_source) or (("pbix" in prompt_lower or "pbip" in prompt_lower or "powerbi" in prompt_lower or "power bi" in prompt_lower) and has_build)
 
-_MEDIA_BRIEF_RE = re.compile(r"\b(?:video|reel|trailer|thumbnail|animation|voice-?over|storyboard|shot list)\b")
-
 def is_mutation_request(prompt_lower: str) -> bool:
     # Power BI Dashboard builds from SharePoint are handled by the native Python TMDL engine
     if is_powerbi_dashboard_build_request(prompt_lower):
-        return False
-    # A video / marketing brief that *mentions* repos, pipelines or AWS creates media, not infrastructure.
-    if _MEDIA_BRIEF_RE.search(prompt_lower):
         return False
     # Presentation / reporting requests ("create a table / tabular view / summary") are NOT infrastructure mutations.
     is_presentation = any(p in prompt_lower for p in _PRESENTATION_EXCLUSIONS)
@@ -4057,117 +4052,9 @@ def is_shopping_mission_query(prompt_lower: str, image_data: Optional[str] = Non
     ]) or bool(image_data)
 
 _VIDEO_KEYWORDS = ("pixar", "story", "brother", "video", "disney", "cartoon")
-_PIXAR_STORY_KEYWORDS = ("pixar", "disney", "cartoon", "story", "brother")
 
 def is_video_mission_query(prompt_lower: str) -> bool:
     return any(k in prompt_lower for k in _VIDEO_KEYWORDS)
-
-def is_hollywood_video_brief(prompt_lower: str) -> bool:
-    """A video / trailer / reel brief that is not a Pixar-style story (e.g. a Hollywood promo
-    with a shot list). These get the multi-scene engine; the Pixar engine only makes a
-    single-image story video."""
-    return bool(_MEDIA_BRIEF_RE.search(prompt_lower)) and not any(k in prompt_lower for k in _PIXAR_STORY_KEYWORDS)
-
-AGY_IMAGES_PER_TURN = int(os.environ.get("AGY_IMAGES_PER_TURN", 3))  # small turns: a hang loses less
-AGY_IMAGE_SESSIONS = int(os.environ.get("AGY_IMAGE_SESSIONS", 3))  # agy processes generating in parallel
-AGY_IMAGE_BATCH_SECONDS = int(os.environ.get("AGY_IMAGE_BATCH_SECONDS", 150))  # ~13 s/image + overhead
-AGY_IMAGE_BUDGET_SECONDS = int(os.environ.get("AGY_IMAGE_BUDGET_SECONDS", 6 * 60))
-
-async def _agy_generate_images(task_id: str, jobs: list):
-    """Ask agy to generate the scene images (its built-in image model, as for the Fabric video).
-    Several dedicated agy sessions work through small batches in parallel (separate from the chat
-    session, so Studio requests are not blocked); a batch that overruns is cut off and its session
-    restarted; one retry pass for missing scenes while the time budget allows. The engine turns
-    any scene still missing into a new angle of a real image."""
-    started = time.monotonic()
-    pool = AgyWarmPool(AGY_IMAGE_SESSIONS)
-    try:
-        for attempt in range(2):
-            todo = [j for j in jobs if not os.path.exists(j["path"])]
-            if not todo or time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
-                break
-            if attempt:
-                tasks[task_id]["logs"].append(f"[00:02] 🔁 Retrying {len(todo)} missing scene image(s)...")
-            queue = asyncio.Queue()
-            for start in range(0, len(todo), AGY_IMAGES_PER_TURN):
-                queue.put_nowait(todo[start:start + AGY_IMAGES_PER_TURN])
-
-            async def worker(session):
-                while not queue.empty():
-                    batch = queue.get_nowait()
-                    if time.monotonic() - started > AGY_IMAGE_BUDGET_SECONDS:
-                        continue
-                    await _agy_image_batch(task_id, session, batch, len(jobs))
-
-            await asyncio.gather(*(worker(s) for s in pool.sessions))
-        made = sum(os.path.exists(j["path"]) for j in jobs)
-        tasks[task_id]["logs"].append(
-            f"[00:02] 🖼️ {made}/{len(jobs)} scene images generated in {int(time.monotonic() - started)} s")
-    finally:
-        for s in pool.sessions:  # these sessions exist only for this video
-            await s._kill()
-
-async def _agy_image_batch(task_id: str, session, batch: list, total: int):
-    batch = [j for j in batch if not os.path.exists(j["path"])]
-    if batch:
-        w, h = batch[0]["size"]
-        shape = "16:9 landscape" if w > h else "9:16 vertical"
-        lines = "\n".join(f'{n + 1}. Save to {_agy_path(j["path"])}\n   Image: {j["prompt"]}'
-                          for n, j in enumerate(batch))
-        prompt = (
-            f"Generate {len(batch)} separate images with your image generation tool, one per item below. "
-            f"Each must be a photorealistic cinematic film still in {shape} format with no text, letters "
-            "or logos. Save each image as a PNG file at exactly the path given (create folders if "
-            "needed, convert the format if your tool saves elsewhere). Do not do anything else. "
-            "When finished, reply with the list of saved paths.\n\n" + lines)
-        scenes = ", ".join(str(j["index"] + 1) for j in batch)
-        tasks[task_id]["logs"].append(f"[00:02] 🎨 Antigravity generating images for scenes {scenes} (of {total})...")
-        try:
-            await asyncio.wait_for(session.run_turn(prompt, task_id), timeout=AGY_IMAGE_BATCH_SECONDS)
-        except asyncio.TimeoutError:
-            tasks[task_id]["logs"].append(f"[00:02] ⏱️ Image batch for scenes {scenes} took over "
-                                          f"{AGY_IMAGE_BATCH_SECONDS} s; restarting that agy session.")
-            await session._kill()  # it is mid-turn; a fresh process serves the next batch
-        except Exception as e:
-            tasks[task_id]["logs"].append(f"[00:02] ⚠️ Image batch failed ({str(e)[:120]}).")
-        made = sum(os.path.exists(j["path"]) for j in batch)
-        tasks[task_id]["logs"].append(f"[00:02] 🖼️ {made}/{len(batch)} images saved in this batch")
-
-async def run_hollywood_video_mission(task_id: str, prompt: str):
-    """Hollywood-style multi-scene promo (hollywood_video_engine.py): shot list or Gemini scene
-    plan, one agy-generated image per scene, camera moves, transitions, trailer voiceover,
-    music + SFX, then the studio outro and end card for the video's shape."""
-    from hollywood_video_engine import render_hollywood_video
-    out_name = "Studio_Hollywood_Video.mp4"
-    target_video = os.path.join(base_dir, out_name)
-    script_info, music_info = {}, {}
-    log = lambda m: tasks[task_id]["logs"].append(f"[00:0X] 🎬 {m}")
-    tasks[task_id]["logs"].append("[00:01] 🎬 Hollywood video brief recognised: planning scenes...")
-    try:
-        await render_hollywood_video(prompt, target_video, script_info=script_info, music_info=music_info,
-                                     on_log=log, image_generator=lambda jobs: _agy_generate_images(task_id, jobs))
-    except Exception as e:
-        tasks[task_id]["logs"].append(f"[00:0X] ⚠️ Hollywood renderer failed: {str(e)[:300]}")
-        tasks[task_id]["answer"] = f"⚠️ The video could not be rendered ({str(e)[:200]}). Nothing was published."
-        tasks[task_id]["deliverable"] = None
-        tasks[task_id]["status"] = "COMPLETED"
-        return
-    vw, vh = script_info.get("size", (1920, 1080))
-    shape = "9:16 reel" if vh > vw else "16:9"
-    plan = {"shot list": "your shot list", "gemini": "Gemini scene plan", "template": "built-in template"}
-    tasks[task_id]["answer"] = (
-        "✓ **Hollywood-style Video Rendered!**\n\n"
-        f"• **Scenes:** {script_info.get('scenes')} (from {plan.get(script_info.get('plan_source'), 'plan')}), "
-        f"{script_info.get('ai_images', 0)} AI-generated images\n"
-        f"• **Main film:** {script_info.get('main_seconds')} s, {shape} ({vw}x{vh})\n"
-        "• **Camera & edit:** a camera move per scene, trailer transitions, act tags, title cards, burned-in subtitles\n"
-        f"• **Sound:** trailer voiceover, {music_info.get('mood', 'cinematic')} music ducked under the voice, whoosh/boom effects\n"
-        + ("• **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
-        + ("• **End card:** Follow / Like / Subscribe + WhatsApp community card\n" if script_info.get("endcard") else "")
-        + (f"• **Music credit:** {music_info['credit']}\n" if music_info.get("credit") else ""))
-    tasks[task_id]["deliverable"] = {"type": "video", "title": f"🎬 Hollywood-style Video ({shape})",
-                                     "url": f"./{out_name}?v={task_id}"}
-    tasks[task_id]["status"] = "COMPLETED"
 
 _RIDE_PROVIDER_KEYWORDS = ("ola", "uber", "rapido")
 _RIDE_INTENT_KEYWORDS = ("fare", "fares", "cab", "cabs", "ride", "compare", "cheaper", "cheapest", "book")
@@ -4203,44 +4090,25 @@ async def run_pixar_video_mission(task_id: str, prompt: str, prompt_lower: str):
     try:
         from hybrid_video_engine import render_hybrid_video
         target_video = os.path.join(base_dir, "Hybrid_Pixar_Demo_1080p.mp4")
-        music_info, script_info = {}, {}
         await render_hybrid_video(
             story_prompt=prompt,
             output_mp4_path=target_video,
             character_name="Chhotu & Didi (3D Pixar)",
-            language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en",
-            music_info=music_info,
-            script_info=script_info
+            language="hi" if any(k in prompt_lower for k in ["hindi", "chhotu", "didi", "bhai", "behan"]) else "en"
         )
-        tasks[task_id]["logs"].append(f"[00:03] ✍️ Narration ({'Gemini' if script_info.get('source') == 'gemini' else 'template'}): {script_info.get('narration', '')[:160]}")
-        music_src = {"library": "royalty-free library track", "midi": "original score (FluidSynth + GeneralUser GS)",
-                     "synth": "original score (built-in synthesizer)"}.get(music_info.get("source"), "synthesized")
-        tasks[task_id]["logs"].append(f"[00:03] 🎵 Soundtrack: {music_info.get('mood', '?')} mood, {music_src}, ducked under voice, -14 LUFS master")
-        vw, vh = script_info.get("size", (1920, 1080))
-        shape = "9:16 reel" if vh > vw else "16:9"
-        tasks[task_id]["logs"].append(f"[00:04] 🎥 Full HD {vw}x{vh} ({shape}) FFmpeg motion compositing & audio multiplexing complete!")
+        tasks[task_id]["logs"].append("[00:04] 🎥 Full HD 1080p FFmpeg motion compositing & audio multiplexing complete!")
         tasks[task_id]["answer"] = (
             "✓ **3D Pixar & Disney Animated Story Video Rendered Successfully!**\n\n"
-            "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + FFmpeg 2.5D Compositor)\n"
-            f"• **Story:** {script_info.get('title', '')}: \"{script_info.get('narration', '')}\"\n"
-            + (f"• **Puzzle hook:** {script_info['hook_question']} (asked at the start, answer revealed at the end; use it as the thumbnail headline)\n"
-               if script_info.get("hook_question") else "")
-            + ("• **Outro:** Studio promo clip appended\n" if script_info.get("outro") else "")
-            + ("• **End card:** Follow / Like / Subscribe + WhatsApp community card on the last frames\n" if script_info.get("endcard") else "")
-            +
-            f"• **Music:** {music_info.get('mood', 'default').title()} mood, {music_src}\n"
-            f"• **Resolution:** 1080p Full HD {shape} ({vw}x{vh} @ 25fps, H.264 / AAC)\n"
+            "• **Engine:** Local Hybrid Video Pipeline (Edge-TTS + Synthetic Harmonics + FFmpeg 2.5D Compositor)\n"
+            "• **Resolution:** 1080p Full HD (1920x1080 @ 25fps, H.264 / AAC)\n"
             "• **API Quotas Consumed:** **0 Canva AI Credits** (100% Unrestricted Local Rendering)\n"
             "• **Throughput:** Ready for 1,000+ videos/day automated batch pipeline."
-            + (f"\n• **Music credit:** {music_info['credit']}" if music_info.get("credit") else "")
         )
         tasks[task_id]["deliverable"] = {
             "type": "video",
-            "title": f"🎬 3D Pixar Animated Story (Full HD 1080p, {shape})",
-            "url": f"./Hybrid_Pixar_Demo_1080p.mp4?v={task_id}"
+            "title": "🎬 3D Pixar Animated Story (Full HD 1080p)",
+            "url": "./Hybrid_Pixar_Demo_1080p.mp4"
         }
-        if script_info.get("thumbnail"):
-            tasks[task_id]["deliverable"]["poster"] = f"./{os.path.basename(script_info['thumbnail'])}?v={task_id}"
     except Exception as vid_err:
         tasks[task_id]["logs"].append(f"[00:03] ⚠️ Local renderer fallback: {str(vid_err)}")
         tasks[task_id]["answer"] = "✓ 65-Second 3D Pixar Animated Hindi Story Video delivered successfully!"
@@ -5071,7 +4939,7 @@ class AgyWarmSession:
             async for raw in proc.stderr:
                 line = raw.decode("utf-8", errors="ignore").strip()
                 if line:
-                    print(f"[agy stderr] {line}", flush=True)  # unflushed, it never reaches the journal
+                    print(f"[agy stderr] {line}")
         except Exception:
             pass
 
@@ -5494,11 +5362,6 @@ async def _run_pipeline_tiers(
     # would be sent to agy as a raw mutation.
     if not image_data and _is_iac_request(prompt_lower):
         await run_iac_pipeline(task_id, prompt, github_user=github_user, github_token=github_token)
-        return
-    # Hollywood / promo / trailer video briefs get the multi-scene engine, not the single-image
-    # Pixar engine and not the create/delete path.
-    if not image_data and is_hollywood_video_brief(prompt_lower):
-        await run_hollywood_video_mission(task_id, prompt)
         return
     # Mutation-shaped requests skip every keyword fast-path and go straight
     # to agy -- see is_mutation_request's docstring/comment for why. If agy
